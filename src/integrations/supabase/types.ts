@@ -14,16 +14,199 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      creators: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          name: string
+          platform: string
+          profile_url: string | null
+          total_videos: number | null
+          total_views: number | null
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          platform: string
+          profile_url?: string | null
+          total_videos?: number | null
+          total_views?: number | null
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          platform?: string
+          profile_url?: string | null
+          total_videos?: number | null
+          total_views?: number | null
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      daily_views: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          video_id: string
+          views: number
+          views_gained: number | null
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          id?: string
+          video_id: string
+          views: number
+          views_gained?: number | null
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          video_id?: string
+          views?: number
+          views_gained?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_views_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          id: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      videos: {
+        Row: {
+          comments: number | null
+          created_at: string
+          creator_id: string
+          hashtags: string[] | null
+          id: string
+          likes: number | null
+          platform: string
+          posted_at: string | null
+          shares: number | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          video_url: string
+          views: number | null
+        }
+        Insert: {
+          comments?: number | null
+          created_at?: string
+          creator_id: string
+          hashtags?: string[] | null
+          id?: string
+          likes?: number | null
+          platform: string
+          posted_at?: string | null
+          shares?: number | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          video_url: string
+          views?: number | null
+        }
+        Update: {
+          comments?: number | null
+          created_at?: string
+          creator_id?: string
+          hashtags?: string[] | null
+          id?: string
+          likes?: number | null
+          platform?: string
+          posted_at?: string | null
+          shares?: number | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          video_url?: string
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "videos_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +333,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
