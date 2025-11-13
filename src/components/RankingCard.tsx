@@ -2,20 +2,15 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Medal, Award } from "lucide-react";
 
-interface RankingItem {
+interface RankingCardProps {
   rank: number;
   name: string;
-  value: string;
+  views: string;
   avatar?: string;
   change?: number;
 }
 
-interface RankingCardProps {
-  title: string;
-  items: RankingItem[];
-}
-
-export const RankingCard = ({ title, items }: RankingCardProps) => {
+export const RankingCard = ({ rank, name, views, avatar, change }: RankingCardProps) => {
   const getRankIcon = (rank: number) => {
     switch(rank) {
       case 1:
@@ -30,29 +25,19 @@ export const RankingCard = ({ title, items }: RankingCardProps) => {
   };
 
   return (
-    <Card className="p-6 bg-gradient-to-br from-card to-card/50 border-border/50">
-      <h3 className="text-lg font-semibold mb-4 text-foreground">{title}</h3>
-      <div className="space-y-3">
-        {items.map((item) => (
-          <div 
-            key={item.rank}
-            className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
-          >
-            <div className="flex items-center justify-center w-8">
-              {getRankIcon(item.rank)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground truncate">{item.name}</p>
-              <p className="text-sm text-muted-foreground">{item.value}</p>
-            </div>
-            {item.change !== undefined && (
-              <Badge variant={item.change > 0 ? "default" : "secondary"} className="text-xs">
-                {item.change > 0 ? "+" : ""}{item.change}
-              </Badge>
-            )}
-          </div>
-        ))}
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
+      <div className="flex items-center justify-center w-8">
+        {getRankIcon(rank)}
       </div>
-    </Card>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-foreground truncate">{name}</p>
+        <p className="text-sm text-muted-foreground">{views}</p>
+      </div>
+      {change !== undefined && (
+        <Badge variant={change > 0 ? "default" : "secondary"} className="text-xs">
+          {change > 0 ? "+" : ""}{change}
+        </Badge>
+      )}
+    </div>
   );
 };

@@ -100,7 +100,7 @@ function IndexContent() {
                   <CardTitle className="text-foreground">Tendência de Views</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <TrendChart data={trendData} />
+                  <TrendChart title="Tendência de Views" data={trendData} />
                 </CardContent>
               </Card>
 
@@ -113,7 +113,6 @@ function IndexContent() {
                     {topVideosToday.map((video) => (
                       <VideoCard 
                         key={video.id}
-                        id={video.id}
                         thumbnail={video.thumbnail_url || "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400"}
                         title={video.title}
                         views={video.views}
