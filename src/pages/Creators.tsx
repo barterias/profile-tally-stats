@@ -26,7 +26,7 @@ function CreatorsContent() {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { signOut, isAdmin } = useAuth();
+  const { signOut } = useAuth();
 
   const { data: creators } = useQuery({
     queryKey: ["creators"],
@@ -129,11 +129,11 @@ function CreatorsContent() {
       <nav className="border-b border-white/10 bg-card-dark/50 backdrop-blur">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <h1 className="text-xl font-bold text-foreground">Admin Dashboard</h1>
+            <h1 className="text-xl font-bold text-foreground">Gerenciar Creators</h1>
             <div className="flex gap-2">
-              <NavLink to="/">Rankings</NavLink>
-              {isAdmin && <NavLink to="/admin">Gerenciar Vídeos</NavLink>}
-              {isAdmin && <NavLink to="/creators">Criadores</NavLink>}
+              <NavLink to="/">Dashboard</NavLink>
+              <NavLink to="/admin">Adicionar Vídeo</NavLink>
+              <NavLink to="/creators">Creators</NavLink>
             </div>
           </div>
           <Button variant="outline" onClick={signOut}>Sair</Button>
@@ -249,7 +249,7 @@ function CreatorsContent() {
 
 export default function Creators() {
   return (
-    <ProtectedRoute requireAdmin>
+    <ProtectedRoute>
       <CreatorsContent />
     </ProtectedRoute>
   );

@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 function IndexContent() {
-  const { signOut, isAdmin } = useAuth();
+  const { signOut } = useAuth();
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -82,24 +82,20 @@ function IndexContent() {
               >
                 Dashboard
               </NavLink>
-              {isAdmin && (
-                <>
-                  <NavLink
-                    to="/creators"
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                    activeClassName="text-primary font-medium"
-                  >
-                    Creators
-                  </NavLink>
-                  <NavLink
-                    to="/admin"
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                    activeClassName="text-primary font-medium"
-                  >
-                    Admin
-                  </NavLink>
-                </>
-              )}
+              <NavLink
+                to="/creators"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                activeClassName="text-primary font-medium"
+              >
+                Creators
+              </NavLink>
+              <NavLink
+                to="/admin"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                activeClassName="text-primary font-medium"
+              >
+                Adicionar Vídeo
+              </NavLink>
               <Button
                 variant="ghost"
                 size="sm"
@@ -163,11 +159,9 @@ function IndexContent() {
                     <p className="text-muted-foreground">
                       Nenhum vídeo cadastrado ainda.
                     </p>
-                    {isAdmin && (
-                      <Button variant="outline" className="mt-4" onClick={() => window.location.href = '/admin'}>
-                        Adicionar Vídeos
-                      </Button>
-                    )}
+                    <Button variant="outline" className="mt-4" onClick={() => window.location.href = '/admin'}>
+                      Adicionar Vídeos
+                    </Button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
