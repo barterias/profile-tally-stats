@@ -166,6 +166,7 @@ function AdminContent() {
               <NavLink to="/">Dashboard</NavLink>
               <NavLink to="/creators">Creators</NavLink>
               <NavLink to="/admin">Adicionar Vídeo</NavLink>
+              <NavLink to="/video-analytics">Análise de Vídeos</NavLink>
             </div>
           </div>
           <Button variant="outline" onClick={signOut}>Sair</Button>

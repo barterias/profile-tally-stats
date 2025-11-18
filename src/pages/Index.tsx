@@ -96,6 +96,13 @@ function IndexContent() {
               >
                 Adicionar Vídeo
               </NavLink>
+              <NavLink
+                to="/video-analytics"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                activeClassName="text-primary font-medium"
+              >
+                Análise de Vídeos
+              </NavLink>
               <Button
                 variant="ghost"
                 size="sm"
