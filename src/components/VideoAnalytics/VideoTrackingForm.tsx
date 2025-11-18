@@ -49,37 +49,46 @@ export const VideoTrackingForm = ({ onVideoTracked }: VideoTrackingFormProps) =>
   };
 
   return (
-    <Card className="bg-gradient-to-br from-card to-card/50 border-border/50">
-      <CardContent className="pt-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              Cole o link do Instagram Reels
-            </label>
-            <div className="flex gap-2">
+    <Card className="bg-gradient-to-br from-card via-card/95 to-card/80 border-border/40 shadow-lg hover:shadow-primary/10 transition-all duration-300">
+      <CardContent className="pt-8 pb-6 px-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Link2 className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <label className="text-base font-semibold text-foreground">
+                  Rastrear Vídeo do Instagram
+                </label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Cole o link do Reels para análise completa de métricas
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
               <div className="relative flex-1">
-                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   type="url"
                   placeholder="https://www.instagram.com/reel/..."
                   value={link}
                   onChange={(e) => setLink(e.target.value)}
                   disabled={isTracking}
-                  className="pl-10 bg-background/50 border-border/50 focus:border-primary"
+                  className="h-12 pl-4 pr-4 bg-background/60 border-border/60 focus:border-primary focus:ring-2 focus:ring-primary/20 text-foreground placeholder:text-muted-foreground/60 rounded-lg transition-all"
                 />
               </div>
               <Button
                 type="submit"
                 disabled={isTracking}
-                className="bg-gradient-to-r from-primary to-accent hover:opacity-90 px-8"
+                className="h-12 px-8 bg-gradient-to-r from-primary via-primary to-accent hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] font-semibold shadow-lg shadow-primary/25 transition-all duration-200"
               >
                 {isTracking ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Rastreando...
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Analisando...
                   </>
                 ) : (
-                  "Track Video"
+                  "Analisar Vídeo"
                 )}
               </Button>
             </div>
