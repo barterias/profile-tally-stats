@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Admin from "./pages/Admin";
 import Creators from "./pages/Creators";
+import VideoAnalytics from "./pages/VideoAnalytics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/creators" element={<Creators />} />
+            <Route path="/video-analytics" element={<VideoAnalytics />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
