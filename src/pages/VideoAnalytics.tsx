@@ -96,15 +96,19 @@ function VideoAnalyticsContent() {
       </header>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="space-y-6">
-          {/* Título */}
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Análise de Vídeos do Instagram
+      <div className="container mx-auto px-4 py-10">
+        <div className="space-y-8">
+          {/* Hero Section */}
+          <div className="space-y-4 text-center max-w-3xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
+              <VideoIcon className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold text-primary">Instagram Analytics</span>
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent leading-tight">
+              Análise Completa de Vídeos
             </h2>
-            <p className="text-muted-foreground">
-              Rastreie e analise a performance dos seus vídeos em tempo real
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Acompanhe o desempenho dos seus vídeos do Instagram em tempo real com métricas detalhadas e gráficos interativos
             </p>
           </div>
 
@@ -113,56 +117,87 @@ function VideoAnalyticsContent() {
 
           {/* Loading State */}
           {isLoadingVideo && (
-            <div className="space-y-6">
-              <Skeleton className="h-96 w-full rounded-lg" />
-              <Skeleton className="h-80 w-full rounded-lg" />
+            <div className="space-y-8 animate-pulse">
+              <div className="space-y-4">
+                <Skeleton className="w-48 h-6 rounded-lg" />
+                <Skeleton className="w-full h-[420px] rounded-2xl" />
+              </div>
+              <div className="space-y-4">
+                <Skeleton className="w-64 h-6 rounded-lg" />
+                <Skeleton className="w-full h-[400px] rounded-2xl" />
+              </div>
             </div>
           )}
 
           {/* Estado vazio */}
           {!trackedLink && !isLoadingVideo && (
-            <div className="text-center py-20">
-              <VideoIcon className="w-20 h-20 text-muted-foreground mx-auto mb-6 opacity-50" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">
-                Nenhum vídeo rastreado ainda
-              </h3>
-              <p className="text-muted-foreground">
-                Cole um link do Instagram acima para começar a análise
-              </p>
+            <div className="flex flex-col items-center justify-center py-20 space-y-6 text-center">
+              <div className="relative">
+                <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full" />
+                <div className="relative p-6 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/20">
+                  <VideoIcon className="w-16 h-16 text-primary" />
+                </div>
+              </div>
+              <div className="space-y-2 max-w-md">
+                <h3 className="text-2xl font-bold text-foreground">
+                  Comece sua análise
+                </h3>
+                <p className="text-muted-foreground">
+                  Cole o link de um vídeo do Instagram acima para visualizar métricas detalhadas, histórico de crescimento e análises profundas
+                </p>
+              </div>
             </div>
           )}
 
           {/* Vídeo não encontrado */}
           {trackedLink && !isLoadingVideo && !video && (
-            <div className="text-center py-20">
-              <VideoIcon className="w-20 h-20 text-muted-foreground mx-auto mb-6 opacity-50" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">
-                Vídeo não encontrado
-              </h3>
-              <p className="text-muted-foreground mb-4">
-                Este vídeo ainda não foi processado ou o link está incorreto
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => setTrackedLink(null)}
-              >
-                Tentar outro link
-              </Button>
+            <div className="flex flex-col items-center justify-center py-20 space-y-6 text-center">
+              <div className="relative">
+                <div className="absolute inset-0 bg-warning/20 blur-3xl rounded-full" />
+                <div className="relative p-6 rounded-2xl bg-gradient-to-br from-warning/10 to-destructive/10 border border-warning/30">
+                  <VideoIcon className="w-16 h-16 text-warning" />
+                </div>
+              </div>
+              <div className="space-y-3 max-w-md">
+                <h3 className="text-2xl font-bold text-foreground">
+                  Processando vídeo...
+                </h3>
+                <p className="text-muted-foreground">
+                  O sistema está analisando o vídeo. Aguarde alguns segundos e as métricas aparecerão automaticamente.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => setTrackedLink(null)}
+                  className="mt-4"
+                >
+                  Tentar outro link
+                </Button>
+              </div>
             </div>
           )}
 
           {/* Conteúdo do vídeo */}
           {video && !isLoadingVideo && (
-            <div className="space-y-6">
-              {/* Card de métricas */}
-              <VideoMetricsCard video={video} />
-
-              {/* Gráfico de evolução */}
-              {isLoadingHistory ? (
-                <Skeleton className="h-80 w-full rounded-lg" />
-              ) : (
-                <VideoEvolutionChart history={history || []} />
-              )}
+            <div className="space-y-8 animate-in fade-in duration-500">
+              <div className="space-y-3">
+                <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <div className="w-1 h-6 bg-gradient-to-b from-primary to-accent rounded-full" />
+                  Métricas Atuais
+                </h3>
+                <VideoMetricsCard video={video} />
+              </div>
+              
+              <div className="space-y-3">
+                <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <div className="w-1 h-6 bg-gradient-to-b from-primary to-accent rounded-full" />
+                  Histórico de Performance
+                </h3>
+                {isLoadingHistory ? (
+                  <Skeleton className="w-full h-[400px] rounded-2xl" />
+                ) : (
+                  <VideoEvolutionChart history={history || []} />
+                )}
+              </div>
             </div>
           )}
         </div>
