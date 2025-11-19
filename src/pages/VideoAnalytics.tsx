@@ -46,11 +46,16 @@ function VideoAnalyticsContent() {
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Trophy className="w-8 h-8 text-primary" />
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Analytics Hub
-              </h1>
+            <div className="flex items-center gap-3 animate-scale-in">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-primary to-accent animate-glow">
+                <Trophy className="w-8 h-8 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+                  JotaV Cortes
+                </h1>
+                <p className="text-xs text-muted-foreground">Sistema de Analytics</p>
+              </div>
             </div>
             <nav className="flex items-center gap-6">
               <NavLink
@@ -65,14 +70,7 @@ function VideoAnalyticsContent() {
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 activeClassName="text-primary font-medium"
               >
-                Creators
-              </NavLink>
-              <NavLink
-                to="/admin"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                activeClassName="text-primary font-medium"
-              >
-                Adicionar Vídeo
+                Clipadores
               </NavLink>
               <NavLink
                 to="/video-analytics"

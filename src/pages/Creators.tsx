@@ -1,247 +1,147 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { Trophy, Eye, Video, LogOut, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Edit } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { externalSupabase } from "@/lib/externalSupabase";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 function CreatorsContent() {
-  const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    platform: "tiktok",
-    username: "",
-    profileUrl: "",
-    avatarUrl: "",
-  });
-  
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const { signOut } = useAuth();
 
-  const { data: creators } = useQuery({
-    queryKey: ["creators"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("creators")
-        .select("*")
-        .order("total_views", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+  const { data: ranking, isLoading } = useQuery({
+    queryKey: ["creators-ranking"],
+    queryFn: () => externalSupabase.getOverallRanking(),
   });
-
-  const addCreatorMutation = useMutation({
-    mutationFn: async (creator: any) => {
-      const { error } = await supabase.from("creators").insert([creator]);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creators"] });
-      toast({ title: "Criador adicionado com sucesso!" });
-      setOpen(false);
-      resetForm();
-    },
-    onError: (error: any) => {
-      toast({ title: "Erro ao adicionar criador", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const updateCreatorMutation = useMutation({
-    mutationFn: async ({ id, ...creator }: any) => {
-      const { error } = await supabase.from("creators").update(creator).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creators"] });
-      toast({ title: "Criador atualizado com sucesso!" });
-      setOpen(false);
-      resetForm();
-    },
-    onError: (error: any) => {
-      toast({ title: "Erro ao atualizar criador", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const deleteCreatorMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("creators").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creators"] });
-      toast({ title: "Criador removido com sucesso!" });
-    },
-  });
-
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      platform: "tiktok",
-      username: "",
-      profileUrl: "",
-      avatarUrl: "",
-    });
-    setEditingId(null);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const creatorData = {
-      name: formData.name,
-      platform: formData.platform,
-      username: formData.username,
-      profile_url: formData.profileUrl || null,
-      avatar_url: formData.avatarUrl || null,
-    };
-
-    if (editingId) {
-      updateCreatorMutation.mutate({ id: editingId, ...creatorData });
-    } else {
-      addCreatorMutation.mutate(creatorData);
-    }
-  };
-
-  const handleEdit = (creator: any) => {
-    setEditingId(creator.id);
-    setFormData({
-      name: creator.name,
-      platform: creator.platform,
-      username: creator.username,
-      profileUrl: creator.profile_url || "",
-      avatarUrl: creator.avatar_url || "",
-    });
-    setOpen(true);
-  };
 
   return (
     <div className="min-h-screen bg-gradient-dark">
-      <nav className="border-b border-white/10 bg-card-dark/50 backdrop-blur">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <h1 className="text-xl font-bold text-foreground">Gerenciar Creators</h1>
-            <div className="flex gap-2">
-              <NavLink to="/">Dashboard</NavLink>
-              <NavLink to="/admin">Adicionar Vídeo</NavLink>
-              <NavLink to="/creators">Creators</NavLink>
-              <NavLink to="/video-analytics">Análise de Vídeos</NavLink>
+      {/* Header */}
+      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50 animate-fade-in">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 animate-scale-in">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-primary to-accent animate-glow">
+                <Trophy className="w-8 h-8 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+                  JotaV Cortes
+                </h1>
+                <p className="text-xs text-muted-foreground">Sistema de Analytics</p>
+              </div>
+            </div>
+            <nav className="flex items-center gap-6">
+              <NavLink
+                to="/"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                activeClassName="text-primary font-medium"
+              >
+                Dashboard
+              </NavLink>
+              <NavLink
+                to="/creators"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                activeClassName="text-primary font-medium"
+              >
+                Clipadores
+              </NavLink>
+              <NavLink
+                to="/video-analytics"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                activeClassName="text-primary font-medium"
+              >
+                Análise de Vídeos
+              </NavLink>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={signOut}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sair
+              </Button>
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-10">
+        <div className="space-y-8">
+          <div className="flex items-center gap-3 animate-slide-up">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Users className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                Clipadores
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Ranking geral de todos os clipadores - Total: {ranking?.length || 0}
+              </p>
             </div>
           </div>
-          <Button variant="outline" onClick={signOut}>Sair</Button>
-        </div>
-      </nav>
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-foreground">Gerenciar Criadores</h2>
-          <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-primary">
-                <Plus className="w-4 h-4 mr-2" />
-                Adicionar Criador
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-card-dark border-white/10">
-              <DialogHeader>
-                <DialogTitle>{editingId ? "Editar" : "Adicionar"} Criador</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Nome</Label>
-                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Plataforma</Label>
-                    <Select value={formData.platform} onValueChange={(v) => setFormData({ ...formData, platform: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="tiktok">TikTok</SelectItem>
-                        <SelectItem value="instagram">Instagram</SelectItem>
-                        <SelectItem value="youtube">YouTube</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Username</Label>
-                    <Input value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} required />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>URL do Perfil</Label>
-                  <Input value={formData.profileUrl} onChange={(e) => setFormData({ ...formData, profileUrl: e.target.value })} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>URL do Avatar</Label>
-                  <Input value={formData.avatarUrl} onChange={(e) => setFormData({ ...formData, avatarUrl: e.target.value })} />
-                </div>
-
-                <Button type="submit" className="w-full bg-gradient-primary" disabled={addCreatorMutation.isPending || updateCreatorMutation.isPending}>
-                  {editingId ? "Atualizar" : "Adicionar"} Criador
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {creators?.map((creator) => (
-            <Card key={creator.id} className="bg-card-dark border-white/10">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex gap-3 items-center flex-1">
-                    {creator.avatar_url ? (
-                      <img src={creator.avatar_url} alt={creator.name} className="w-12 h-12 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center text-white font-bold">
-                        {creator.name[0]}
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-48 bg-card rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {ranking?.map((item, index) => (
+                <Card 
+                  key={`${item.creator}-${index}`} 
+                  className="overflow-hidden bg-gradient-to-br from-card via-card/95 to-card/80 border-border/50 hover:border-primary/50 transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 group animate-scale-in"
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                >
+                  <CardContent className="p-6 space-y-4">
+                    <div className="flex items-center gap-4">
+                      <Avatar className="w-16 h-16 border-2 border-primary/20 group-hover:border-primary/50 transition-colors">
+                        <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-2xl font-bold text-primary">
+                          {item.creator.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-muted-foreground">#{index + 1}</span>
+                        </div>
+                        <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors">
+                          {item.creator}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">Clipador</p>
                       </div>
-                    )}
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-foreground">{creator.name}</h3>
-                      <p className="text-sm text-muted-foreground">@{creator.username}</p>
                     </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(creator)}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => deleteCreatorMutation.mutate(creator.id)}>
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total Views:</span>
-                    <span className="font-semibold text-foreground">{creator.total_views.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total Vídeos:</span>
-                    <span className="font-semibold text-foreground">{creator.total_videos}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Plataforma:</span>
-                    <span className="font-semibold text-foreground capitalize">{creator.platform}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border/30">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Eye className="w-4 h-4" />
+                          <span className="text-xs font-semibold uppercase tracking-wide">Views</span>
+                        </div>
+                        <p className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                          {item.views.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Video className="w-4 h-4" />
+                          <span className="text-xs font-semibold uppercase tracking-wide">Vídeos</span>
+                        </div>
+                        <p className="text-2xl font-bold text-foreground">
+                          {item.videos}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

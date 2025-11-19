@@ -1,78 +1,59 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { Trophy, Eye, Users, Video as VideoIcon, LogOut, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/MetricCard";
 import { VideoCard } from "@/components/VideoCard";
-import { RankingCard } from "@/components/RankingCard";
-import { TrendChart } from "@/components/TrendChart";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Trophy, TrendingUp, Eye, Users, Video, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { externalSupabase } from "@/lib/externalSupabase";
+import { RankingTable } from "@/components/RankingTable";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 function IndexContent() {
   const { signOut } = useAuth();
 
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toString();
-  };
-
-  const { data: videos } = useQuery({
-    queryKey: ["videos"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("videos")
-        .select(`*, creators (name, username, platform, avatar_url)`)
-        .order("views", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+  const { data: stats, isLoading: isLoadingStats } = useQuery({
+    queryKey: ["total-stats"],
+    queryFn: () => externalSupabase.getTotalStats(),
   });
 
-  const { data: creators } = useQuery({
-    queryKey: ["creators"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("creators")
-        .select("*")
-        .order("total_views", { ascending: false })
-        .limit(10);
-      if (error) throw error;
-      return data;
-    },
+  const { data: videos, isLoading: isLoadingVideos } = useQuery({
+    queryKey: ["all-videos"],
+    queryFn: () => externalSupabase.getAllVideos(),
   });
 
-  const totalViews = videos?.reduce((acc, v) => acc + (v.views || 0), 0) || 0;
-  const totalVideos = videos?.length || 0;
-  const totalCreators = creators?.length || 0;
+  const { data: dailyRanking, isLoading: isLoadingDaily } = useQuery({
+    queryKey: ["daily-ranking"],
+    queryFn: () => externalSupabase.getDailyRanking(),
+  });
 
-  const topVideosToday = videos?.slice(0, 6) || [];
+  const { data: monthlyRanking, isLoading: isLoadingMonthly } = useQuery({
+    queryKey: ["monthly-ranking"],
+    queryFn: () => externalSupabase.getMonthlyRanking(),
+  });
 
-  // Distribute views across the week for visualization
-  const trendData = [
-    { name: "Seg", value: Math.floor(totalViews * 0.12) },
-    { name: "Ter", value: Math.floor(totalViews * 0.10) },
-    { name: "Qua", value: Math.floor(totalViews * 0.15) },
-    { name: "Qui", value: Math.floor(totalViews * 0.14) },
-    { name: "Sex", value: Math.floor(totalViews * 0.16) },
-    { name: "Sáb", value: Math.floor(totalViews * 0.18) },
-    { name: "Dom", value: Math.floor(totalViews * 0.15) },
-  ];
+  const { data: overallRanking, isLoading: isLoadingOverall } = useQuery({
+    queryKey: ["overall-ranking"],
+    queryFn: () => externalSupabase.getOverallRanking(),
+  });
 
   return (
     <div className="min-h-screen bg-gradient-dark">
       {/* Header */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50 animate-fade-in">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Trophy className="w-8 h-8 text-primary" />
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                Analytics Hub
-              </h1>
+            <div className="flex items-center gap-3 animate-scale-in">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-primary to-accent animate-glow">
+                <Trophy className="w-8 h-8 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+                  JotaV Cortes
+                </h1>
+                <p className="text-xs text-muted-foreground">Sistema de Analytics</p>
+              </div>
             </div>
             <nav className="flex items-center gap-6">
               <NavLink
@@ -87,14 +68,7 @@ function IndexContent() {
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 activeClassName="text-primary font-medium"
               >
-                Creators
-              </NavLink>
-              <NavLink
-                to="/admin"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                activeClassName="text-primary font-medium"
-              >
-                Adicionar Vídeo
+                Clipadores
               </NavLink>
               <NavLink
                 to="/video-analytics"
@@ -118,105 +92,135 @@ function IndexContent() {
       </header>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <MetricCard
-            title="Total de Vídeos"
-            value={totalVideos}
-            icon={<Video className="w-6 h-6" />}
-            trend={`${totalVideos} vídeos cadastrados`}
-          />
-          <MetricCard
-            title="Views Totais"
-            value={formatNumber(totalViews)}
-            icon={<Eye className="w-6 h-6" />}
-            trend="soma de todas as views"
-          />
-          <MetricCard
-            title="Creators Ativos"
-            value={totalCreators}
-            icon={<Users className="w-6 h-6" />}
-            trend={`${totalCreators} creators cadastrados`}
-          />
-          <MetricCard
-            title="Média de Views"
-            value={totalVideos > 0 ? formatNumber(Math.floor(totalViews / totalVideos)) : 0}
-            icon={<TrendingUp className="w-6 h-6" />}
-            trend="por vídeo"
-          />
-        </div>
-
-        {/* Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Charts and Videos */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Trend Chart */}
-            <TrendChart title="Tendência de Views" data={trendData} />
-
-            {/* Top Videos */}
-            <Card className="bg-gradient-to-br from-card to-card/50 border-border/50">
-              <CardHeader>
-                <CardTitle className="text-foreground">Top Vídeos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {topVideosToday.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Video className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">
-                      Nenhum vídeo cadastrado ainda.
-                    </p>
-                    <Button variant="outline" className="mt-4" onClick={() => window.location.href = '/admin'}>
-                      Adicionar Vídeos
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {topVideosToday.map((video) => (
-                      <VideoCard 
-                        key={video.id}
-                        thumbnail={video.thumbnail_url || "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400"}
-                        title={video.title}
-                        views={video.views || 0}
-                        likes={video.likes || 0}
-                        shares={video.shares || 0}
-                        hashtag={video.hashtags?.[0] || "#viral"}
-                        trending={(video.views || 0) > 50000}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      <div className="container mx-auto px-4 py-10">
+        <div className="space-y-8">
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-slide-up">
+            <MetricCard
+              title="Total de Views"
+              value={(stats?.totalViews || 0).toLocaleString()}
+              icon={<Eye className="w-6 h-6" />}
+              trend="De todos os tempos"
+            />
+            <MetricCard
+              title="Total de Vídeos"
+              value={stats?.totalVideos || 0}
+              icon={<VideoIcon className="w-6 h-6" />}
+              trend="Vídeos rastreados"
+            />
+            <MetricCard
+              title="Clipadores Ativos"
+              value={stats?.totalCreators || 0}
+              icon={<Users className="w-6 h-6" />}
+              trend="Total de clipadores"
+            />
           </div>
 
-          {/* Right Column - Top Creators */}
-          <div className="space-y-6">
-            <Card className="bg-gradient-to-br from-card to-card/50 border-border/50">
-              <CardHeader>
-                <CardTitle className="text-foreground">Top Creators</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {creators && creators.length > 0 ? (
-                  creators.map((creator, index) => (
-                    <RankingCard
-                      key={creator.id}
-                      rank={index + 1}
-                      name={creator.name}
-                      views={formatNumber(creator.total_views || 0)}
-                      avatar={creator.avatar_url}
-                    />
-                  ))
+          {/* Rankings Section */}
+          <div className="space-y-6 animate-slide-up" style={{ animationDelay: "0.1s" }}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <TrendingUp className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  Rankings de Clipadores
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Acompanhe os melhores performers por período
+                </p>
+              </div>
+            </div>
+
+            <Tabs defaultValue="overall" className="w-full">
+              <TabsList className="grid w-full grid-cols-3 bg-secondary/50">
+                <TabsTrigger value="daily" className="data-[state=active]:bg-primary/20">
+                  Hoje
+                </TabsTrigger>
+                <TabsTrigger value="monthly" className="data-[state=active]:bg-accent/20">
+                  Este Mês
+                </TabsTrigger>
+                <TabsTrigger value="overall" className="data-[state=active]:bg-warning/20">
+                  Geral
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="daily" className="mt-6">
+                {isLoadingDaily ? (
+                  <div className="h-96 bg-card rounded-lg animate-pulse" />
                 ) : (
-                  <div className="text-center py-8">
-                    <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground text-sm">
-                      Nenhum creator cadastrado ainda.
-                    </p>
-                  </div>
+                  <RankingTable
+                    title="Ranking Diário"
+                    data={dailyRanking || []}
+                    period="daily"
+                  />
                 )}
-              </CardContent>
-            </Card>
+              </TabsContent>
+
+              <TabsContent value="monthly" className="mt-6">
+                {isLoadingMonthly ? (
+                  <div className="h-96 bg-card rounded-lg animate-pulse" />
+                ) : (
+                  <RankingTable
+                    title="Ranking Mensal"
+                    data={monthlyRanking || []}
+                    period="monthly"
+                  />
+                )}
+              </TabsContent>
+
+              <TabsContent value="overall" className="mt-6">
+                {isLoadingOverall ? (
+                  <div className="h-96 bg-card rounded-lg animate-pulse" />
+                ) : (
+                  <RankingTable
+                    title="Ranking Geral"
+                    data={overallRanking || []}
+                    period="overall"
+                  />
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Video Grid */}
+          <div className="space-y-6 animate-slide-up" style={{ animationDelay: "0.2s" }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">Vídeos em Destaque</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Os vídeos com melhor performance
+                </p>
+              </div>
+            </div>
+
+            {isLoadingVideos ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="h-96 bg-card rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {videos?.slice(0, 8).map((video, index) => (
+                  <div
+                    key={video.id}
+                    className="animate-scale-in"
+                    style={{ animationDelay: `${index * 0.05}s` }}
+                  >
+                    <VideoCard
+                      thumbnail={video.post_image || "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800"}
+                      title={video.link}
+                      views={video.views || 0}
+                      likes={video.likes || 0}
+                      shares={0}
+                      hashtag={video.platform}
+                      trending={video.views > 5000}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
