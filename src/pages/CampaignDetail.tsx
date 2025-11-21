@@ -102,12 +102,23 @@ function CampaignDetailContent() {
         console.log("📱 Instagram DB total:", allInstagramVideos?.length || 0);
         console.log("🎵 TikTok DB total:", allTikTokVideos?.length || 0);
 
+        // Função para normalizar links (remover variações de protocolo e www)
+        const normalizeLink = (link: string): string => {
+          if (!link) return '';
+          return link
+            .toLowerCase()
+            .replace(/^https?:\/\//, '')
+            .replace(/^www\./, '')
+            .replace(/\/$/, '')
+            .trim();
+        };
+
         // Função para extrair ID único do vídeo
         const extractVideoId = (link: string): string | null => {
           if (!link) return null;
           
-          // Instagram: /reel/CODE/ ou /p/CODE/
-          const instaMatch = link.match(/\/(reel|p)\/([A-Za-z0-9_-]+)/);
+          // Instagram: /reel/CODE/ ou /reels/CODE/ ou /p/CODE/
+          const instaMatch = link.match(/\/(reels?|p)\/([A-Za-z0-9_-]+)/);
           if (instaMatch) return instaMatch[2];
           
           // TikTok: /video/ID
@@ -120,23 +131,20 @@ function CampaignDetailContent() {
         // Processar cada vídeo buscando métricas reais
         const videosWithMetrics = await Promise.all(
           videosData.map(async (video) => {
-            const videoId = extractVideoId(video.video_link);
+            const normalizedCampaignLink = normalizeLink(video.video_link);
             
-            if (!videoId) {
-              console.warn(`⚠️ Não foi possível extrair ID de: ${video.video_link}`);
-              return video;
-            }
-
             try {
               if (video.platform === "instagram") {
-                // Buscar no banco Instagram
+                // Buscar no banco Instagram por link normalizado
                 const match = allInstagramVideos?.find(v => {
-                  const dbId = extractVideoId(v.link || v.video_url || '');
-                  return dbId === videoId;
+                  const dbLink = normalizeLink(v.link || v.video_url || '');
+                  return dbLink === normalizedCampaignLink || 
+                         dbLink.includes(normalizedCampaignLink) || 
+                         normalizedCampaignLink.includes(dbLink);
                 });
 
                 if (match) {
-                  console.log(`✅ Instagram encontrado! ID: ${videoId}, Views: ${match.views}`);
+                  console.log(`✅ Instagram encontrado! Views: ${match.views}, Link: ${video.video_link}`);
                   return {
                     ...video,
                     views: match.views || 0,
@@ -145,16 +153,39 @@ function CampaignDetailContent() {
                     shares: match.shares || 0,
                   };
                 }
-                console.log(`❌ Instagram não encontrado: ${videoId}`);
+                
+                // Fallback: tentar buscar por ID extraído
+                const videoId = extractVideoId(video.video_link);
+                if (videoId) {
+                  const matchById = allInstagramVideos?.find(v => {
+                    const dbId = extractVideoId(v.link || v.video_url || '');
+                    return dbId === videoId;
+                  });
+                  
+                  if (matchById) {
+                    console.log(`✅ Instagram encontrado por ID! ID: ${videoId}, Views: ${matchById.views}`);
+                    return {
+                      ...video,
+                      views: matchById.views || 0,
+                      likes: matchById.likes || 0,
+                      comments: matchById.comments || 0,
+                      shares: matchById.shares || 0,
+                    };
+                  }
+                }
+                
+                console.log(`❌ Instagram não encontrado: ${video.video_link}`);
               } else if (video.platform === "tiktok") {
-                // Buscar no banco TikTok
+                // Buscar no banco TikTok por link normalizado
                 const match = allTikTokVideos?.find(v => {
-                  const dbId = extractVideoId(v.link || v.video_url || '');
-                  return dbId === videoId || v.video_id === videoId;
+                  const dbLink = normalizeLink(v.link || v.video_url || '');
+                  return dbLink === normalizedCampaignLink || 
+                         dbLink.includes(normalizedCampaignLink) || 
+                         normalizedCampaignLink.includes(dbLink);
                 });
 
                 if (match) {
-                  console.log(`✅ TikTok encontrado! ID: ${videoId}, Views: ${match.views}`);
+                  console.log(`✅ TikTok encontrado! Views: ${match.views}, Link: ${video.video_link}`);
                   return {
                     ...video,
                     views: match.views || 0,
@@ -163,10 +194,31 @@ function CampaignDetailContent() {
                     shares: match.shares || 0,
                   };
                 }
-                console.log(`❌ TikTok não encontrado: ${videoId}`);
+                
+                // Fallback: tentar buscar por ID extraído
+                const videoId = extractVideoId(video.video_link);
+                if (videoId) {
+                  const matchById = allTikTokVideos?.find(v => {
+                    const dbId = extractVideoId(v.link || v.video_url || '');
+                    return dbId === videoId;
+                  });
+                  
+                  if (matchById) {
+                    console.log(`✅ TikTok encontrado por ID! ID: ${videoId}, Views: ${matchById.views}`);
+                    return {
+                      ...video,
+                      views: matchById.views || 0,
+                      likes: matchById.likes || 0,
+                      comments: matchById.comments || 0,
+                      shares: matchById.shares || 0,
+                    };
+                  }
+                }
+                
+                console.log(`❌ TikTok não encontrado: ${video.video_link}`);
               }
             } catch (error) {
-              console.error(`⚠️ Erro ao processar vídeo ${videoId}:`, error);
+              console.error(`⚠️ Erro ao processar vídeo:`, error);
             }
             
             return video;
