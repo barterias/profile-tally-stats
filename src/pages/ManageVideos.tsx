@@ -80,7 +80,7 @@ function ManageVideosContent() {
 
       // Buscar métricas reais das tabelas externas
       if (data && data.length > 0) {
-        console.log("📹 Vídeos para processar:", data);
+        console.log("📹 Admin - Vídeos submetidos:", data);
         
         // Buscar TODOS os vídeos do Instagram e TikTok de uma vez
         const [allInstagramVideos, allTikTokVideos] = await Promise.all([
@@ -88,56 +88,59 @@ function ManageVideosContent() {
           externalSupabase.getSocialVideos(),
         ]);
 
-        console.log("📱 Instagram videos:", allInstagramVideos?.length);
-        console.log("🎵 TikTok videos:", allTikTokVideos?.length);
+        console.log("📱 Admin - Total Instagram DB:", allInstagramVideos?.length);
+        console.log("🎵 Admin - Total TikTok DB:", allTikTokVideos?.length);
 
         const videosWithMetrics = data.map((video) => {
-          try {
-            // Normalizar o link
-            const normalizeLink = (link: string) => {
-              return link.split('?')[0].replace(/\/$/, '').toLowerCase();
-            };
+          // Extrair ID do link
+          const extractId = (link: string) => {
+            const instaMatch = link.match(/\/(reel|p)\/([^/?]+)/);
+            if (instaMatch) return instaMatch[2];
+            
+            const tiktokMatch = link.match(/\/video\/(\d+)/);
+            if (tiktokMatch) return tiktokMatch[1];
+            
+            return null;
+          };
 
-            const normalizedVideoLink = normalizeLink(video.video_link);
+          const videoId = extractId(video.video_link);
 
-            if (video.platform === "instagram") {
-              const instagramData = allInstagramVideos?.find(v => {
-                const normalizedDbLink = normalizeLink(v.link || v.video_url || '');
-                return normalizedDbLink === normalizedVideoLink;
-              });
+          if (video.platform === "instagram" && videoId) {
+            const instagramData = allInstagramVideos?.find(v => {
+              const dbId = extractId(v.link || v.video_url || '');
+              return dbId === videoId;
+            });
 
-              if (instagramData) {
-                return {
-                  ...video,
-                  views: instagramData.views || 0,
-                  likes: instagramData.likes || 0,
-                  comments: instagramData.comments || 0,
-                  shares: instagramData.shares || 0,
-                };
-              }
-            } else if (video.platform === "tiktok") {
-              const tiktokData = allTikTokVideos?.find(v => {
-                const normalizedDbLink = normalizeLink(v.link || v.video_url || '');
-                return normalizedDbLink === normalizedVideoLink;
-              });
-
-              if (tiktokData) {
-                return {
-                  ...video,
-                  views: tiktokData.views || 0,
-                  likes: tiktokData.likes || 0,
-                  comments: tiktokData.comments || 0,
-                  shares: tiktokData.shares || 0,
-                };
-              }
+            if (instagramData) {
+              return {
+                ...video,
+                views: instagramData.views || 0,
+                likes: instagramData.likes || 0,
+                comments: instagramData.comments || 0,
+                shares: instagramData.shares || 0,
+              };
             }
-          } catch (error) {
-            console.error("Erro ao buscar métricas do vídeo:", error);
+          } else if (video.platform === "tiktok" && videoId) {
+            const tiktokData = allTikTokVideos?.find(v => {
+              const dbId = extractId(v.link || v.video_url || '');
+              return dbId === videoId || v.video_id?.includes(videoId);
+            });
+
+            if (tiktokData) {
+              return {
+                ...video,
+                views: tiktokData.views || 0,
+                likes: tiktokData.likes || 0,
+                comments: tiktokData.comments || 0,
+                shares: tiktokData.shares || 0,
+              };
+            }
           }
+          
           return video;
         });
 
-        console.log("✨ Vídeos processados:", videosWithMetrics);
+        console.log("✨ Admin - Vídeos processados com métricas:", videosWithMetrics);
         setVideos(videosWithMetrics);
       } else {
         setVideos([]);

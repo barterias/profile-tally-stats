@@ -91,7 +91,7 @@ function CampaignDetailContent() {
 
       // Buscar métricas reais das tabelas externas
       if (videosData && videosData.length > 0) {
-        console.log("📹 Vídeos da campanha:", videosData);
+        console.log("📹 Vídeos submetidos na campanha:", videosData);
         
         // Buscar TODOS os vídeos do Instagram e TikTok de uma vez
         const [allInstagramVideos, allTikTokVideos] = await Promise.all([
@@ -99,25 +99,45 @@ function CampaignDetailContent() {
           externalSupabase.getSocialVideos(),
         ]);
 
-        console.log("📱 Instagram videos disponíveis:", allInstagramVideos?.length);
-        console.log("🎵 TikTok videos disponíveis:", allTikTokVideos?.length);
+        console.log("📱 Total Instagram DB:", allInstagramVideos?.length);
+        console.log("🎵 Total TikTok DB:", allTikTokVideos?.length);
+
+        // Log de todos os links disponíveis para debug
+        if (allInstagramVideos?.length) {
+          console.log("Instagram links disponíveis:", allInstagramVideos.map(v => v.link || v.video_url));
+        }
+        if (allTikTokVideos?.length) {
+          console.log("TikTok links disponíveis:", allTikTokVideos.map(v => v.link || v.video_url));
+        }
 
         const videosWithMetrics = videosData.map((video) => {
+          console.log(`\n🔍 Processando: ${video.video_link} (${video.platform})`);
+          
           try {
-            // Normalizar o link removendo trailing slash e query params
-            const normalizeLink = (link: string) => {
-              return link.split('?')[0].replace(/\/$/, '').toLowerCase();
+            // Extrair ID do link (código único do vídeo)
+            const extractId = (link: string) => {
+              // Instagram: /reel/CODE/ ou /p/CODE/
+              const instaMatch = link.match(/\/(reel|p)\/([^/?]+)/);
+              if (instaMatch) return instaMatch[2];
+              
+              // TikTok: /video/ID ou @user/video/ID
+              const tiktokMatch = link.match(/\/video\/(\d+)/);
+              if (tiktokMatch) return tiktokMatch[1];
+              
+              return null;
             };
 
-            const normalizedVideoLink = normalizeLink(video.video_link);
-            console.log(`🔍 Buscando métricas para: ${normalizedVideoLink}`);
+            const videoId = extractId(video.video_link);
+            console.log(`   ID extraído: ${videoId}`);
 
-            if (video.platform === "instagram") {
-              // Buscar da tabela videos (Instagram)
+            if (video.platform === "instagram" && videoId) {
+              // Buscar da tabela videos (Instagram) por ID
               const instagramData = allInstagramVideos?.find(v => {
-                const normalizedDbLink = normalizeLink(v.link || v.video_url || '');
-                const match = normalizedDbLink === normalizedVideoLink;
-                if (match) console.log(`✅ Match Instagram encontrado:`, v);
+                const dbId = extractId(v.link || v.video_url || '');
+                const match = dbId === videoId;
+                if (match) {
+                  console.log(`   ✅ MATCH Instagram! Views: ${v.views}`);
+                }
                 return match;
               });
 
@@ -130,14 +150,16 @@ function CampaignDetailContent() {
                   shares: instagramData.shares || 0,
                 };
               } else {
-                console.log(`❌ Instagram não encontrado para: ${normalizedVideoLink}`);
+                console.log(`   ❌ Instagram não encontrado no DB`);
               }
-            } else if (video.platform === "tiktok") {
-              // Buscar da tabela social_videos (TikTok)
+            } else if (video.platform === "tiktok" && videoId) {
+              // Buscar da tabela social_videos (TikTok) por ID
               const tiktokData = allTikTokVideos?.find(v => {
-                const normalizedDbLink = normalizeLink(v.link || v.video_url || '');
-                const match = normalizedDbLink === normalizedVideoLink;
-                if (match) console.log(`✅ Match TikTok encontrado:`, v);
+                const dbId = extractId(v.link || v.video_url || '');
+                const match = dbId === videoId || v.video_id?.includes(videoId);
+                if (match) {
+                  console.log(`   ✅ MATCH TikTok! Views: ${v.views}`);
+                }
                 return match;
               });
 
@@ -150,21 +172,23 @@ function CampaignDetailContent() {
                   shares: tiktokData.shares || 0,
                 };
               } else {
-                console.log(`❌ TikTok não encontrado para: ${normalizedVideoLink}`);
+                console.log(`   ❌ TikTok não encontrado no DB`);
               }
             }
           } catch (error) {
-            console.error("Erro ao buscar métricas do vídeo:", error);
+            console.error("   ⚠️ Erro ao processar:", error);
           }
-          return video;
+          
+          return video; // Retorna com valores padrão (0) se não encontrar
         });
 
-        console.log("✨ Vídeos com métricas:", videosWithMetrics);
+        console.log("\n✨ Resultado final com métricas:", videosWithMetrics);
 
         // Ordenar por views
         const sortedVideos = videosWithMetrics.sort((a, b) => (b.views || 0) - (a.views || 0));
         setVideos(sortedVideos);
       } else {
+        console.log("⚠️ Nenhum vídeo submetido na campanha");
         setVideos([]);
       }
     } catch (error) {
