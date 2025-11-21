@@ -1,43 +1,20 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Trophy, Video as VideoIcon, LogOut } from "lucide-react";
+import { Trophy, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SocialVideosList } from "@/components/VideoAnalytics/SocialVideosList";
 import { VideoTrackingForm } from "@/components/VideoAnalytics/VideoTrackingForm";
-import { VideoMetricsCard } from "@/components/VideoAnalytics/VideoMetricsCard";
-import { VideoEvolutionChart } from "@/components/VideoAnalytics/VideoEvolutionChart";
-import { externalSupabase } from "@/lib/externalSupabase";
+import { toast } from "sonner";
 
 function VideoAnalyticsContent() {
   const { signOut } = useAuth();
-  const [trackedLink, setTrackedLink] = useState<string | null>(null);
 
-  const { data: video, isLoading: isLoadingVideo, refetch: refetchVideo } = useQuery({
-    queryKey: ["video-analytics", trackedLink],
-    queryFn: async () => {
-      if (!trackedLink) return null;
-      return externalSupabase.getVideoByLink(trackedLink);
-    },
-    enabled: !!trackedLink,
-  });
-
-  const { data: history, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ["video-history", video?.id],
-    queryFn: async () => {
-      if (!video?.id) return [];
-      return externalSupabase.getVideoHistory(video.id);
-    },
-    enabled: !!video?.id,
-  });
-
-  const handleVideoTracked = (link: string) => {
-    setTrackedLink(link);
-    setTimeout(() => {
-      refetchVideo();
-    }, 1000);
+  const handleVideoTracked = () => {
+    toast.success("Vídeo enviado para análise!", {
+      description: "O vídeo está sendo processado. Aguarde alguns instantes e recarregue a página.",
+    });
   };
 
   return (
@@ -98,106 +75,50 @@ function VideoAnalyticsContent() {
         <div className="space-y-8">
           {/* Hero Section */}
           <div className="space-y-4 text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
-              <VideoIcon className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold text-primary">Instagram Analytics</span>
-            </div>
             <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent leading-tight">
-              Análise Completa de Vídeos
+              Análise de Vídeos Sociais
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Acompanhe o desempenho dos seus vídeos do Instagram em tempo real com métricas detalhadas e gráficos interativos
+              Acompanhe o desempenho dos seus vídeos do TikTok e Instagram com métricas detalhadas e análises em tempo real
             </p>
           </div>
 
           {/* Form de rastreamento */}
           <VideoTrackingForm onVideoTracked={handleVideoTracked} />
 
-          {/* Loading State */}
-          {isLoadingVideo && (
-            <div className="space-y-8 animate-pulse">
-              <div className="space-y-4">
-                <Skeleton className="w-48 h-6 rounded-lg" />
-                <Skeleton className="w-full h-[420px] rounded-2xl" />
-              </div>
-              <div className="space-y-4">
-                <Skeleton className="w-64 h-6 rounded-lg" />
-                <Skeleton className="w-full h-[400px] rounded-2xl" />
-              </div>
-            </div>
-          )}
-
-          {/* Estado vazio */}
-          {!trackedLink && !isLoadingVideo && (
-            <div className="flex flex-col items-center justify-center py-20 space-y-6 text-center">
-              <div className="relative">
-                <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full" />
-                <div className="relative p-6 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/20">
-                  <VideoIcon className="w-16 h-16 text-primary" />
-                </div>
-              </div>
-              <div className="space-y-2 max-w-md">
-                <h3 className="text-2xl font-bold text-foreground">
-                  Comece sua análise
+          {/* Tabs para TikTok e Instagram */}
+          <Tabs defaultValue="tiktok" className="w-full">
+            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
+              <TabsTrigger value="tiktok" className="flex items-center gap-2">
+                <span className="text-lg">🎵</span>
+                TikTok
+              </TabsTrigger>
+              <TabsTrigger value="instagram" className="flex items-center gap-2">
+                <span className="text-lg">📸</span>
+                Instagram
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="tiktok" className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1 h-6 bg-gradient-to-b from-primary to-accent rounded-full" />
+                <h3 className="text-xl font-bold text-foreground">
+                  Vídeos do TikTok
                 </h3>
-                <p className="text-muted-foreground">
-                  Cole o link de um vídeo do Instagram acima para visualizar métricas detalhadas, histórico de crescimento e análises profundas
-                </p>
               </div>
-            </div>
-          )}
-
-          {/* Vídeo não encontrado */}
-          {trackedLink && !isLoadingVideo && !video && (
-            <div className="flex flex-col items-center justify-center py-20 space-y-6 text-center">
-              <div className="relative">
-                <div className="absolute inset-0 bg-warning/20 blur-3xl rounded-full" />
-                <div className="relative p-6 rounded-2xl bg-gradient-to-br from-warning/10 to-destructive/10 border border-warning/30">
-                  <VideoIcon className="w-16 h-16 text-warning" />
-                </div>
-              </div>
-              <div className="space-y-3 max-w-md">
-                <h3 className="text-2xl font-bold text-foreground">
-                  Processando vídeo...
+              <SocialVideosList platform="tiktok" />
+            </TabsContent>
+            
+            <TabsContent value="instagram" className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1 h-6 bg-gradient-to-b from-primary to-accent rounded-full" />
+                <h3 className="text-xl font-bold text-foreground">
+                  Vídeos do Instagram
                 </h3>
-                <p className="text-muted-foreground">
-                  O sistema está analisando o vídeo. Aguarde alguns segundos e as métricas aparecerão automaticamente.
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => setTrackedLink(null)}
-                  className="mt-4"
-                >
-                  Tentar outro link
-                </Button>
               </div>
-            </div>
-          )}
-
-          {/* Conteúdo do vídeo */}
-          {video && !isLoadingVideo && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-              <div className="space-y-3">
-                <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
-                  <div className="w-1 h-6 bg-gradient-to-b from-primary to-accent rounded-full" />
-                  Métricas Atuais
-                </h3>
-                <VideoMetricsCard video={video} />
-              </div>
-              
-              <div className="space-y-3">
-                <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
-                  <div className="w-1 h-6 bg-gradient-to-b from-primary to-accent rounded-full" />
-                  Histórico de Performance
-                </h3>
-                {isLoadingHistory ? (
-                  <Skeleton className="w-full h-[400px] rounded-2xl" />
-                ) : (
-                  <VideoEvolutionChart history={history || []} />
-                )}
-              </div>
-            </div>
-          )}
+              <SocialVideosList platform="instagram" />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>
