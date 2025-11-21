@@ -178,10 +178,9 @@ export const externalSupabase = {
 
 export const n8nWebhook = {
   async trackVideo(link: string): Promise<void> {
-    const response = await fetch("https://jotav33.app.n8n.cloud/webhook-test/video-tracker", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ link }),
+    const encodedLink = encodeURIComponent(link);
+    const response = await fetch(`https://jotav33.app.n8n.cloud/webhook-test/video-tracker?link=${encodedLink}`, {
+      method: "GET",
     });
     
     if (!response.ok) throw new Error("Erro ao rastrear vídeo");
