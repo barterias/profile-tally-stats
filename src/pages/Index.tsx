@@ -145,6 +145,9 @@ function IndexContent() {
                   <BarChart3 className="h-4 w-4 mr-2" />
                   Analytics
                 </Button>
+                <Button variant="ghost" onClick={() => navigate("/manage-videos")}>
+                  Gestão
+                </Button>
                 <Button variant="ghost" onClick={() => navigate("/video-analytics")}>
                   Vídeos
                 </Button>
@@ -277,6 +280,15 @@ function IndexContent() {
             >
               <BarChart3 className="h-5 w-5 mr-2" />
               Ver Analytics
+            </Button>
+            <Button 
+              onClick={() => navigate("/manage-videos")} 
+              variant="outline"
+              className="neon-border"
+              size="lg"
+            >
+              <Video className="h-5 w-5 mr-2" />
+              Gestão de Vídeos
             </Button>
           </div>
         )}

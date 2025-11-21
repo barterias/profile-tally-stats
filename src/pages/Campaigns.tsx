@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Trophy, TrendingUp, Plus, Users } from "lucide-react";
+import { Calendar, Trophy, TrendingUp, Plus, Users, Instagram, Music, Video } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -60,10 +60,8 @@ export default function Campaigns() {
     );
   }
 
-  const getPlatformIcon = (platform: string) => {
-    if (platform === "instagram") return "📸";
-    if (platform === "tiktok") return "🎵";
-    return "📱";
+  const PlatformIcon = (platform: string) => {
+    return platform === "instagram" ? Instagram : Music;
   };
 
   return (
@@ -145,7 +143,13 @@ export default function Campaigns() {
             >
               {/* Platform Badge */}
               <div className="flex items-center justify-between mb-4">
-                <span className="text-3xl">{getPlatformIcon(campaign.platform)}</span>
+                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                  {campaign.platform === "instagram" ? (
+                    <Instagram className="h-6 w-6 text-primary" />
+                  ) : (
+                    <Music className="h-6 w-6 text-primary" />
+                  )}
+                </div>
                 <Badge className={campaign.is_active ? "bg-success" : "bg-muted"}>
                   {campaign.is_active ? "Ativo" : "Encerrado"}
                 </Badge>

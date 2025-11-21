@@ -12,6 +12,8 @@ import VideoAnalytics from "./pages/VideoAnalytics";
 import Dashboard from "./pages/Dashboard";
 import Campaigns from "./pages/Campaigns";
 import CreateCampaign from "./pages/CreateCampaign";
+import CampaignDetail from "./pages/CampaignDetail";
+import ManageVideos from "./pages/ManageVideos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +31,8 @@ const App = () => (
             <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/campaigns" element={<Campaigns />} />
+            <Route path="/campaign/:id" element={<CampaignDetail />} />
+            <Route path="/manage-videos" element={<ManageVideos />} />
             <Route path="/creators" element={<Creators />} />
             <Route path="/video-analytics" element={<VideoAnalytics />} />
             <Route path="/create-campaign" element={<CreateCampaign />} />
