@@ -14,6 +14,8 @@ import CampaignDetail from "./pages/CampaignDetail";
 import AdminDashboard from "./pages/AdminDashboard";
 import ManageVideos from "./pages/ManageVideos";
 import CreateCampaign from "./pages/CreateCampaign";
+import RankingGlobal from "./pages/RankingGlobal";
+import RankingDaily from "./pages/RankingDaily";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +35,8 @@ const App = () => (
             <Route path="/profile" element={<Profile />} />
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/campaign/:id" element={<CampaignDetail />} />
+            <Route path="/ranking/global" element={<RankingGlobal />} />
+            <Route path="/ranking/daily" element={<RankingDaily />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/videos" element={<ManageVideos />} />
             <Route path="/admin/create-campaign" element={<CreateCampaign />} />

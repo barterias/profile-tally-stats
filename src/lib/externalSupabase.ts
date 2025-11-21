@@ -70,7 +70,47 @@ export interface MonthlyRanking {
   monthly_videos: number;
 }
 
+// Views interfaces
+export interface UnifiedPost {
+  id: number;
+  platform: string;
+  link: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares?: number;
+  thumbnail?: string;
+  created_at: string;
+}
+
+export interface RankingEntry {
+  position: number;
+  platform: string;
+  link: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares?: number;
+  thumbnail?: string;
+}
+
+export interface DailyGrowth {
+  date: string;
+  total_views: number;
+  total_posts: number;
+  instagram_views: number;
+  tiktok_views: number;
+}
+
+export interface PlatformInsight {
+  platform: string;
+  total_views: number;
+  total_posts: number;
+  avg_views_per_post: number;
+}
+
 export const externalSupabase = {
+  // ========== Tabelas ==========
   async getVideoByLink(link: string): Promise<Video | null> {
     const encodedLink = encodeURIComponent(link);
     const response = await fetch(
@@ -82,17 +122,6 @@ export const externalSupabase = {
     
     const data = await response.json();
     return data[0] || null;
-  },
-
-  async getVideoHistory(videoId: number): Promise<VideoHistory[]> {
-    const response = await fetch(
-      `${EXTERNAL_SUPABASE_URL}/rest/v1/video_history?select=*&video_id=eq.${videoId}&order=collected_at.asc`,
-      { headers }
-    );
-    
-    if (!response.ok) throw new Error("Erro ao buscar histórico");
-    
-    return response.json();
   },
 
   async getAllVideos(): Promise<Video[]> {
@@ -117,99 +146,104 @@ export const externalSupabase = {
     return response.json();
   },
 
-  async getTotalStats(): Promise<{ totalViews: number; totalVideos: number; totalCreators: number }> {
-    const videos = await this.getAllVideos();
-    const uniqueCreators = new Set(videos.map(v => v.platform)).size;
-    
-    return {
-      totalViews: videos.reduce((sum, v) => sum + v.views, 0),
-      totalVideos: videos.length,
-      totalCreators: uniqueCreators,
-    };
-  },
-
-  async getTopVideosToday(limit: number = 10): Promise<Video[]> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayISO = today.toISOString();
-
+  // ========== Views ==========
+  async getTotalViews(): Promise<number> {
     const response = await fetch(
-      `${EXTERNAL_SUPABASE_URL}/rest/v1/videos?select=*&collected_at=gte.${todayISO}&order=views.desc&limit=${limit}`,
+      `${EXTERNAL_SUPABASE_URL}/rest/v1/total_views?select=total_views`,
       { headers }
     );
     
-    if (!response.ok) throw new Error("Erro ao buscar vídeos do dia");
+    if (!response.ok) return 0;
+    
+    const data = await response.json();
+    return data[0]?.total_views || 0;
+  },
+
+  async getLatestPosts(limit: number = 10): Promise<UnifiedPost[]> {
+    const response = await fetch(
+      `${EXTERNAL_SUPABASE_URL}/rest/v1/latest_posts?select=*&limit=${limit}`,
+      { headers }
+    );
+    
+    if (!response.ok) return [];
     
     return response.json();
   },
 
-  async getDailyRanking(): Promise<{ creator: string; views: number; videos: number }[]> {
-    const videos = await this.getTopVideosToday(100);
-    const creatorStats: Record<string, { views: number; videos: number }> = {};
-
-    videos.forEach(video => {
-      if (!creatorStats[video.platform]) {
-        creatorStats[video.platform] = { views: 0, videos: 0 };
-      }
-      creatorStats[video.platform].views += video.views;
-      creatorStats[video.platform].videos += 1;
-    });
-
-    return Object.entries(creatorStats)
-      .map(([creator, stats]) => ({ creator, ...stats }))
-      .sort((a, b) => b.views - a.views);
-  },
-
-  async getMonthlyRanking(): Promise<{ creator: string; views: number; videos: number }[]> {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const firstDayISO = firstDay.toISOString();
-
+  async getMostViewedPost(): Promise<UnifiedPost | null> {
     const response = await fetch(
-      `${EXTERNAL_SUPABASE_URL}/rest/v1/videos?select=*&collected_at=gte.${firstDayISO}&order=views.desc`,
+      `${EXTERNAL_SUPABASE_URL}/rest/v1/most_viewed_post?select=*&limit=1`,
       { headers }
     );
-
-    if (!response.ok) throw new Error("Erro ao buscar ranking mensal");
-
-    const videos = await response.json();
-    const creatorStats: Record<string, { views: number; videos: number }> = {};
-
-    videos.forEach((video: Video) => {
-      if (!creatorStats[video.platform]) {
-        creatorStats[video.platform] = { views: 0, videos: 0 };
-      }
-      creatorStats[video.platform].views += video.views;
-      creatorStats[video.platform].videos += 1;
-    });
-
-    return Object.entries(creatorStats)
-      .map(([creator, stats]) => ({ creator, ...stats }))
-      .sort((a, b) => b.views - a.views);
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    return data[0] || null;
   },
 
-  async getOverallRanking(): Promise<{ creator: string; views: number; videos: number }[]> {
-    const videos = await this.getAllVideos();
-    const creatorStats: Record<string, { views: number; videos: number }> = {};
+  async getRankingGlobal(limit: number = 100): Promise<RankingEntry[]> {
+    const response = await fetch(
+      `${EXTERNAL_SUPABASE_URL}/rest/v1/ranking_global?select=*&limit=${limit}`,
+      { headers }
+    );
+    
+    if (!response.ok) return [];
+    
+    return response.json();
+  },
 
-    videos.forEach(video => {
-      if (!creatorStats[video.platform]) {
-        creatorStats[video.platform] = { views: 0, videos: 0 };
-      }
-      creatorStats[video.platform].views += video.views;
-      creatorStats[video.platform].videos += 1;
-    });
+  async getRankingDaily(limit: number = 100): Promise<RankingEntry[]> {
+    const response = await fetch(
+      `${EXTERNAL_SUPABASE_URL}/rest/v1/ranking_daily?select=*&limit=${limit}`,
+      { headers }
+    );
+    
+    if (!response.ok) return [];
+    
+    return response.json();
+  },
 
-    return Object.entries(creatorStats)
-      .map(([creator, stats]) => ({ creator, ...stats }))
-      .sort((a, b) => b.views - a.views);
+  async getDailyGrowth(days: number = 30): Promise<DailyGrowth[]> {
+    const response = await fetch(
+      `${EXTERNAL_SUPABASE_URL}/rest/v1/daily_growth?select=*&order=date.desc&limit=${days}`,
+      { headers }
+    );
+    
+    if (!response.ok) return [];
+    
+    const data = await response.json();
+    return data.reverse(); // Retornar em ordem cronológica
+  },
+
+  async getPlatformInsights(): Promise<PlatformInsight[]> {
+    const response = await fetch(
+      `${EXTERNAL_SUPABASE_URL}/rest/v1/platform_insights?select=*`,
+      { headers }
+    );
+    
+    if (!response.ok) return [];
+    
+    return response.json();
+  },
+
+  async getUnifiedPosts(limit?: number): Promise<UnifiedPost[]> {
+    const url = limit 
+      ? `${EXTERNAL_SUPABASE_URL}/rest/v1/unified_posts?select=*&order=created_at.desc&limit=${limit}`
+      : `${EXTERNAL_SUPABASE_URL}/rest/v1/unified_posts?select=*&order=created_at.desc`;
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) return [];
+    
+    return response.json();
   },
 };
 
 export const n8nWebhook = {
   async trackVideo(link: string): Promise<void> {
     const encodedLink = encodeURIComponent(link);
-    const response = await fetch(`https://jotav33.app.n8n.cloud/webhook-test/video-tracker?link=${encodedLink}`, {
+    const response = await fetch(`https://jotav33.app.n8n.cloud/webhook/video-tracker?link=${encodedLink}`, {
       method: "GET",
     });
     
