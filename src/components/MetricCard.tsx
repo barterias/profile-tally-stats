@@ -12,11 +12,11 @@ interface MetricCardProps {
 
 export const MetricCard = ({ title, value, change, icon, trend }: MetricCardProps) => {
   return (
-    <Card className="p-6 bg-gradient-to-br from-card to-card/50 border-border/50 hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10">
+    <Card className="glass-card p-6 hover-glow neon-border group">
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+          <p className="text-3xl font-bold group-hover:text-glow transition-all">
             {value}
           </p>
           {trend && (
@@ -25,7 +25,7 @@ export const MetricCard = ({ title, value, change, icon, trend }: MetricCardProp
             </p>
           )}
         </div>
-        <div className="p-3 rounded-xl bg-primary/10 text-primary">
+        <div className="p-3 rounded-xl bg-primary/20 group-hover:animate-pulse-glow">
           {icon}
         </div>
       </div>

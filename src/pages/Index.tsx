@@ -39,49 +39,49 @@ function IndexContent() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-dark">
+    <div className="min-h-screen gradient-bg-dark">
       {/* Header */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50 animate-fade-in">
+      <header className="border-b border-border/50 bg-background/50 backdrop-blur-md sticky top-0 z-50 animate-fade-in">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 animate-scale-in">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-primary to-accent animate-glow">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-primary to-accent animate-float">
                 <Trophy className="w-8 h-8 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+                <h1 className="text-2xl font-bold text-glow">
                   JotaV Cortes
                 </h1>
-                <p className="text-xs text-muted-foreground">Sistema de Analytics</p>
+                <p className="text-xs text-muted-foreground">Campeonatos de Cortes</p>
               </div>
             </div>
             <nav className="flex items-center gap-6">
               <NavLink
                 to="/"
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                className="text-muted-foreground hover:text-primary transition-colors"
                 activeClassName="text-primary font-medium"
               >
                 Dashboard
               </NavLink>
               <NavLink
-                to="/creators"
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                to="/campaigns"
+                className="text-muted-foreground hover:text-primary transition-colors"
                 activeClassName="text-primary font-medium"
               >
-                Clipadores
+                Campeonatos
               </NavLink>
               <NavLink
                 to="/video-analytics"
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                className="text-muted-foreground hover:text-primary transition-colors"
                 activeClassName="text-primary font-medium"
               >
-                Análise de Vídeos
+                Vídeos
               </NavLink>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={signOut}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-destructive"
               >
                 <LogOut className="w-4 h-4 mr-2" />
                 Sair
@@ -99,19 +99,19 @@ function IndexContent() {
             <MetricCard
               title="Total de Views"
               value={(stats?.totalViews || 0).toLocaleString()}
-              icon={<Eye className="w-6 h-6" />}
+              icon={<Eye className="w-6 h-6 text-primary" />}
               trend="De todos os tempos"
             />
             <MetricCard
               title="Total de Vídeos"
               value={stats?.totalVideos || 0}
-              icon={<VideoIcon className="w-6 h-6" />}
+              icon={<VideoIcon className="w-6 h-6 text-accent" />}
               trend="Vídeos rastreados"
             />
             <MetricCard
               title="Clipadores Ativos"
               value={stats?.totalCreators || 0}
-              icon={<Users className="w-6 h-6" />}
+              icon={<Users className="w-6 h-6 text-success" />}
               trend="Total de clipadores"
             />
           </div>
@@ -119,11 +119,11 @@ function IndexContent() {
           {/* Rankings Section */}
           <div className="space-y-6 animate-slide-up" style={{ animationDelay: "0.1s" }}>
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <TrendingUp className="w-6 h-6 text-primary" />
+              <div className="p-2 rounded-lg bg-primary/10 neon-border">
+                <TrendingUp className="w-6 h-6 text-primary animate-pulse-glow" />
               </div>
               <div>
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                <h2 className="text-3xl font-bold text-glow">
                   Rankings de Clipadores
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
@@ -133,14 +133,14 @@ function IndexContent() {
             </div>
 
             <Tabs defaultValue="overall" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 bg-secondary/50">
-                <TabsTrigger value="daily" className="data-[state=active]:bg-primary/20">
+              <TabsList className="grid w-full grid-cols-3 glass-card">
+                <TabsTrigger value="daily" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
                   Hoje
                 </TabsTrigger>
-                <TabsTrigger value="monthly" className="data-[state=active]:bg-accent/20">
+                <TabsTrigger value="monthly" className="data-[state=active]:bg-accent/20 data-[state=active]:text-accent">
                   Este Mês
                 </TabsTrigger>
-                <TabsTrigger value="overall" className="data-[state=active]:bg-warning/20">
+                <TabsTrigger value="overall" className="data-[state=active]:bg-success/20 data-[state=active]:text-success">
                   Geral
                 </TabsTrigger>
               </TabsList>

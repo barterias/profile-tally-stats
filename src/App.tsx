@@ -9,6 +9,8 @@ import Auth from "./pages/Auth";
 import Admin from "./pages/Admin";
 import Creators from "./pages/Creators";
 import VideoAnalytics from "./pages/VideoAnalytics";
+import Dashboard from "./pages/Dashboard";
+import Campaigns from "./pages/Campaigns";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,7 +25,9 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/" element={<Index />} />
-            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/creators" element={<Creators />} />
             <Route path="/video-analytics" element={<VideoAnalytics />} />
             <Route path="*" element={<NotFound />} />

@@ -14,6 +14,98 @@ export type Database = {
   }
   public: {
     Tables: {
+      campaign_videos: {
+        Row: {
+          campaign_id: string
+          comments: number | null
+          id: string
+          likes: number | null
+          platform: string
+          shares: number | null
+          submitted_at: string
+          submitted_by: string | null
+          verified: boolean
+          video_link: string
+          views: number | null
+        }
+        Insert: {
+          campaign_id: string
+          comments?: number | null
+          id?: string
+          likes?: number | null
+          platform: string
+          shares?: number | null
+          submitted_at?: string
+          submitted_by?: string | null
+          verified?: boolean
+          video_link: string
+          views?: number | null
+        }
+        Update: {
+          campaign_id?: string
+          comments?: number | null
+          id?: string
+          likes?: number | null
+          platform?: string
+          shares?: number | null
+          submitted_at?: string
+          submitted_by?: string | null
+          verified?: boolean
+          video_link?: string
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_videos_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          created_at: string
+          description: string | null
+          end_date: string
+          id: string
+          is_active: boolean
+          name: string
+          platform: string
+          prize_description: string | null
+          rules: string | null
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          end_date: string
+          id?: string
+          is_active?: boolean
+          name: string
+          platform: string
+          prize_description?: string | null
+          rules?: string | null
+          start_date: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          end_date?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          platform?: string
+          prize_description?: string | null
+          rules?: string | null
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       creators: {
         Row: {
           avatar_url: string | null
