@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase } from "@/lib/externalSupabase";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +77,51 @@ function ManageVideosContent() {
         .order("submitted_at", { ascending: false });
 
       if (error) throw error;
-      setVideos(data || []);
+
+      // Buscar métricas reais das tabelas externas
+      if (data && data.length > 0) {
+        const videosWithMetrics = await Promise.all(
+          data.map(async (video) => {
+            try {
+              if (video.platform === "instagram") {
+                // Buscar da tabela videos (Instagram)
+                const instagramData = await externalSupabase.getVideoByLink(video.video_link);
+                if (instagramData) {
+                  return {
+                    ...video,
+                    views: instagramData.views || 0,
+                    likes: instagramData.likes || 0,
+                    comments: instagramData.comments || 0,
+                    shares: instagramData.shares || 0,
+                  };
+                }
+              } else if (video.platform === "tiktok") {
+                // Buscar da tabela social_videos (TikTok)
+                const allSocialVideos = await externalSupabase.getSocialVideos();
+                const tiktokData = allSocialVideos.find(v => 
+                  v.video_url?.includes(video.video_link) || 
+                  video.video_link?.includes(v.video_id || '')
+                );
+                if (tiktokData) {
+                  return {
+                    ...video,
+                    views: tiktokData.views || 0,
+                    likes: tiktokData.likes || 0,
+                    comments: tiktokData.comments || 0,
+                    shares: tiktokData.shares || 0,
+                  };
+                }
+              }
+            } catch (error) {
+              console.error("Erro ao buscar métricas do vídeo:", error);
+            }
+            return video;
+          })
+        );
+        setVideos(videosWithMetrics);
+      } else {
+        setVideos([]);
+      }
     } catch (error) {
       console.error("Error fetching videos:", error);
       toast({

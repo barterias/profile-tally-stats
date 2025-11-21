@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { n8nWebhook } from "@/lib/externalSupabase";
+import { externalSupabase, n8nWebhook } from "@/lib/externalSupabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,11 +85,57 @@ function CampaignDetailContent() {
       const { data: videosData, error: videosError } = await supabase
         .from("campaign_videos")
         .select("*")
-        .eq("campaign_id", id)
-        .order("views", { ascending: false });
+        .eq("campaign_id", id);
 
       if (videosError) throw videosError;
-      setVideos(videosData || []);
+
+      // Buscar métricas reais das tabelas externas
+      if (videosData && videosData.length > 0) {
+        const videosWithMetrics = await Promise.all(
+          videosData.map(async (video) => {
+            try {
+              if (video.platform === "instagram") {
+                // Buscar da tabela videos (Instagram)
+                const instagramData = await externalSupabase.getVideoByLink(video.video_link);
+                if (instagramData) {
+                  return {
+                    ...video,
+                    views: instagramData.views || 0,
+                    likes: instagramData.likes || 0,
+                    comments: instagramData.comments || 0,
+                    shares: instagramData.shares || 0,
+                  };
+                }
+              } else if (video.platform === "tiktok") {
+                // Buscar da tabela social_videos (TikTok)
+                const allSocialVideos = await externalSupabase.getSocialVideos();
+                const tiktokData = allSocialVideos.find(v => 
+                  v.video_url?.includes(video.video_link) || 
+                  video.video_link?.includes(v.video_id || '')
+                );
+                if (tiktokData) {
+                  return {
+                    ...video,
+                    views: tiktokData.views || 0,
+                    likes: tiktokData.likes || 0,
+                    comments: tiktokData.comments || 0,
+                    shares: tiktokData.shares || 0,
+                  };
+                }
+              }
+            } catch (error) {
+              console.error("Erro ao buscar métricas do vídeo:", error);
+            }
+            return video;
+          })
+        );
+
+        // Ordenar por views
+        const sortedVideos = videosWithMetrics.sort((a, b) => (b.views || 0) - (a.views || 0));
+        setVideos(sortedVideos);
+      } else {
+        setVideos([]);
+      }
     } catch (error) {
       console.error("Error fetching campaign data:", error);
       toast({

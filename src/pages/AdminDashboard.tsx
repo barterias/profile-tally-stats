@@ -72,18 +72,43 @@ export default function AdminDashboard() {
         .from("campaign_videos")
         .select("*");
 
-      // Get external videos
+      // Buscar métricas reais das tabelas externas para os vídeos da campanha
+      let totalCampaignViews = 0;
+      if (campaignVideos && campaignVideos.length > 0) {
+        const metricsPromises = campaignVideos.map(async (video) => {
+          try {
+            if (video.platform === "instagram") {
+              const instagramData = await externalSupabase.getVideoByLink(video.video_link);
+              return instagramData?.views || 0;
+            } else if (video.platform === "tiktok") {
+              const allSocialVideos = await externalSupabase.getSocialVideos();
+              const tiktokData = allSocialVideos.find(v => 
+                v.video_url?.includes(video.video_link) || 
+                video.video_link?.includes(v.video_id || '')
+              );
+              return tiktokData?.views || 0;
+            }
+          } catch (error) {
+            console.error("Erro ao buscar métricas:", error);
+          }
+          return 0;
+        });
+        
+        const viewsArray = await Promise.all(metricsPromises);
+        totalCampaignViews = viewsArray.reduce((sum, views) => sum + views, 0);
+      }
+
+      // Get external videos (TikTok from social_videos)
       const externalVideos = await externalSupabase.getSocialVideos();
+      const externalViews = externalVideos?.reduce(
+        (sum: number, v: any) => sum + (v.views || 0),
+        0
+      ) || 0;
 
       // Get users
       const { data: profiles } = await supabase.from("profiles").select("*");
 
-      const totalViews =
-        (campaignVideos?.reduce((sum, v) => sum + (v.views || 0), 0) || 0) +
-        (externalVideos?.reduce(
-          (sum: number, v: any) => sum + (v.views || 0),
-          0
-        ) || 0);
+      const totalViews = totalCampaignViews + externalViews;
 
       setStats({
         totalVideos: (campaignVideos?.length || 0) + (externalVideos?.length || 0),
