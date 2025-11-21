@@ -46,15 +46,24 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      // Fetch external videos stats
-      const externalStats = await externalSupabase.getTotalStats();
+      // Fetch external videos stats (Instagram + TikTok)
+      const [instagramVideos, tiktokVideos] = await Promise.all([
+        externalSupabase.getAllVideos(),
+        externalSupabase.getSocialVideos(),
+      ]);
+
+      const totalViews = [...instagramVideos, ...tiktokVideos].reduce(
+        (sum, video) => sum + (video.views || 0),
+        0
+      );
+      const totalVideos = instagramVideos.length + tiktokVideos.length;
 
       // Fetch campaigns stats
       const { data: campaigns } = await supabase.from("campaigns").select("*");
 
       setStats({
-        totalViews: externalStats.totalViews,
-        totalVideos: externalStats.totalVideos,
+        totalViews,
+        totalVideos,
         totalCampaigns: campaigns?.length || 0,
         activeCampaigns: campaigns?.filter((c) => c.is_active).length || 0,
       });
