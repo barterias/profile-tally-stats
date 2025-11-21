@@ -22,8 +22,8 @@ export const VideoTrackingForm = ({ onVideoTracked }: VideoTrackingFormProps) =>
       return;
     }
 
-    if (!link.includes("instagram.com")) {
-      toast.error("Por favor, insira um link do Instagram");
+    if (!link.includes("instagram.com") && !link.includes("tiktok.com")) {
+      toast.error("Por favor, insira um link do Instagram ou TikTok");
       return;
     }
 
@@ -59,10 +59,10 @@ export const VideoTrackingForm = ({ onVideoTracked }: VideoTrackingFormProps) =>
               </div>
               <div>
                 <label className="text-base font-semibold text-foreground">
-                  Rastrear Vídeo do Instagram
+                  Rastrear Vídeo do Instagram ou TikTok
                 </label>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Cole o link do Reels para análise completa de métricas
+                  Cole o link do Reels ou TikTok para análise completa de métricas
                 </p>
               </div>
             </div>
@@ -70,7 +70,7 @@ export const VideoTrackingForm = ({ onVideoTracked }: VideoTrackingFormProps) =>
               <div className="relative flex-1">
                 <Input
                   type="url"
-                  placeholder="https://www.instagram.com/reel/..."
+                  placeholder="https://www.instagram.com/reel/... ou https://www.tiktok.com/@..."
                   value={link}
                   onChange={(e) => setLink(e.target.value)}
                   disabled={isTracking}
