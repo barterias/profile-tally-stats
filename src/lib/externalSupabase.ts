@@ -178,7 +178,7 @@ export const externalSupabase = {
 
 export const n8nWebhook = {
   async trackVideo(link: string): Promise<void> {
-    const response = await fetch("https://jotav33.app.n8n.cloud/webhook-test/video-tracker", {
+    const response = await fetch("https://jotav33.app.n8n.cloud/webhook/video-tracker", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ link }),
