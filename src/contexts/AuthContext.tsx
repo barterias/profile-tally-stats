@@ -47,6 +47,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const checkAdminStatus = async (userId: string) => {
+    // Verificar se é o admin fixo
+    const { data: { user } } = await supabase.auth.getUser();
+    const isFixedAdmin = user?.email === "jotav.strategist@gmail.com";
+    
+    if (isFixedAdmin) {
+      setIsAdmin(true);
+      return;
+    }
+    
+    // Verificar roles na tabela
     const { data } = await supabase
       .from("user_roles")
       .select("role")
