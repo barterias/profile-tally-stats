@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { n8nWebhook } from "@/lib/externalSupabase";
 
 interface VideoTrackingFormProps {
-  onVideoTracked: (link: string) => void;
+  onVideoTracked: () => void;
 }
 
 export const VideoTrackingForm = ({ onVideoTracked }: VideoTrackingFormProps) => {
@@ -37,7 +37,7 @@ export const VideoTrackingForm = ({ onVideoTracked }: VideoTrackingFormProps) =>
       
       // Aguardar 3 segundos para o webhook processar
       setTimeout(() => {
-        onVideoTracked(link);
+        onVideoTracked();
         setIsTracking(false);
       }, 3000);
       

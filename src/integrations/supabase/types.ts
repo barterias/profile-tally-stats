@@ -112,6 +112,60 @@ export type Database = {
         }
         Relationships: []
       }
+      social_videos: {
+        Row: {
+          comments: number | null
+          creator_avatar: string | null
+          duration: number | null
+          id: string
+          inserted_at: string
+          likes: number | null
+          link: string
+          music_title: string | null
+          platform: string
+          shares: number | null
+          thumbnail: string | null
+          title: string
+          updated_at: string
+          video_url: string
+          views: number | null
+        }
+        Insert: {
+          comments?: number | null
+          creator_avatar?: string | null
+          duration?: number | null
+          id?: string
+          inserted_at?: string
+          likes?: number | null
+          link: string
+          music_title?: string | null
+          platform: string
+          shares?: number | null
+          thumbnail?: string | null
+          title: string
+          updated_at?: string
+          video_url: string
+          views?: number | null
+        }
+        Update: {
+          comments?: number | null
+          creator_avatar?: string | null
+          duration?: number | null
+          id?: string
+          inserted_at?: string
+          likes?: number | null
+          link?: string
+          music_title?: string | null
+          platform?: string
+          shares?: number | null
+          thumbnail?: string | null
+          title?: string
+          updated_at?: string
+          video_url?: string
+          views?: number | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
