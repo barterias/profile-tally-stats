@@ -11,6 +11,7 @@ import Creators from "./pages/Creators";
 import VideoAnalytics from "./pages/VideoAnalytics";
 import Dashboard from "./pages/Dashboard";
 import Campaigns from "./pages/Campaigns";
+import CreateCampaign from "./pages/CreateCampaign";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/creators" element={<Creators />} />
             <Route path="/video-analytics" element={<VideoAnalytics />} />
+            <Route path="/create-campaign" element={<CreateCampaign />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
