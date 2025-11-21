@@ -87,6 +87,17 @@ export const externalSupabase = {
     return response.json();
   },
 
+  async getSocialVideos(): Promise<Video[]> {
+    const response = await fetch(
+      `${EXTERNAL_SUPABASE_URL}/rest/v1/social_videos?select=*&order=views.desc`,
+      { headers }
+    );
+    
+    if (!response.ok) throw new Error("Erro ao buscar vídeos sociais");
+    
+    return response.json();
+  },
+
   async getTotalStats(): Promise<{ totalViews: number; totalVideos: number; totalCreators: number }> {
     const videos = await this.getAllVideos();
     const uniqueCreators = new Set(videos.map(v => v.platform)).size;
