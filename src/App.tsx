@@ -35,7 +35,7 @@ const App = () => (
             <Route path="/profile" element={<Profile />} />
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/campaign/:id" element={<CampaignDetail />} />
-            <Route path="/ranking/global" element={<RankingGlobal />} />
+            <Route path="/ranking/monthly" element={<RankingGlobal />} />
             <Route path="/ranking/daily" element={<RankingDaily />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/videos" element={<ManageVideos />} />
