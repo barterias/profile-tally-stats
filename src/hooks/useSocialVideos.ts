@@ -4,13 +4,32 @@ import { externalSupabase } from "@/lib/externalSupabase";
 export interface SocialVideo {
   id: number;
   platform: string;
-  link: string;
+  video_id?: string;
+  video_url: string;
+  title?: string;
+  thumbnail?: string;
+  duration?: number;
   views: number;
   likes: number;
   comments: number;
-  post_image: string;
-  video_url: string;
-  collected_at: string;
+  shares?: number;
+  saves?: number;
+  downloads?: number;
+  music_id?: string;
+  music_title?: string;
+  music_author?: string;
+  music_cover?: string;
+  music_url?: string;
+  creator_id?: string;
+  creator_username?: string;
+  creator_nickname?: string;
+  creator_avatar?: string;
+  create_time?: number;
+  inserted_at: string;
+  // Campos da tabela 'videos' (Instagram)
+  link?: string;
+  post_image?: string;
+  collected_at?: string;
 }
 
 export const useSocialVideos = (platform?: "tiktok" | "instagram") => {
