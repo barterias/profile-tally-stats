@@ -17,13 +17,22 @@ export const useSocialVideos = (platform?: "tiktok" | "instagram") => {
   return useQuery({
     queryKey: ["social-videos", platform],
     queryFn: async () => {
-      const videos = await externalSupabase.getAllVideos();
-      
-      if (platform) {
+      // Instagram usa a tabela 'videos', TikTok usa 'social_videos'
+      if (platform === "instagram") {
+        const videos = await externalSupabase.getAllVideos();
+        return videos.filter(v => v.platform === platform);
+      } else if (platform === "tiktok") {
+        const videos = await externalSupabase.getSocialVideos();
         return videos.filter(v => v.platform === platform);
       }
       
-      return videos;
+      // Se não houver filtro, busca de ambas as tabelas
+      const [instagramVideos, tiktokVideos] = await Promise.all([
+        externalSupabase.getAllVideos(),
+        externalSupabase.getSocialVideos(),
+      ]);
+      
+      return [...instagramVideos, ...tiktokVideos].sort((a, b) => b.views - a.views);
     },
   });
 };
