@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { externalSupabase } from "@/lib/externalSupabase";
+import { getMultipleVideoMetrics } from "@/lib/videoMetrics";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -100,29 +101,11 @@ function IndexContent() {
           .select("*, campaign:campaigns(name)")
           .eq("submitted_by", user?.id);
 
-        // Buscar métricas reais das views externas
+        // Buscar métricas reais usando função helper
         let totalViews = 0;
         if (userVideos && userVideos.length > 0) {
-          const viewsPromises = userVideos.map(async (video) => {
-            try {
-              if (video.platform === "instagram") {
-                const instagramData = await externalSupabase.getVideoByLink(video.video_link);
-                return instagramData?.views || 0;
-              } else if (video.platform === "tiktok") {
-                const allSocialVideos = await externalSupabase.getSocialVideos();
-                const tiktokData = allSocialVideos.find((v) =>
-                  v.link === video.video_link || v.video_url?.includes(video.video_link)
-                );
-                return tiktokData?.views || 0;
-              }
-            } catch (error) {
-              console.error("Erro ao buscar métricas do vídeo:", error);
-            }
-            return 0;
-          });
-
-          const viewsArray = await Promise.all(viewsPromises);
-          totalViews = viewsArray.reduce((sum, views) => sum + views, 0);
+          const metricsMap = await getMultipleVideoMetrics(userVideos);
+          totalViews = Array.from(metricsMap.values()).reduce((sum, m) => sum + m.views, 0);
         }
 
         const participatingCampaigns = new Set(userVideos?.map(v => v.campaign_id)).size;
