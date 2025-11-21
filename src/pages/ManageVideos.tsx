@@ -80,44 +80,64 @@ function ManageVideosContent() {
 
       // Buscar métricas reais das tabelas externas
       if (data && data.length > 0) {
-        const videosWithMetrics = await Promise.all(
-          data.map(async (video) => {
-            try {
-              if (video.platform === "instagram") {
-                // Buscar da tabela videos (Instagram)
-                const instagramData = await externalSupabase.getVideoByLink(video.video_link);
-                if (instagramData) {
-                  return {
-                    ...video,
-                    views: instagramData.views || 0,
-                    likes: instagramData.likes || 0,
-                    comments: instagramData.comments || 0,
-                    shares: instagramData.shares || 0,
-                  };
-                }
-              } else if (video.platform === "tiktok") {
-                // Buscar da tabela social_videos (TikTok)
-                const allSocialVideos = await externalSupabase.getSocialVideos();
-                const tiktokData = allSocialVideos.find(v => 
-                  v.video_url?.includes(video.video_link) || 
-                  video.video_link?.includes(v.video_id || '')
-                );
-                if (tiktokData) {
-                  return {
-                    ...video,
-                    views: tiktokData.views || 0,
-                    likes: tiktokData.likes || 0,
-                    comments: tiktokData.comments || 0,
-                    shares: tiktokData.shares || 0,
-                  };
-                }
+        console.log("📹 Vídeos para processar:", data);
+        
+        // Buscar TODOS os vídeos do Instagram e TikTok de uma vez
+        const [allInstagramVideos, allTikTokVideos] = await Promise.all([
+          externalSupabase.getAllVideos(),
+          externalSupabase.getSocialVideos(),
+        ]);
+
+        console.log("📱 Instagram videos:", allInstagramVideos?.length);
+        console.log("🎵 TikTok videos:", allTikTokVideos?.length);
+
+        const videosWithMetrics = data.map((video) => {
+          try {
+            // Normalizar o link
+            const normalizeLink = (link: string) => {
+              return link.split('?')[0].replace(/\/$/, '').toLowerCase();
+            };
+
+            const normalizedVideoLink = normalizeLink(video.video_link);
+
+            if (video.platform === "instagram") {
+              const instagramData = allInstagramVideos?.find(v => {
+                const normalizedDbLink = normalizeLink(v.link || v.video_url || '');
+                return normalizedDbLink === normalizedVideoLink;
+              });
+
+              if (instagramData) {
+                return {
+                  ...video,
+                  views: instagramData.views || 0,
+                  likes: instagramData.likes || 0,
+                  comments: instagramData.comments || 0,
+                  shares: instagramData.shares || 0,
+                };
               }
-            } catch (error) {
-              console.error("Erro ao buscar métricas do vídeo:", error);
+            } else if (video.platform === "tiktok") {
+              const tiktokData = allTikTokVideos?.find(v => {
+                const normalizedDbLink = normalizeLink(v.link || v.video_url || '');
+                return normalizedDbLink === normalizedVideoLink;
+              });
+
+              if (tiktokData) {
+                return {
+                  ...video,
+                  views: tiktokData.views || 0,
+                  likes: tiktokData.likes || 0,
+                  comments: tiktokData.comments || 0,
+                  shares: tiktokData.shares || 0,
+                };
+              }
             }
-            return video;
-          })
-        );
+          } catch (error) {
+            console.error("Erro ao buscar métricas do vídeo:", error);
+          }
+          return video;
+        });
+
+        console.log("✨ Vídeos processados:", videosWithMetrics);
         setVideos(videosWithMetrics);
       } else {
         setVideos([]);
