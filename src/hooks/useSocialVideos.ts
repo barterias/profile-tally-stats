@@ -1,41 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase } from "@/lib/externalSupabase";
 
 export interface SocialVideo {
-  id: string;
-  platform: "tiktok" | "instagram";
-  title: string;
-  thumbnail: string | null;
+  id: number;
+  platform: string;
+  link: string;
   views: number;
   likes: number;
   comments: number;
-  shares: number;
-  duration: number | null;
-  creator_avatar: string | null;
-  music_title: string | null;
+  post_image: string;
   video_url: string;
-  link: string;
-  inserted_at: string;
-  updated_at: string;
+  collected_at: string;
 }
 
 export const useSocialVideos = (platform?: "tiktok" | "instagram") => {
   return useQuery({
     queryKey: ["social-videos", platform],
     queryFn: async () => {
-      let query = supabase
-        .from("social_videos")
-        .select("*")
-        .order("views", { ascending: false });
-
+      const videos = await externalSupabase.getAllVideos();
+      
       if (platform) {
-        query = query.eq("platform", platform);
+        return videos.filter(v => v.platform === platform);
       }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as SocialVideo[];
+      
+      return videos;
     },
   });
 };
