@@ -179,8 +179,10 @@ export default function Dashboard() {
                     </p>
                   </Card>
                   <Card className="p-4 bg-secondary/50">
-                    <h4 className="font-semibold mb-2">Taxa de Crescimento</h4>
-                    <p className="text-2xl font-bold text-success">+24.5%</p>
+                    <h4 className="font-semibold mb-2">Vídeos por Campeonato</h4>
+                    <p className="text-2xl font-bold text-primary">
+                      {stats.totalCampaigns > 0 ? (stats.totalVideos / stats.totalCampaigns).toFixed(1) : '0'}
+                    </p>
                   </Card>
                 </div>
               </div>
@@ -221,12 +223,12 @@ export default function Dashboard() {
                     </p>
                   </Card>
                   <Card className="p-4 bg-secondary/50">
-                    <p className="text-sm text-muted-foreground mb-1">ROI Estimado</p>
-                    <p className="text-2xl font-bold text-success">320%</p>
+                    <p className="text-sm text-muted-foreground mb-1">Total de Campeonatos</p>
+                    <p className="text-2xl font-bold text-success">{stats.totalCampaigns}</p>
                   </Card>
                   <Card className="p-4 bg-secondary/50">
-                    <p className="text-sm text-muted-foreground mb-1">Engajamento</p>
-                    <p className="text-2xl font-bold text-primary">8.7%</p>
+                    <p className="text-sm text-muted-foreground mb-1">Campeonatos Ativos</p>
+                    <p className="text-2xl font-bold text-primary">{stats.activeCampaigns}</p>
                   </Card>
                 </div>
               </div>

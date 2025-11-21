@@ -160,13 +160,11 @@ export default function UserDashboard() {
             title="Total de Views"
             value={stats.totalViews.toLocaleString()}
             icon={Eye}
-            trend={{ value: "12.5%", isPositive: true }}
           />
           <StatCard
             title="Total Ganho"
             value={`R$ ${stats.totalEarnings.toFixed(2)}`}
             icon={DollarSign}
-            trend={{ value: "8.3%", isPositive: true }}
           />
           <StatCard
             title="Vídeos no Sistema"

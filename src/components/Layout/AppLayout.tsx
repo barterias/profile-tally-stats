@@ -36,7 +36,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Competições", href: "/campaigns", icon: Trophy },
     { name: "Enviar Post", href: "/submit", icon: Upload },
-    { name: "Ranking Global", href: "/ranking/global", icon: Trophy },
+    { name: "Ranking Mensal", href: "/ranking/monthly", icon: Trophy },
     { name: "Ranking Diário", href: "/ranking/daily", icon: TrendingUp },
     { name: "Carteira", href: "/wallet", icon: Wallet },
   ];

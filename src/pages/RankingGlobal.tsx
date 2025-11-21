@@ -1,23 +1,199 @@
 import { useEffect, useState } from "react";
-import { externalSupabase, RankingEntry } from "@/lib/externalSupabase";
+import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase } from "@/lib/externalSupabase";
 import AppLayout from "@/components/Layout/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, Eye, Heart, MessageCircle, Share2, Instagram, Music } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Trophy, Eye, Heart, MessageCircle, Calendar, Instagram, Music } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface Campaign {
+  id: string;
+  name: string;
+  platform: string;
+}
+
+interface RankedVideo {
+  position: number;
+  video_link: string;
+  platform: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  thumbnail?: string;
+  video_id?: string;
+}
 
 export default function RankingGlobal() {
   const [loading, setLoading] = useState(true);
-  const [ranking, setRanking] = useState<RankingEntry[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState<string>("");
+  const [ranking, setRanking] = useState<RankedVideo[]>([]);
 
   useEffect(() => {
-    fetchRanking();
+    fetchCampaigns();
   }, []);
 
-  const fetchRanking = async () => {
+  useEffect(() => {
+    if (selectedCampaign) {
+      fetchRanking();
+    }
+  }, [selectedCampaign]);
+
+  const fetchCampaigns = async () => {
     try {
-      const data = await externalSupabase.getRankingGlobal(100);
-      setRanking(data);
+      const { data } = await supabase
+        .from("campaigns")
+        .select("id, name, platform")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (data && data.length > 0) {
+        setCampaigns(data);
+        setSelectedCampaign(data[0].id);
+      }
+    } catch (error) {
+      console.error("Error fetching campaigns:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchRanking = async () => {
+    if (!selectedCampaign) return;
+
+    try {
+      setLoading(true);
+
+      // Buscar vídeos da campanha
+      const { data: campaignVideos } = await supabase
+        .from("campaign_videos")
+        .select("*")
+        .eq("campaign_id", selectedCampaign)
+        .order("submitted_at", { ascending: false });
+
+      if (!campaignVideos || campaignVideos.length === 0) {
+        setRanking([]);
+        return;
+      }
+
+      console.log("📹 Vídeos submetidos na campanha:", campaignVideos.length, "vídeos");
+
+      // Buscar TODOS os vídeos do Instagram e TikTok
+      const [allInstagramVideos, allTikTokVideos] = await Promise.all([
+        externalSupabase.getAllVideos(),
+        externalSupabase.getSocialVideos(),
+      ]);
+
+      console.log("📱 Instagram DB total:", allInstagramVideos?.length || 0);
+      console.log("🎵 TikTok DB total:", allTikTokVideos?.length || 0);
+
+      // Normalizar links
+      const normalizeLink = (link: string): string => {
+        if (!link) return '';
+        return link
+          .toLowerCase()
+          .replace(/^https?:\/\//, '')
+          .replace(/^www\./, '')
+          .replace(/\/$/, '')
+          .trim();
+      };
+
+      const extractVideoId = (link: string): string | null => {
+        if (!link) return null;
+        const instaMatch = link.match(/\/(reels?|p)\/([A-Za-z0-9_-]+)/);
+        if (instaMatch) return instaMatch[2];
+        const tiktokMatch = link.match(/\/video\/(\d+)/);
+        if (tiktokMatch) return tiktokMatch[1];
+        return null;
+      };
+
+      // Filtrar vídeos do mês atual
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+      const monthlyVideos = campaignVideos.filter((video) => {
+        const submittedDate = new Date(video.submitted_at);
+        return submittedDate >= startOfMonth && submittedDate <= endOfMonth;
+      });
+
+      console.log("📅 Vídeos do mês atual:", monthlyVideos.length);
+
+      // Processar cada vídeo buscando métricas reais
+      const videosWithMetrics = await Promise.all(
+        monthlyVideos.map(async (video) => {
+          const normalizedCampaignLink = normalizeLink(video.video_link);
+
+          if (video.platform === "instagram") {
+            const match = allInstagramVideos?.find(v => {
+              const dbLink = normalizeLink(v.link || v.video_url || '');
+              return dbLink === normalizedCampaignLink || 
+                     dbLink.includes(normalizedCampaignLink) || 
+                     normalizedCampaignLink.includes(dbLink);
+            });
+
+            if (match) {
+              return {
+                video_link: video.video_link,
+                platform: video.platform,
+                views: match.views || 0,
+                likes: match.likes || 0,
+                comments: match.comments || 0,
+                shares: match.shares || 0,
+                thumbnail: match.thumbnail || match.post_image,
+                video_id: extractVideoId(video.video_link),
+              };
+            }
+          } else if (video.platform === "tiktok") {
+            const match = allTikTokVideos?.find(v => {
+              const dbLink = normalizeLink(v.link || v.video_url || '');
+              return dbLink === normalizedCampaignLink || 
+                     dbLink.includes(normalizedCampaignLink) || 
+                     normalizedCampaignLink.includes(dbLink);
+            });
+
+            if (match) {
+              return {
+                video_link: video.video_link,
+                platform: video.platform,
+                views: match.views || 0,
+                likes: match.likes || 0,
+                comments: match.comments || 0,
+                shares: match.shares || 0,
+                thumbnail: match.thumbnail,
+                video_id: extractVideoId(video.video_link),
+              };
+            }
+          }
+
+          return null;
+        })
+      );
+
+      // Filtrar nulos e ordenar por views
+      const validVideos = videosWithMetrics
+        .filter((v): v is NonNullable<typeof v> => v !== null && v.views > 0)
+        .sort((a, b) => b.views - a.views)
+        .map((video, index) => ({
+          ...video,
+          position: index + 1,
+        }));
+
+      console.log("✨ Métricas carregadas:", {
+        total: validVideos.length,
+        comViews: validVideos.filter(v => v.views > 0).length,
+        totalViews: validVideos.reduce((sum, v) => sum + v.views, 0),
+      });
+
+      setRanking(validVideos);
     } catch (error) {
       console.error("Error fetching ranking:", error);
     } finally {
@@ -46,23 +222,65 @@ export default function RankingGlobal() {
     <AppLayout>
       <div className="space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between animate-fade-in">
-          <div>
-            <h1 className="text-3xl font-bold text-glow mb-2">Ranking Global</h1>
-            <p className="text-muted-foreground">
-              Os posts mais virais de todos os tempos
-            </p>
+        <div className="space-y-6 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-glow mb-2">Ranking Mensal</h1>
+              <p className="text-muted-foreground">
+                Vídeos do mês atual - {new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-8 w-8 text-primary animate-float" />
+              <Trophy className="h-8 w-8 text-primary animate-float" />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Trophy className="h-8 w-8 text-primary animate-float" />
-            <span className="text-2xl font-bold text-glow">{ranking.length}</span>
-            <span className="text-muted-foreground">posts</span>
+
+          {/* Campaign Selector */}
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium">Competição:</label>
+            <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+              <SelectTrigger className="w-[300px]">
+                <SelectValue placeholder="Selecione uma competição" />
+              </SelectTrigger>
+              <SelectContent>
+                {campaigns.map((campaign) => (
+                  <SelectItem key={campaign.id} value={campaign.id}>
+                    {campaign.name} ({campaign.platform})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-muted-foreground">
+              {ranking.length} vídeo{ranking.length !== 1 ? 's' : ''} neste mês
+            </span>
           </div>
         </div>
 
+        {!selectedCampaign && !loading && (
+          <Card className="glass-card p-12 text-center">
+            <Trophy className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-xl font-semibold mb-2">Selecione uma Competição</h3>
+            <p className="text-muted-foreground">
+              Escolha uma competição acima para ver o ranking mensal
+            </p>
+          </Card>
+        )}
+
+        {selectedCampaign && ranking.length === 0 && !loading && (
+          <Card className="glass-card p-12 text-center">
+            <Calendar className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-xl font-semibold mb-2">Nenhum Vídeo Este Mês</h3>
+            <p className="text-muted-foreground">
+              Ainda não há vídeos submetidos nesta competição para o mês atual
+            </p>
+          </Card>
+        )}
+
         {/* Top 3 Podium */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {ranking.slice(0, 3).map((entry) => (
+        {selectedCampaign && ranking.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {ranking.slice(0, 3).map((entry) => (
             <Card
               key={entry.position}
               className={`glass-card-hover p-6 animate-scale-in relative ${
@@ -125,7 +343,7 @@ export default function RankingGlobal() {
                   </div>
 
                   <a
-                    href={entry.link}
+                    href={entry.video_link}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-primary hover:underline block mt-2"
@@ -135,12 +353,14 @@ export default function RankingGlobal() {
                 </div>
               </div>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Rest of Ranking */}
-        <div className="space-y-3">
-          {ranking.slice(3).map((entry, index) => (
+        {selectedCampaign && ranking.length > 3 && (
+          <div className="space-y-3">
+            {ranking.slice(3).map((entry, index) => (
             <Card
               key={entry.position}
               className="glass-card-hover p-4 animate-slide-in-right"
@@ -219,7 +439,7 @@ export default function RankingGlobal() {
                 {/* Link */}
                 <div className="flex-shrink-0">
                   <a
-                    href={entry.link}
+                    href={entry.video_link}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-primary hover:underline"
@@ -229,8 +449,9 @@ export default function RankingGlobal() {
                 </div>
               </div>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </AppLayout>
   );
