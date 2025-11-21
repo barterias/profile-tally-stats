@@ -100,7 +100,31 @@ function IndexContent() {
           .select("*, campaign:campaigns(name)")
           .eq("submitted_by", user?.id);
 
-        const totalViews = userVideos?.reduce((sum, v) => sum + (v.views || 0), 0) || 0;
+        // Buscar métricas reais das views externas
+        let totalViews = 0;
+        if (userVideos && userVideos.length > 0) {
+          const viewsPromises = userVideos.map(async (video) => {
+            try {
+              if (video.platform === "instagram") {
+                const instagramData = await externalSupabase.getVideoByLink(video.video_link);
+                return instagramData?.views || 0;
+              } else if (video.platform === "tiktok") {
+                const allSocialVideos = await externalSupabase.getSocialVideos();
+                const tiktokData = allSocialVideos.find((v) =>
+                  v.link === video.video_link || v.video_url?.includes(video.video_link)
+                );
+                return tiktokData?.views || 0;
+              }
+            } catch (error) {
+              console.error("Erro ao buscar métricas do vídeo:", error);
+            }
+            return 0;
+          });
+
+          const viewsArray = await Promise.all(viewsPromises);
+          totalViews = viewsArray.reduce((sum, views) => sum + views, 0);
+        }
+
         const participatingCampaigns = new Set(userVideos?.map(v => v.campaign_id)).size;
 
         setUserStats({
