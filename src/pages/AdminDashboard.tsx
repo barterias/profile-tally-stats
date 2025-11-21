@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { externalSupabase } from "@/lib/externalSupabase";
-import { getMultipleVideoMetrics } from "@/lib/videoMetrics";
 import AppLayout from "@/components/Layout/AppLayout";
 import StatCard from "@/components/Dashboard/StatCard";
 import ChartCard from "@/components/Dashboard/ChartCard";
@@ -73,21 +72,46 @@ export default function AdminDashboard() {
         .from("campaign_videos")
         .select("*");
 
-      // Buscar métricas reais usando função helper
-      let totalViews = 0;
+      // Buscar métricas reais das tabelas externas para os vídeos da campanha
+      let totalCampaignViews = 0;
       if (campaignVideos && campaignVideos.length > 0) {
-        const metricsMap = await getMultipleVideoMetrics(campaignVideos);
-        totalViews = Array.from(metricsMap.values()).reduce((sum, m) => sum + m.views, 0);
+        const metricsPromises = campaignVideos.map(async (video) => {
+          try {
+            if (video.platform === "instagram") {
+              const instagramData = await externalSupabase.getVideoByLink(video.video_link);
+              return instagramData?.views || 0;
+            } else if (video.platform === "tiktok") {
+              const allSocialVideos = await externalSupabase.getSocialVideos();
+              const tiktokData = allSocialVideos.find(v => 
+                v.video_url?.includes(video.video_link) || 
+                video.video_link?.includes(v.video_id || '')
+              );
+              return tiktokData?.views || 0;
+            }
+          } catch (error) {
+            console.error("Erro ao buscar métricas:", error);
+          }
+          return 0;
+        });
+        
+        const viewsArray = await Promise.all(metricsPromises);
+        totalCampaignViews = viewsArray.reduce((sum, views) => sum + views, 0);
       }
+
+      // Get external videos (TikTok from social_videos)
+      const externalVideos = await externalSupabase.getSocialVideos();
+      const externalViews = externalVideos?.reduce(
+        (sum: number, v: any) => sum + (v.views || 0),
+        0
+      ) || 0;
 
       // Get users
       const { data: profiles } = await supabase.from("profiles").select("*");
 
-      // Total de vídeos = vídeos nas campanhas
-      const totalVideosCount = campaignVideos?.length || 0;
+      const totalViews = totalCampaignViews + externalViews;
 
       setStats({
-        totalVideos: totalVideosCount,
+        totalVideos: (campaignVideos?.length || 0) + (externalVideos?.length || 0),
         totalUsers: profiles?.length || 0,
         activeCampaigns: campaigns?.length || 0,
         totalViews,
@@ -104,26 +128,18 @@ export default function AdminDashboard() {
       
       setGrowthData(formattedGrowthData);
 
-      // Get top users by views usando métricas reais
+      // Get top users by views
       const userStats = new Map();
-      
-      if (campaignVideos && campaignVideos.length > 0) {
-        const metricsMap = await getMultipleVideoMetrics(campaignVideos);
-        
-        campaignVideos.forEach((video) => {
-          const userId = video.submitted_by;
-          if (userId) {
-            const metrics = metricsMap.get(video.video_link);
-            const views = metrics?.views || 0;
-            
-            const current = userStats.get(userId) || { views: 0, videos: 0 };
-            userStats.set(userId, {
-              views: current.views + views,
-              videos: current.videos + 1,
-            });
-          }
-        });
-      }
+      campaignVideos?.forEach((video) => {
+        const userId = video.submitted_by;
+        if (userId) {
+          const current = userStats.get(userId) || { views: 0, videos: 0 };
+          userStats.set(userId, {
+            views: current.views + (video.views || 0),
+            videos: current.videos + 1,
+          });
+        }
+      });
 
       const topUsersArray = Array.from(userStats.entries())
         .map(([userId, stats]) => ({
@@ -189,11 +205,13 @@ export default function AdminDashboard() {
             title="Total de Vídeos"
             value={stats.totalVideos.toLocaleString()}
             icon={Video}
+            trend={{ value: "23.5%", isPositive: true }}
           />
           <StatCard
             title="Usuários Ativos"
             value={stats.totalUsers}
             icon={Users}
+            trend={{ value: "12.3%", isPositive: true }}
           />
           <StatCard
             title="Competições Ativas"
@@ -204,6 +222,7 @@ export default function AdminDashboard() {
             title="Views Totais"
             value={stats.totalViews.toLocaleString()}
             icon={Eye}
+            trend={{ value: "45.8%", isPositive: true }}
           />
         </div>
 

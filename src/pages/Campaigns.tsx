@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { getMultipleVideoMetrics } from "@/lib/videoMetrics";
+import { externalSupabase } from "@/lib/externalSupabase";
 import AppLayout from "@/components/Layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -54,11 +54,29 @@ export default function Campaigns() {
 
             const participants = new Set(videos?.map((v) => v.submitted_by)).size;
             
-            // Buscar métricas reais usando função helper
+            // Buscar métricas reais das tabelas externas
             let totalViews = 0;
             if (videos && videos.length > 0) {
-              const metricsMap = await getMultipleVideoMetrics(videos);
-              totalViews = Array.from(metricsMap.values()).reduce((sum, m) => sum + m.views, 0);
+              const viewsPromises = videos.map(async (video) => {
+                try {
+                  if (video.platform === "instagram") {
+                    const instagramData = await externalSupabase.getVideoByLink(video.video_link);
+                    return instagramData?.views || 0;
+                  } else if (video.platform === "tiktok") {
+                    const allSocialVideos = await externalSupabase.getSocialVideos();
+                    const tiktokData = allSocialVideos.find((v) =>
+                      v.link === video.video_link || v.video_url?.includes(video.video_link)
+                    );
+                    return tiktokData?.views || 0;
+                  }
+                } catch (error) {
+                  console.error("Erro ao buscar métricas do vídeo:", error);
+                }
+                return 0;
+              });
+
+              const viewsArray = await Promise.all(viewsPromises);
+              totalViews = viewsArray.reduce((sum, views) => sum + views, 0);
             }
 
             return {
