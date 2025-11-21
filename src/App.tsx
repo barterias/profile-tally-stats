@@ -4,16 +4,16 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
-import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import Admin from "./pages/Admin";
-import Creators from "./pages/Creators";
-import VideoAnalytics from "./pages/VideoAnalytics";
-import Dashboard from "./pages/Dashboard";
+import UserDashboard from "./pages/UserDashboard";
+import SubmitPost from "./pages/SubmitPost";
+import Wallet from "./pages/Wallet";
+import Profile from "./pages/Profile";
 import Campaigns from "./pages/Campaigns";
-import CreateCampaign from "./pages/CreateCampaign";
 import CampaignDetail from "./pages/CampaignDetail";
+import AdminDashboard from "./pages/AdminDashboard";
 import ManageVideos from "./pages/ManageVideos";
+import CreateCampaign from "./pages/CreateCampaign";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,15 +27,15 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<Index />} />
-            <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/" element={<UserDashboard />} />
+            <Route path="/submit" element={<SubmitPost />} />
+            <Route path="/wallet" element={<Wallet />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/campaign/:id" element={<CampaignDetail />} />
-            <Route path="/manage-videos" element={<ManageVideos />} />
-            <Route path="/creators" element={<Creators />} />
-            <Route path="/video-analytics" element={<VideoAnalytics />} />
-            <Route path="/create-campaign" element={<CreateCampaign />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/videos" element={<ManageVideos />} />
+            <Route path="/admin/create-campaign" element={<CreateCampaign />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

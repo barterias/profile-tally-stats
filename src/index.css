@@ -8,75 +8,80 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 220 30% 5%;
+    /* Clipper Pro League - Premium Dark + Neon Blue Theme */
+    --background: 222 47% 4%;
     --foreground: 210 100% 98%;
     
-    --card: 220 25% 8%;
+    --card: 222 40% 6%;
     --card-foreground: 210 100% 98%;
     
-    --popover: 220 28% 7%;
+    --popover: 222 40% 5%;
     --popover-foreground: 210 100% 98%;
     
-    /* Neon Blue Theme */
-    --primary: 210 100% 60%;
-    --primary-glow: 210 100% 70%;
-    --primary-dark: 210 100% 45%;
-    --primary-foreground: 220 30% 5%;
+    /* Primary - Neon Blue */
+    --primary: 199 100% 50%;
+    --primary-glow: 199 100% 60%;
+    --primary-dark: 199 100% 40%;
+    --primary-foreground: 222 47% 4%;
     
-    --secondary: 220 25% 12%;
+    --secondary: 222 35% 10%;
     --secondary-foreground: 210 100% 98%;
     
-    --muted: 220 20% 15%;
-    --muted-foreground: 210 20% 70%;
+    --muted: 222 30% 12%;
+    --muted-foreground: 215 20% 65%;
     
-    --accent: 195 100% 55%;
-    --accent-foreground: 220 30% 5%;
+    --accent: 191 100% 50%;
+    --accent-foreground: 222 47% 4%;
     
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 100% 98%;
     
-    --success: 142 76% 56%;
+    --success: 142 76% 50%;
     --success-foreground: 210 100% 98%;
     
     --warning: 38 92% 50%;
-    --warning-foreground: 220 30% 5%;
+    --warning-foreground: 222 47% 4%;
     
-    --border: 220 20% 20%;
-    --input: 220 20% 18%;
-    --ring: 210 100% 60%;
+    --border: 222 30% 15%;
+    --input: 222 35% 10%;
+    --ring: 199 100% 50%;
     
-    --chart-1: 210 100% 60%;
-    --chart-2: 195 100% 55%;
-    --chart-3: 180 100% 50%;
-    --chart-4: 142 76% 56%;
-    --chart-5: 270 100% 65%;
+    --chart-1: 199 100% 50%;
+    --chart-2: 191 100% 50%;
+    --chart-3: 180 100% 45%;
+    --chart-4: 142 76% 50%;
+    --chart-5: 270 100% 60%;
     
     --radius: 0.75rem;
 
-    /* Neon Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(210 100% 60%) 0%, hsl(195 100% 55%) 100%);
-    --gradient-secondary: linear-gradient(135deg, hsl(220 25% 12%) 0%, hsl(220 25% 18%) 100%);
-    --gradient-bg-dark: linear-gradient(135deg, hsl(220 30% 5%) 0%, hsl(220 28% 8%) 50%, hsl(220 30% 5%) 100%);
-    --gradient-glow: radial-gradient(circle at 50% 0%, hsl(210 100% 60% / 0.15) 0%, transparent 50%);
+    /* Premium Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(199 100% 50%) 0%, hsl(191 100% 50%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(222 40% 6%) 0%, hsl(222 35% 10%) 100%);
+    --gradient-bg-dark: linear-gradient(180deg, hsl(222 47% 4%) 0%, hsl(222 40% 6%) 50%, hsl(222 47% 4%) 100%);
+    --gradient-glow: radial-gradient(ellipse at top, hsl(199 100% 50% / 0.15) 0%, transparent 60%);
+    --gradient-card: linear-gradient(135deg, hsl(222 40% 6% / 0.9) 0%, hsl(222 35% 10% / 0.7) 100%);
     
-    /* Neon Shadows & Glows */
-    --shadow-glow: 0 0 30px hsl(210 100% 60% / 0.3);
-    --shadow-glow-lg: 0 0 60px hsl(210 100% 60% / 0.4);
-    --shadow-card: 0 8px 32px hsl(210 100% 10% / 0.4);
+    /* Neon Glows & Shadows */
+    --shadow-glow-sm: 0 0 20px hsl(199 100% 50% / 0.3);
+    --shadow-glow: 0 0 40px hsl(199 100% 50% / 0.4);
+    --shadow-glow-lg: 0 0 80px hsl(199 100% 50% / 0.5);
+    --shadow-card: 0 8px 32px hsl(222 47% 2% / 0.6);
+    --shadow-card-hover: 0 12px 48px hsl(222 47% 2% / 0.8);
     
     /* Transitions */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --transition-elastic: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
     
     /* Sidebar */
-    --sidebar-background: 220 28% 7%;
+    --sidebar-background: 222 40% 5%;
     --sidebar-foreground: 210 100% 98%;
-    --sidebar-primary: 210 100% 60%;
-    --sidebar-primary-foreground: 220 30% 5%;
-    --sidebar-accent: 220 25% 12%;
+    --sidebar-primary: 199 100% 50%;
+    --sidebar-primary-foreground: 222 47% 4%;
+    --sidebar-accent: 222 35% 10%;
     --sidebar-accent-foreground: 210 100% 98%;
-    --sidebar-border: 220 20% 20%;
-    --sidebar-ring: 210 100% 60%;
+    --sidebar-border: 222 30% 15%;
+    --sidebar-ring: 199 100% 50%;
   }
 
   .dark {
@@ -141,15 +146,30 @@ All colors MUST be HSL.
   }
   
   .glass-card {
-    background: hsl(var(--card) / 0.6);
-    backdrop-filter: blur(12px);
-    border: 1px solid hsl(var(--border) / 0.5);
+    background: linear-gradient(135deg, hsl(var(--card) / 0.8) 0%, hsl(var(--card) / 0.4) 100%);
+    backdrop-filter: blur(20px);
+    border: 1px solid hsl(var(--border) / 0.3);
     box-shadow: var(--shadow-card);
+  }
+  
+  .glass-card-hover {
+    transition: var(--transition-smooth);
+  }
+  
+  .glass-card-hover:hover {
+    background: linear-gradient(135deg, hsl(var(--card) / 0.9) 0%, hsl(var(--card) / 0.5) 100%);
+    border-color: hsl(var(--primary) / 0.4);
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
   }
   
   .neon-border {
     border: 1px solid hsl(var(--primary) / 0.5);
-    box-shadow: 0 0 15px hsl(var(--primary) / 0.2), inset 0 0 15px hsl(var(--primary) / 0.1);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3), inset 0 0 20px hsl(var(--primary) / 0.1);
+  }
+  
+  .neon-glow {
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.4);
   }
   
   .hover-glow {
@@ -162,7 +182,19 @@ All colors MUST be HSL.
   }
   
   .text-glow {
-    text-shadow: 0 0 20px hsl(var(--primary) / 0.5);
+    text-shadow: 0 0 30px hsl(var(--primary) / 0.6), 0 0 60px hsl(var(--primary) / 0.3);
+  }
+  
+  .text-glow-sm {
+    text-shadow: 0 0 15px hsl(var(--primary) / 0.4);
+  }
+  
+  .premium-gradient {
+    background: var(--gradient-primary);
+  }
+  
+  .card-gradient {
+    background: var(--gradient-card);
   }
 
   @keyframes fadeIn {
