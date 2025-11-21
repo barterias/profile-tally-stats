@@ -91,44 +91,75 @@ function CampaignDetailContent() {
 
       // Buscar métricas reais das tabelas externas
       if (videosData && videosData.length > 0) {
-        const videosWithMetrics = await Promise.all(
-          videosData.map(async (video) => {
-            try {
-              if (video.platform === "instagram") {
-                // Buscar da tabela videos (Instagram)
-                const instagramData = await externalSupabase.getVideoByLink(video.video_link);
-                if (instagramData) {
-                  return {
-                    ...video,
-                    views: instagramData.views || 0,
-                    likes: instagramData.likes || 0,
-                    comments: instagramData.comments || 0,
-                    shares: instagramData.shares || 0,
-                  };
-                }
-              } else if (video.platform === "tiktok") {
-                // Buscar da tabela social_videos (TikTok)
-                const allSocialVideos = await externalSupabase.getSocialVideos();
-                const tiktokData = allSocialVideos.find(v => 
-                  v.video_url?.includes(video.video_link) || 
-                  video.video_link?.includes(v.video_id || '')
-                );
-                if (tiktokData) {
-                  return {
-                    ...video,
-                    views: tiktokData.views || 0,
-                    likes: tiktokData.likes || 0,
-                    comments: tiktokData.comments || 0,
-                    shares: tiktokData.shares || 0,
-                  };
-                }
+        console.log("📹 Vídeos da campanha:", videosData);
+        
+        // Buscar TODOS os vídeos do Instagram e TikTok de uma vez
+        const [allInstagramVideos, allTikTokVideos] = await Promise.all([
+          externalSupabase.getAllVideos(),
+          externalSupabase.getSocialVideos(),
+        ]);
+
+        console.log("📱 Instagram videos disponíveis:", allInstagramVideos?.length);
+        console.log("🎵 TikTok videos disponíveis:", allTikTokVideos?.length);
+
+        const videosWithMetrics = videosData.map((video) => {
+          try {
+            // Normalizar o link removendo trailing slash e query params
+            const normalizeLink = (link: string) => {
+              return link.split('?')[0].replace(/\/$/, '').toLowerCase();
+            };
+
+            const normalizedVideoLink = normalizeLink(video.video_link);
+            console.log(`🔍 Buscando métricas para: ${normalizedVideoLink}`);
+
+            if (video.platform === "instagram") {
+              // Buscar da tabela videos (Instagram)
+              const instagramData = allInstagramVideos?.find(v => {
+                const normalizedDbLink = normalizeLink(v.link || v.video_url || '');
+                const match = normalizedDbLink === normalizedVideoLink;
+                if (match) console.log(`✅ Match Instagram encontrado:`, v);
+                return match;
+              });
+
+              if (instagramData) {
+                return {
+                  ...video,
+                  views: instagramData.views || 0,
+                  likes: instagramData.likes || 0,
+                  comments: instagramData.comments || 0,
+                  shares: instagramData.shares || 0,
+                };
+              } else {
+                console.log(`❌ Instagram não encontrado para: ${normalizedVideoLink}`);
               }
-            } catch (error) {
-              console.error("Erro ao buscar métricas do vídeo:", error);
+            } else if (video.platform === "tiktok") {
+              // Buscar da tabela social_videos (TikTok)
+              const tiktokData = allTikTokVideos?.find(v => {
+                const normalizedDbLink = normalizeLink(v.link || v.video_url || '');
+                const match = normalizedDbLink === normalizedVideoLink;
+                if (match) console.log(`✅ Match TikTok encontrado:`, v);
+                return match;
+              });
+
+              if (tiktokData) {
+                return {
+                  ...video,
+                  views: tiktokData.views || 0,
+                  likes: tiktokData.likes || 0,
+                  comments: tiktokData.comments || 0,
+                  shares: tiktokData.shares || 0,
+                };
+              } else {
+                console.log(`❌ TikTok não encontrado para: ${normalizedVideoLink}`);
+              }
             }
-            return video;
-          })
-        );
+          } catch (error) {
+            console.error("Erro ao buscar métricas do vídeo:", error);
+          }
+          return video;
+        });
+
+        console.log("✨ Vídeos com métricas:", videosWithMetrics);
 
         // Ordenar por views
         const sortedVideos = videosWithMetrics.sort((a, b) => (b.views || 0) - (a.views || 0));
