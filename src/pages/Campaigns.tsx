@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import AppLayout from "@/components/Layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Trophy, TrendingUp, Plus, Users, Instagram, Music, Video } from "lucide-react";
+import { Trophy, Plus, Clock, Target, Users, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -21,29 +22,24 @@ interface Campaign {
 }
 
 export default function Campaigns() {
-  const { user, loading: authLoading } = useAuth();
+  const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [user, authLoading, navigate]);
+  const [filter, setFilter] = useState<"active" | "finished">("active");
 
   useEffect(() => {
     fetchCampaigns();
-  }, []);
+  }, [filter]);
 
   const fetchCampaigns = async () => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("campaigns")
         .select("*")
-        .order("start_date", { ascending: false });
+        .eq("is_active", filter === "active")
+        .order("created_at", { ascending: false });
 
-      if (error) throw error;
       setCampaigns(data || []);
     } catch (error) {
       console.error("Error fetching campaigns:", error);
@@ -52,151 +48,133 @@ export default function Campaigns() {
     }
   };
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center gradient-bg-dark">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      </AppLayout>
     );
   }
 
-  const PlatformIcon = (platform: string) => {
-    return platform === "instagram" ? Instagram : Music;
-  };
-
   return (
-    <div className="min-h-screen gradient-bg-dark">
-      {/* Header */}
-      <header className="border-b border-border/50 bg-background/50 backdrop-blur-md sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Trophy className="h-8 w-8 text-primary animate-float" />
-            <h1 className="text-2xl font-bold text-glow">Campeonatos</h1>
+    <AppLayout>
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-glow mb-2">Competições</h1>
+            <p className="text-muted-foreground">
+              Participe das competições e ganhe prêmios
+            </p>
           </div>
-          <nav className="flex gap-4">
-            <Button variant="ghost" onClick={() => navigate("/")}>Início</Button>
-            <Button variant="ghost" onClick={() => navigate("/video-analytics")}>Analytics</Button>
-          </nav>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
-        {/* Hero Section */}
-        <div className="mb-12 text-center animate-fade-in">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4 text-glow">
-            Participe dos Nossos Campeonatos
-          </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Mostre seu talento, compita com os melhores e ganhe prêmios incríveis!
-          </p>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <Card className="glass-card hover-glow p-6 animate-slide-up">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                <Trophy className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Campeonatos Ativos</p>
-                <p className="text-2xl font-bold">
-                  {campaigns.filter((c) => c.is_active).length}
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="glass-card hover-glow p-6 animate-slide-up" style={{ animationDelay: "0.1s" }}>
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-accent/20 flex items-center justify-center">
-                <Users className="h-6 w-6 text-accent" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total de Participantes</p>
-                <p className="text-2xl font-bold">250+</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="glass-card hover-glow p-6 animate-slide-up" style={{ animationDelay: "0.2s" }}>
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-success/20 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-success" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Vídeos Enviados</p>
-                <p className="text-2xl font-bold">1.2K+</p>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Campaigns Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {campaigns.map((campaign, index) => (
-            <Card
-              key={campaign.id}
-              className="glass-card hover-glow p-6 animate-scale-in group cursor-pointer"
-              style={{ animationDelay: `${index * 0.1}s` }}
-              onClick={() => navigate(`/campaign/${campaign.id}`)}
+          {isAdmin && (
+            <Button
+              className="premium-gradient"
+              onClick={() => navigate("/admin/create-campaign")}
             >
-              {/* Platform Badge */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                  {campaign.platform === "instagram" ? (
-                    <Instagram className="h-6 w-6 text-primary" />
-                  ) : (
-                    <Music className="h-6 w-6 text-primary" />
-                  )}
-                </div>
-                <Badge className={campaign.is_active ? "bg-success" : "bg-muted"}>
-                  {campaign.is_active ? "Ativo" : "Encerrado"}
-                </Badge>
-              </div>
-
-              {/* Campaign Info */}
-              <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">
-                {campaign.name}
-              </h3>
-              <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                {campaign.description}
-              </p>
-
-              {/* Dates */}
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span>
-                    {format(new Date(campaign.start_date), "dd MMM", { locale: ptBR })} -{" "}
-                    {format(new Date(campaign.end_date), "dd MMM yyyy", { locale: ptBR })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Prize */}
-              {campaign.prize_description && (
-                <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20">
-                  <p className="text-sm font-semibold text-primary">🏆 {campaign.prize_description}</p>
-                </div>
-              )}
-
-              {/* CTA */}
-              <Button className="w-full mt-4 neon-border" variant="outline">
-                <Plus className="h-4 w-4 mr-2" />
-                Participar
-              </Button>
-            </Card>
-          ))}
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Competição
+            </Button>
+          )}
         </div>
 
-        {campaigns.length === 0 && !loading && (
-          <div className="text-center py-12">
-            <Trophy className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-            <p className="text-xl text-muted-foreground">Nenhum campeonato disponível no momento</p>
+        <div className="flex gap-2">
+          <Button
+            variant={filter === "active" ? "default" : "outline"}
+            onClick={() => setFilter("active")}
+          >
+            <Target className="h-4 w-4 mr-2" />
+            Ativas
+          </Button>
+          <Button
+            variant={filter === "finished" ? "default" : "outline"}
+            onClick={() => setFilter("finished")}
+          >
+            <Clock className="h-4 w-4 mr-2" />
+            Encerradas
+          </Button>
+        </div>
+
+        {campaigns.length === 0 ? (
+          <Card className="glass-card p-12 text-center">
+            <Trophy className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
+            <h3 className="text-xl font-semibold mb-2">
+              Nenhuma competição {filter === "active" ? "ativa" : "encerrada"}
+            </h3>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {campaigns.map((campaign) => (
+              <Card
+                key={campaign.id}
+                className="glass-card-hover cursor-pointer overflow-hidden"
+                onClick={() => navigate(`/campaign/${campaign.id}`)}
+              >
+                <div className="p-6 space-y-4">
+                  <div className="flex items-start justify-between">
+                    <Trophy className="h-8 w-8 text-primary" />
+                    <Badge
+                      className={
+                        campaign.is_active
+                          ? "bg-success text-success-foreground"
+                          : "bg-muted text-muted-foreground"
+                      }
+                    >
+                      {campaign.is_active ? "Ativa" : "Encerrada"}
+                    </Badge>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xl font-bold mb-2">{campaign.name}</h3>
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {campaign.description}
+                    </p>
+                  </div>
+
+                  {campaign.prize_description && (
+                    <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                      <p className="text-xs text-muted-foreground mb-1">Prêmio</p>
+                      <p className="text-sm font-semibold text-primary">
+                        {campaign.prize_description}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                    <span>
+                      {format(new Date(campaign.start_date), "dd MMM", {
+                        locale: ptBR,
+                      })}{" "}
+                      -{" "}
+                      {format(new Date(campaign.end_date), "dd MMM yyyy", {
+                        locale: ptBR,
+                      })}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-border">
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="flex items-center gap-1">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">0</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">0</span>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm">
+                      Ver Detalhes
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 }
