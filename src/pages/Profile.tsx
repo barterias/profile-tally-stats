@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase } from "@/lib/externalSupabase";
 import AppLayout from "@/components/Layout/AppLayout";
 import StatCard from "@/components/Dashboard/StatCard";
 import { Button } from "@/components/ui/button";
@@ -54,14 +55,60 @@ export default function Profile() {
       .select("*, campaigns(*)")
       .eq("submitted_by", user?.id);
 
-    const totalViews = videos?.reduce((sum, v) => sum + (v.views || 0), 0) || 0;
+    // Buscar métricas reais das views externas
+    let totalViews = 0;
+    if (videos && videos.length > 0) {
+      const viewsPromises = videos.map(async (video) => {
+        try {
+          if (video.platform === "instagram") {
+            const instagramData = await externalSupabase.getVideoByLink(video.video_link);
+            return instagramData?.views || 0;
+          } else if (video.platform === "tiktok") {
+            const allSocialVideos = await externalSupabase.getSocialVideos();
+            const tiktokData = allSocialVideos.find((v) =>
+              v.link === video.video_link || v.video_url?.includes(video.video_link)
+            );
+            return tiktokData?.views || 0;
+          }
+        } catch (error) {
+          console.error("Erro ao buscar métricas do vídeo:", error);
+        }
+        return 0;
+      });
+
+      const viewsArray = await Promise.all(viewsPromises);
+      totalViews = viewsArray.reduce((sum, views) => sum + views, 0);
+    }
+
     const campaigns = new Set(videos?.map((v) => v.campaign_id)).size;
+
+    // Calcular ranking médio baseado em todas as campanhas do usuário
+    let avgRank = 0;
+    if (videos && videos.length > 0) {
+      const campaignIds = [...new Set(videos.map((v) => v.campaign_id))];
+      const rankPromises = campaignIds.map(async (campaignId) => {
+        const { data: allVideos } = await supabase
+          .from("campaign_videos")
+          .select("submitted_by, views")
+          .eq("campaign_id", campaignId)
+          .order("views", { ascending: false });
+
+        const userRank = allVideos?.findIndex((v) => v.submitted_by === user?.id);
+        return userRank !== undefined && userRank >= 0 ? userRank + 1 : 0;
+      });
+
+      const ranks = await Promise.all(rankPromises);
+      const validRanks = ranks.filter((r) => r > 0);
+      avgRank = validRanks.length > 0
+        ? Math.round(validRanks.reduce((sum, r) => sum + r, 0) / validRanks.length)
+        : 0;
+    }
 
     setStats({
       totalViews,
       totalVideos: videos?.length || 0,
       campaigns,
-      avgRank: 3,
+      avgRank,
     });
   };
 

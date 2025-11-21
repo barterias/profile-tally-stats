@@ -117,17 +117,16 @@ export default function AdminDashboard() {
         totalViews,
       });
 
-      // Generate growth data (last 30 days)
-      const growthData = Array.from({ length: 30 }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (29 - i));
-        return {
-          date: date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
-          videos: Math.floor(Math.random() * 20) + 5,
-          views: Math.floor(Math.random() * 10000) + 2000,
-        };
-      });
-      setGrowthData(growthData);
+      // Buscar dados reais de crescimento da view daily_growth
+      const dailyGrowthData = await externalSupabase.getDailyGrowth(30);
+      
+      const formattedGrowthData = dailyGrowthData.map((day) => ({
+        date: new Date(day.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
+        videos: day.total_posts,
+        views: day.total_views,
+      }));
+      
+      setGrowthData(formattedGrowthData);
 
       // Get top users by views
       const userStats = new Map();
