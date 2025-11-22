@@ -90,7 +90,8 @@ export default function UserDashboard() {
               const videoId = videoIdMatch ? videoIdMatch[1] : null;
               
               if (videoId) {
-                const match = allTikTokVideos.find((v) => v.video_id === videoId);
+                // Buscar considerando o "=" no início do video_id
+                const match = allTikTokVideos.find((v) => v.video_id === videoId || v.video_id === `=${videoId}`);
                 if (match) return match.views || 0;
               }
               

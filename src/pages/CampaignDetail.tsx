@@ -182,9 +182,9 @@ function CampaignDetailContent() {
                 const videoId = extractVideoId(video.video_link);
                 
                 if (videoId) {
-                  // Buscar no banco TikTok usando video_id
+                  // Buscar no banco TikTok usando video_id (com ou sem "=" no início)
                   const matchById = allTikTokVideos?.find(v => 
-                    v.video_id === videoId
+                    v.video_id === videoId || v.video_id === `=${videoId}`
                   );
 
                   if (matchById) {
