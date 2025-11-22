@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Trophy, ArrowLeft } from "lucide-react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -19,7 +19,7 @@ function CreateCampaignPage() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    platform: "instagram",
+    platforms: ["instagram"] as string[],
     start_date: "",
     end_date: "",
     prize_description: "",
@@ -34,6 +34,7 @@ function CreateCampaignPage() {
       const { error } = await supabase.from("campaigns").insert([
         {
           ...formData,
+          platform: formData.platforms[0], // Compatibilidade retroativa
           is_active: true,
         },
       ]);
@@ -98,19 +99,36 @@ function CreateCampaignPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="platform">Plataforma *</Label>
-              <Select
-                value={formData.platform}
-                onValueChange={(value) => setFormData({ ...formData, platform: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="instagram">📸 Instagram</SelectItem>
-                  <SelectItem value="tiktok">🎵 TikTok</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="platforms">Plataformas *</Label>
+              <div className="flex flex-col gap-2">
+                {["instagram", "tiktok", "youtube"].map((platform) => (
+                  <label key={platform} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.platforms.includes(platform)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setFormData({ ...formData, platforms: [...formData.platforms, platform] });
+                        } else {
+                          setFormData({ 
+                            ...formData, 
+                            platforms: formData.platforms.filter(p => p !== platform) 
+                          });
+                        }
+                      }}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm">
+                      {platform === "instagram" && "📸 Instagram"}
+                      {platform === "tiktok" && "🎵 TikTok"}
+                      {platform === "youtube" && "▶️ YouTube"}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {formData.platforms.length === 0 && (
+                <p className="text-sm text-destructive">Selecione pelo menos uma plataforma</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

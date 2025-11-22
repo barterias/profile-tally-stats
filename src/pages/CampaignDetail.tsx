@@ -25,6 +25,7 @@ import {
   Share2,
   Instagram,
   Music,
+  Youtube,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -34,6 +35,7 @@ interface Campaign {
   name: string;
   description: string;
   platform: string;
+  platforms: string[];
   start_date: string;
   end_date: string;
   prize_description: string;
@@ -176,35 +178,17 @@ function CampaignDetailContent() {
                 
                 console.log(`❌ Instagram não encontrado: ${video.video_link}`);
               } else if (video.platform === "tiktok") {
-                // Buscar no banco TikTok por link normalizado
-                const match = allTikTokVideos?.find(v => {
-                  const dbLink = normalizeLink(v.link || v.video_url || '');
-                  return dbLink === normalizedCampaignLink || 
-                         dbLink.includes(normalizedCampaignLink) || 
-                         normalizedCampaignLink.includes(dbLink);
-                });
-
-                if (match) {
-                  console.log(`✅ TikTok encontrado! Views: ${match.views}, Link: ${video.video_link}`);
-                  return {
-                    ...video,
-                    views: match.views || 0,
-                    likes: match.likes || 0,
-                    comments: match.comments || 0,
-                    shares: match.shares || 0,
-                  };
-                }
-                
-                // Fallback: tentar buscar por ID extraído
+                // Para TikTok, primeiro tentar buscar por video_id
                 const videoId = extractVideoId(video.video_link);
+                
                 if (videoId) {
-                  const matchById = allTikTokVideos?.find(v => {
-                    const dbId = extractVideoId(v.link || v.video_url || '');
-                    return dbId === videoId;
-                  });
-                  
+                  // Buscar no banco TikTok usando video_id
+                  const matchById = allTikTokVideos?.find(v => 
+                    v.video_id === videoId
+                  );
+
                   if (matchById) {
-                    console.log(`✅ TikTok encontrado por ID! ID: ${videoId}, Views: ${matchById.views}`);
+                    console.log(`✅ TikTok encontrado por video_id! ID: ${videoId}, Views: ${matchById.views}`);
                     return {
                       ...video,
                       views: matchById.views || 0,
@@ -213,6 +197,25 @@ function CampaignDetailContent() {
                       shares: matchById.shares || 0,
                     };
                   }
+                }
+
+                // Fallback: buscar por link normalizado
+                const match = allTikTokVideos?.find(v => {
+                  const dbLink = normalizeLink(v.link || v.video_url || '');
+                  return dbLink === normalizedCampaignLink || 
+                         dbLink.includes(normalizedCampaignLink) || 
+                         normalizedCampaignLink.includes(dbLink);
+                });
+
+                if (match) {
+                  console.log(`✅ TikTok encontrado por link! Views: ${match.views}, Link: ${video.video_link}`);
+                  return {
+                    ...video,
+                    views: match.views || 0,
+                    likes: match.likes || 0,
+                    comments: match.comments || 0,
+                    shares: match.shares || 0,
+                  };
                 }
                 
                 console.log(`❌ TikTok não encontrado: ${video.video_link}`);
@@ -256,8 +259,21 @@ function CampaignDetailContent() {
 
     try {
       // Validate URL
-      if (!videoLink.includes("instagram.com") && !videoLink.includes("tiktok.com")) {
-        throw new Error("Por favor, insira um link válido do Instagram ou TikTok");
+      let detectedPlatform = "instagram";
+      if (videoLink.includes("instagram.com")) {
+        detectedPlatform = "instagram";
+      } else if (videoLink.includes("tiktok.com")) {
+        detectedPlatform = "tiktok";
+      } else if (videoLink.includes("youtube.com") || videoLink.includes("youtu.be")) {
+        detectedPlatform = "youtube";
+      } else {
+        throw new Error("Por favor, insira um link válido do Instagram, TikTok ou YouTube");
+      }
+
+      // Verificar se a plataforma é aceita pela campanha
+      const campaignPlatforms = campaign?.platforms || [campaign?.platform || "instagram"];
+      if (!campaignPlatforms.includes(detectedPlatform)) {
+        throw new Error(`Esta campanha não aceita vídeos de ${detectedPlatform}. Plataformas aceitas: ${campaignPlatforms.join(", ")}`);
       }
 
       // Insert video record
@@ -265,7 +281,7 @@ function CampaignDetailContent() {
         {
           campaign_id: id,
           video_link: videoLink,
-          platform: campaign?.platform || "instagram",
+          platform: detectedPlatform,
           submitted_by: user?.id,
           verified: false,
         },
@@ -316,7 +332,14 @@ function CampaignDetailContent() {
     );
   }
 
-  const PlatformIcon = campaign.platform === "instagram" ? Instagram : Music;
+  const campaignPlatforms = campaign.platforms || [campaign.platform];
+  const getPlatformIcon = (platform: string) => {
+    if (platform === "instagram") return Instagram;
+    if (platform === "tiktok") return Music;
+    if (platform === "youtube") return Youtube;
+    return Video;
+  };
+  const PrimaryPlatformIcon = getPlatformIcon(campaignPlatforms[0]);
   const totalViews = videos.reduce((sum, v) => sum + (v.views || 0), 0);
   const totalParticipants = new Set(videos.map(v => v.submitted_by)).size;
 
@@ -326,8 +349,19 @@ function CampaignDetailContent() {
       <header className="border-b border-border/50 bg-background/50 backdrop-blur-md sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <PlatformIcon className="h-8 w-8 text-primary animate-float" />
+            <PrimaryPlatformIcon className="h-8 w-8 text-primary animate-float" />
             <h1 className="text-2xl font-bold text-glow">{campaign.name}</h1>
+            <div className="flex items-center gap-1 ml-2">
+              {campaignPlatforms.map((platform) => {
+                const Icon = getPlatformIcon(platform);
+                return (
+                  <Icon 
+                    key={platform} 
+                    className="h-4 w-4 text-muted-foreground"
+                  />
+                );
+              })}
+            </div>
           </div>
           <Button variant="ghost" onClick={() => navigate("/campaigns")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -425,13 +459,13 @@ function CampaignDetailContent() {
                     <Label htmlFor="videoLink">Link do Vídeo</Label>
                     <Input
                       id="videoLink"
-                      placeholder={`Cole o link do ${campaign.platform === "instagram" ? "Instagram" : "TikTok"}`}
+                      placeholder={`Cole o link do vídeo (${campaignPlatforms.join(", ")})`}
                       value={videoLink}
                       onChange={(e) => setVideoLink(e.target.value)}
                       required
                     />
                     <p className="text-xs text-muted-foreground">
-                      Cole o link completo do seu vídeo
+                      Plataformas aceitas: {campaignPlatforms.join(", ")}
                     </p>
                   </div>
                   <Button
