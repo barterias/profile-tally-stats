@@ -59,8 +59,56 @@ export default function UserDashboard() {
 
   const fetchUserData = async () => {
     try {
-      // Buscar total de views das views do Supabase externo
-      const totalViews = await externalSupabase.getTotalViews();
+      // Buscar vídeos submetidos pelo usuário
+      const { data: userVideos } = await supabase
+        .from("campaign_videos")
+        .select("*")
+        .eq("submitted_by", user?.id);
+
+      // Buscar competições ativas
+      const { data: activeCampaigns } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("is_active", true);
+
+      // Buscar métricas reais dos vídeos do usuário
+      let totalViews = 0;
+      if (userVideos && userVideos.length > 0) {
+        const [allInstagramVideos, allTikTokVideos] = await Promise.all([
+          externalSupabase.getAllVideos(),
+          externalSupabase.getSocialVideos(),
+        ]);
+
+        const viewsPromises = userVideos.map(async (video) => {
+          try {
+            if (video.platform === "instagram") {
+              const match = allInstagramVideos.find((v) => v.link === video.video_link);
+              return match?.views || 0;
+            } else if (video.platform === "tiktok") {
+              // Extrair video_id do link
+              const videoIdMatch = video.video_link.match(/\/video\/(\d+)/);
+              const videoId = videoIdMatch ? videoIdMatch[1] : null;
+              
+              if (videoId) {
+                const match = allTikTokVideos.find((v) => v.video_id === videoId);
+                if (match) return match.views || 0;
+              }
+              
+              // Fallback: buscar por link
+              const matchByLink = allTikTokVideos.find((v) =>
+                v.link === video.video_link || v.video_url?.includes(video.video_link)
+              );
+              return matchByLink?.views || 0;
+            }
+          } catch (error) {
+            console.error("Erro ao buscar métricas do vídeo:", error);
+          }
+          return 0;
+        });
+
+        const viewsArray = await Promise.all(viewsPromises);
+        totalViews = viewsArray.reduce((sum, views) => sum + views, 0);
+      }
 
       // Buscar latest posts
       const latest = await externalSupabase.getLatestPosts(5);
@@ -76,18 +124,6 @@ export default function UserDashboard() {
       // Buscar daily growth para o gráfico
       const dailyGrowth = await externalSupabase.getDailyGrowth(7);
 
-      // Buscar competições ativas
-      const { data: activeCampaigns } = await supabase
-        .from("campaigns")
-        .select("*")
-        .eq("is_active", true);
-
-      // Buscar vídeos submetidos pelo usuário
-      const { data: userVideos } = await supabase
-        .from("campaign_videos")
-        .select("*")
-        .eq("submitted_by", user?.id);
-
       // Contar total de vídeos (Instagram + TikTok)
       const [instagramVideos, tiktokVideos] = await Promise.all([
         externalSupabase.getAllVideos(),
@@ -102,7 +138,7 @@ export default function UserDashboard() {
       setStats({
         totalViews,
         totalEarnings,
-        totalVideosSubmitted: totalVideosInDB,
+        totalVideosSubmitted: userVideos?.length || 0,
         activeCampaigns: activeCampaigns?.length || 0,
         submittedPosts: userVideos?.length || 0,
       });

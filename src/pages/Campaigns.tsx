@@ -16,6 +16,7 @@ interface Campaign {
   name: string;
   description: string;
   platform: string;
+  platforms?: string[];
   start_date: string;
   end_date: string;
   prize_description: string;
@@ -57,17 +58,32 @@ export default function Campaigns() {
             // Buscar métricas reais das tabelas externas
             let totalViews = 0;
             if (videos && videos.length > 0) {
+              // Buscar todos os vídeos de uma vez
+              const [allInstagramVideos, allTikTokVideos] = await Promise.all([
+                externalSupabase.getAllVideos(),
+                externalSupabase.getSocialVideos(),
+              ]);
+
               const viewsPromises = videos.map(async (video) => {
                 try {
                   if (video.platform === "instagram") {
-                    const instagramData = await externalSupabase.getVideoByLink(video.video_link);
-                    return instagramData?.views || 0;
+                    const match = allInstagramVideos.find((v) => v.link === video.video_link);
+                    return match?.views || 0;
                   } else if (video.platform === "tiktok") {
-                    const allSocialVideos = await externalSupabase.getSocialVideos();
-                    const tiktokData = allSocialVideos.find((v) =>
+                    // Extrair video_id do link
+                    const videoIdMatch = video.video_link.match(/\/video\/(\d+)/);
+                    const videoId = videoIdMatch ? videoIdMatch[1] : null;
+                    
+                    if (videoId) {
+                      const match = allTikTokVideos.find((v) => v.video_id === videoId);
+                      if (match) return match.views || 0;
+                    }
+                    
+                    // Fallback: buscar por link
+                    const matchByLink = allTikTokVideos.find((v) =>
                       v.link === video.video_link || v.video_url?.includes(video.video_link)
                     );
-                    return tiktokData?.views || 0;
+                    return matchByLink?.views || 0;
                   }
                 } catch (error) {
                   console.error("Erro ao buscar métricas do vídeo:", error);
@@ -178,6 +194,16 @@ export default function Campaigns() {
                     <p className="text-sm text-muted-foreground line-clamp-2">
                       {campaign.description}
                     </p>
+                    <div className="flex items-center gap-1 mt-2">
+                      {(campaign.platforms || [campaign.platform]).map((platform) => (
+                        <Badge key={platform} variant="outline" className="text-xs">
+                          {platform === "instagram" && "📸"}
+                          {platform === "tiktok" && "🎵"}
+                          {platform === "youtube" && "▶️"}
+                          {platform}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
 
                   {campaign.prize_description && (

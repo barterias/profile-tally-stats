@@ -73,6 +73,7 @@ export type Database = {
           is_active: boolean
           name: string
           platform: string
+          platforms: string[] | null
           prize_description: string | null
           rules: string | null
           start_date: string
@@ -86,6 +87,7 @@ export type Database = {
           is_active?: boolean
           name: string
           platform: string
+          platforms?: string[] | null
           prize_description?: string | null
           rules?: string | null
           start_date: string
@@ -99,6 +101,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           platform?: string
+          platforms?: string[] | null
           prize_description?: string | null
           rules?: string | null
           start_date?: string
