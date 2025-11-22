@@ -4,7 +4,7 @@ import { externalSupabase } from "@/lib/externalSupabase";
 import AppLayout from "@/components/Layout/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, Eye, Heart, MessageCircle, Calendar, Instagram, Music } from "lucide-react";
+import { Trophy, Eye, Heart, MessageCircle, Calendar, Instagram, Music, TrendingUp } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -27,8 +27,12 @@ interface RankedVideo {
   likes: number;
   comments: number;
   shares: number;
+  saves?: number;
+  downloads?: number;
   thumbnail?: string;
   video_id?: string;
+  creator_username?: string;
+  title?: string;
 }
 
 export default function RankingGlobal() {
@@ -72,7 +76,6 @@ export default function RankingGlobal() {
     try {
       setLoading(true);
 
-      // Buscar vídeos da campanha
       const { data: campaignVideos } = await supabase
         .from("campaign_videos")
         .select("*")
@@ -84,18 +87,11 @@ export default function RankingGlobal() {
         return;
       }
 
-      console.log("📹 Vídeos submetidos na campanha:", campaignVideos.length, "vídeos");
-
-      // Buscar TODOS os vídeos do Instagram e TikTok
       const [allInstagramVideos, allTikTokVideos] = await Promise.all([
         externalSupabase.getAllVideos(),
         externalSupabase.getSocialVideos(),
       ]);
 
-      console.log("📱 Instagram DB total:", allInstagramVideos?.length || 0);
-      console.log("🎵 TikTok DB total:", allTikTokVideos?.length || 0);
-
-      // Normalizar links
       const normalizeLink = (link: string): string => {
         if (!link) return '';
         return link
@@ -115,7 +111,6 @@ export default function RankingGlobal() {
         return null;
       };
 
-      // Filtrar vídeos do mês atual
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -125,9 +120,6 @@ export default function RankingGlobal() {
         return submittedDate >= startOfMonth && submittedDate <= endOfMonth;
       });
 
-      console.log("📅 Vídeos do mês atual:", monthlyVideos.length);
-
-      // Processar cada vídeo buscando métricas reais
       const videosWithMetrics = await Promise.all(
         monthlyVideos.map(async (video) => {
           const normalizedCampaignLink = normalizeLink(video.video_link);
@@ -150,14 +142,18 @@ export default function RankingGlobal() {
                 shares: match.shares || 0,
                 thumbnail: match.thumbnail || match.post_image,
                 video_id: extractVideoId(video.video_link),
+                creator_username: match.creator_username,
+                title: match.title,
               };
             }
           } else if (video.platform === "tiktok") {
+            const videoId = extractVideoId(video.video_link);
             const match = allTikTokVideos?.find(v => {
               const dbLink = normalizeLink(v.link || v.video_url || '');
               return dbLink === normalizedCampaignLink || 
                      dbLink.includes(normalizedCampaignLink) || 
-                     normalizedCampaignLink.includes(dbLink);
+                     normalizedCampaignLink.includes(dbLink) ||
+                     (videoId && (v.video_id === videoId || v.video_id === `=${videoId}`));
             });
 
             if (match) {
@@ -168,8 +164,12 @@ export default function RankingGlobal() {
                 likes: match.likes || 0,
                 comments: match.comments || 0,
                 shares: match.shares || 0,
+                saves: match.saves || 0,
+                downloads: match.downloads || 0,
                 thumbnail: match.thumbnail,
                 video_id: extractVideoId(video.video_link),
+                creator_username: match.creator_username,
+                title: match.title,
               };
             }
           }
@@ -178,7 +178,6 @@ export default function RankingGlobal() {
         })
       );
 
-      // Filtrar nulos e ordenar por views
       const validVideos = videosWithMetrics
         .filter((v): v is NonNullable<typeof v> => v !== null && v.views > 0)
         .sort((a, b) => b.views - a.views)
@@ -186,12 +185,6 @@ export default function RankingGlobal() {
           ...video,
           position: index + 1,
         }));
-
-      console.log("✨ Métricas carregadas:", {
-        total: validVideos.length,
-        comViews: validVideos.filter(v => v.views > 0).length,
-        totalViews: validVideos.reduce((sum, v) => sum + v.views, 0),
-      });
 
       setRanking(validVideos);
     } catch (error) {
@@ -221,7 +214,6 @@ export default function RankingGlobal() {
   return (
     <AppLayout>
       <div className="space-y-8">
-        {/* Header */}
         <div className="space-y-6 animate-fade-in">
           <div className="flex items-center justify-between">
             <div>
@@ -236,7 +228,6 @@ export default function RankingGlobal() {
             </div>
           </div>
 
-          {/* Campaign Selector */}
           <div className="flex items-center gap-4">
             <label className="text-sm font-medium">Competição:</label>
             <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
@@ -277,178 +268,133 @@ export default function RankingGlobal() {
           </Card>
         )}
 
-        {/* Top 3 Podium */}
         {selectedCampaign && ranking.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {ranking.slice(0, 3).map((entry) => (
-            <Card
-              key={entry.position}
-              className={`glass-card-hover p-6 animate-scale-in relative ${
-                entry.position === 1 ? "md:col-start-2 md:row-start-1 neon-border" : ""
-              }`}
-              style={{ animationDelay: `${entry.position * 0.1}s` }}
-            >
-              <div className="absolute -top-4 -right-4">
-                <Badge className={`h-12 w-12 rounded-full flex items-center justify-center text-lg font-bold ${getRankBadgeColor(entry.position)}`}>
-                  #{entry.position}
-                </Badge>
-              </div>
-              
-              <div className="flex flex-col items-center text-center space-y-4">
-                <div className="relative">
-                  {entry.thumbnail ? (
-                    <img
-                      src={entry.thumbnail}
-                      alt="Post thumbnail"
-                      className="h-32 w-32 rounded-lg object-cover border-2 border-primary/50"
-                    />
-                  ) : (
-                    <div className="h-32 w-32 rounded-lg bg-primary/10 border-2 border-primary/50 flex items-center justify-center">
-                      {entry.platform === "instagram" ? (
-                        <Instagram className="h-12 w-12 text-primary" />
-                      ) : (
-                        <Music className="h-12 w-12 text-primary" />
+          <div className="space-y-4">
+            {ranking.map((entry, index) => (
+              <Card
+                key={entry.position}
+                className={`glass-card-hover overflow-hidden animate-slide-in-right ${
+                  entry.position <= 3 ? "neon-border" : ""
+                }`}
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
+                <div className="flex gap-6 p-6">
+                  <div className="flex-shrink-0 flex flex-col items-center justify-center">
+                    <Badge
+                      className={`h-16 w-16 rounded-full flex items-center justify-center text-2xl font-bold ${getRankBadgeColor(entry.position)}`}
+                    >
+                      #{entry.position}
+                    </Badge>
+                    {entry.position === 1 && (
+                      <Trophy className="h-6 w-6 text-yellow-500 mt-2 animate-pulse-glow" />
+                    )}
+                  </div>
+
+                  <div className="flex-shrink-0">
+                    {entry.thumbnail ? (
+                      <img
+                        src={entry.thumbnail}
+                        alt={entry.title || "Post thumbnail"}
+                        className="h-32 w-32 rounded-lg object-cover border-2 border-primary/50"
+                      />
+                    ) : (
+                      <div className="h-32 w-32 rounded-lg bg-primary/10 border-2 border-primary/50 flex items-center justify-center">
+                        {entry.platform === "instagram" ? (
+                          <Instagram className="h-12 w-12 text-primary" />
+                        ) : (
+                          <Music className="h-12 w-12 text-primary" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        {entry.creator_username && (
+                          <p className="text-sm text-muted-foreground">@{entry.creator_username}</p>
+                        )}
+                        {entry.title && (
+                          <p className="font-medium line-clamp-2">{entry.title}</p>
+                        )}
+                        <Badge variant="outline" className="text-xs">
+                          {entry.platform}
+                        </Badge>
+                      </div>
+                      <a
+                        href={entry.video_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:underline whitespace-nowrap"
+                      >
+                        Ver Post →
+                      </a>
+                    </div>
+
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Eye className="h-3 w-3" />
+                          <span className="text-xs">Views</span>
+                        </div>
+                        <p className="text-sm font-bold">
+                          {entry.views >= 1000000
+                            ? `${(entry.views / 1000000).toFixed(1)}M`
+                            : entry.views >= 1000
+                            ? `${(entry.views / 1000).toFixed(1)}K`
+                            : entry.views}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Heart className="h-3 w-3" />
+                          <span className="text-xs">Likes</span>
+                        </div>
+                        <p className="text-sm font-bold">
+                          {entry.likes >= 1000
+                            ? `${(entry.likes / 1000).toFixed(1)}K`
+                            : entry.likes}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <MessageCircle className="h-3 w-3" />
+                          <span className="text-xs">Comments</span>
+                        </div>
+                        <p className="text-sm font-bold">{entry.comments}</p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <TrendingUp className="h-3 w-3" />
+                          <span className="text-xs">Shares</span>
+                        </div>
+                        <p className="text-sm font-bold">{entry.shares || 0}</p>
+                      </div>
+
+                      {entry.platform === "tiktok" && entry.saves !== undefined && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <span className="text-xs">💾 Saves</span>
+                          </div>
+                          <p className="text-sm font-bold">{entry.saves}</p>
+                        </div>
+                      )}
+
+                      {entry.platform === "tiktok" && entry.downloads !== undefined && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <span className="text-xs">⬇️ Downloads</span>
+                          </div>
+                          <p className="text-sm font-bold">{entry.downloads}</p>
+                        </div>
                       )}
                     </div>
-                  )}
-                  {entry.position === 1 && (
-                    <Trophy className="absolute -top-2 -right-2 h-8 w-8 text-yellow-500 animate-pulse-glow" />
-                  )}
-                </div>
-
-                <div className="space-y-2 w-full">
-                  <Badge variant="outline" className="text-xs">
-                    {entry.platform}
-                  </Badge>
-                  
-                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                        <Eye className="h-3 w-3" />
-                        <span className="text-xs">Views</span>
-                      </div>
-                      <p className="text-lg font-bold text-primary">
-                        {(entry.views / 1000000).toFixed(1)}M
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                        <Heart className="h-3 w-3" />
-                        <span className="text-xs">Likes</span>
-                      </div>
-                      <p className="text-lg font-bold">
-                        {(entry.likes / 1000).toFixed(1)}K
-                      </p>
-                    </div>
-                  </div>
-
-                  <a
-                    href={entry.video_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline block mt-2"
-                  >
-                    Ver post →
-                  </a>
-                </div>
-              </div>
-            </Card>
-            ))}
-          </div>
-        )}
-
-        {/* Rest of Ranking */}
-        {selectedCampaign && ranking.length > 3 && (
-          <div className="space-y-3">
-            {ranking.slice(3).map((entry, index) => (
-            <Card
-              key={entry.position}
-              className="glass-card-hover p-4 animate-slide-in-right"
-              style={{ animationDelay: `${(index + 3) * 0.02}s` }}
-            >
-              <div className="flex items-center gap-4">
-                {/* Position */}
-                <div className="flex-shrink-0">
-                  <Badge className={`h-10 w-10 rounded-full flex items-center justify-center font-bold ${getRankBadgeColor(entry.position)}`}>
-                    #{entry.position}
-                  </Badge>
-                </div>
-
-                {/* Thumbnail */}
-                <div className="flex-shrink-0">
-                  {entry.thumbnail ? (
-                    <img
-                      src={entry.thumbnail}
-                      alt="Post thumbnail"
-                      className="h-16 w-16 rounded-lg object-cover border border-primary/30"
-                    />
-                  ) : (
-                    <div className="h-16 w-16 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center">
-                      {entry.platform === "instagram" ? (
-                        <Instagram className="h-6 w-6 text-primary" />
-                      ) : (
-                        <Music className="h-6 w-6 text-primary" />
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Platform */}
-                <div className="flex-shrink-0">
-                  <Badge variant="outline" className="text-xs">
-                    {entry.platform}
-                  </Badge>
-                </div>
-
-                {/* Stats */}
-                <div className="flex-1 grid grid-cols-3 gap-4">
-                  <div className="flex items-center gap-2">
-                    <Eye className="h-4 w-4 text-primary" />
-                    <div>
-                      <p className="text-sm font-semibold">
-                        {entry.views >= 1000000 
-                          ? `${(entry.views / 1000000).toFixed(1)}M`
-                          : `${(entry.views / 1000).toFixed(1)}K`
-                        }
-                      </p>
-                      <p className="text-xs text-muted-foreground">Views</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Heart className="h-4 w-4 text-destructive" />
-                    <div>
-                      <p className="text-sm font-semibold">
-                        {(entry.likes / 1000).toFixed(1)}K
-                      </p>
-                      <p className="text-xs text-muted-foreground">Likes</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <MessageCircle className="h-4 w-4 text-accent" />
-                    <div>
-                      <p className="text-sm font-semibold">
-                        {entry.comments.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Comments</p>
-                    </div>
                   </div>
                 </div>
-
-                {/* Link */}
-                <div className="flex-shrink-0">
-                  <a
-                    href={entry.video_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Ver post →
-                  </a>
-                </div>
-              </div>
-            </Card>
+              </Card>
             ))}
           </div>
         )}
