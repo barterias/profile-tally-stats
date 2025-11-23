@@ -183,6 +183,30 @@ export type Database = {
           },
         ]
       }
+      pending_users: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          password_hash: string
+          username: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          password_hash: string
+          username: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          password_hash?: string
+          username?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -190,6 +214,7 @@ export type Database = {
           id: string
           updated_at: string
           username: string
+          warning: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -197,6 +222,7 @@ export type Database = {
           id: string
           updated_at?: string
           username: string
+          warning?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -204,6 +230,7 @@ export type Database = {
           id?: string
           updated_at?: string
           username?: string
+          warning?: string | null
         }
         Relationships: []
       }
@@ -266,18 +293,21 @@ export type Database = {
           created_at: string
           id: string
           role: Database["public"]["Enums"]["app_role"]
+          status: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           role: Database["public"]["Enums"]["app_role"]
+          status?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          status?: string | null
           user_id?: string
         }
         Relationships: []
@@ -343,15 +373,36 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      admin_users_view: {
+        Row: {
+          date: string | null
+          email: string | null
+          id: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          status: string | null
+          username: string | null
+          warning: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      approve_user: { Args: { pending_id: string }; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      reject_user: { Args: { pending_id: string }; Returns: undefined }
+      update_role: {
+        Args: { new_role: string; user_id: string }
+        Returns: undefined
+      }
+      update_warning: {
+        Args: { new_warning: string; user_id: string }
+        Returns: undefined
       }
     }
     Enums: {
