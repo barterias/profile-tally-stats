@@ -16,12 +16,27 @@ export default function PendingApproval() {
         return;
       }
 
-      // Verificar se o usuário já foi aprovado (existe em profiles)
+      // Verificar se o usuário já foi aprovado (existe em auth)
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
         // Usuário foi aprovado e já está logado
+        localStorage.removeItem("pending_email");
         navigate("/");
+        return;
+      }
+
+      // Verificar se ainda está na tabela pending_users
+      const { data: pendingUser } = await supabase
+        .from("pending_users")
+        .select("email")
+        .eq("email", email)
+        .maybeSingle();
+
+      // Se não está mais na tabela pending_users e não foi aprovado, foi rejeitado
+      if (!pendingUser && !user) {
+        localStorage.removeItem("pending_email");
+        navigate("/auth");
         return;
       }
 
@@ -30,10 +45,42 @@ export default function PendingApproval() {
 
     checkApprovalStatus();
 
-    // Verificar a cada 5 segundos
-    const interval = setInterval(checkApprovalStatus, 5000);
+    // Configurar Realtime para ouvir mudanças na tabela pending_users
+    const channel = supabase
+      .channel('pending-approval-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'pending_users',
+          filter: `email=eq.${email}`
+        },
+        async (payload) => {
+          console.log('Usuário removido da fila de pendentes:', payload);
+          
+          // Verificar se foi aprovado tentando fazer login
+          // (o admin criou o usuário com a senha que estava armazenada)
+          setTimeout(async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (user) {
+              // Foi aprovado e já está autenticado
+              localStorage.removeItem("pending_email");
+              navigate("/");
+            } else {
+              // Foi rejeitado, redirecionar para login
+              localStorage.removeItem("pending_email");
+              navigate("/auth");
+            }
+          }, 1000);
+        }
+      )
+      .subscribe();
 
-    return () => clearInterval(interval);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [email, navigate]);
 
   const handleLogout = () => {
