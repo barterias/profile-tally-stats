@@ -56,32 +56,8 @@ Deno.serve(async (req) => {
 
     console.log('Usuário criado com sucesso:', newUser.user.id)
 
-    // Criar perfil
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .insert({
-        id: newUser.user.id,
-        username: pendingUser.username,
-        avatar_url: null,
-        warning: 'none'
-      })
-
-    if (profileError) {
-      console.error('Erro ao criar perfil:', profileError)
-    }
-
-    // Criar role de usuário
-    const { error: roleError } = await supabaseAdmin
-      .from('user_roles')
-      .insert({
-        user_id: newUser.user.id,
-        role: 'user',
-        status: 'approved'
-      })
-
-    if (roleError) {
-      console.error('Erro ao criar role:', roleError)
-    }
+    // O trigger 'handle_new_user' já cria automaticamente o perfil e a role
+    // quando o usuário é criado em auth.users, então não precisamos fazer isso manualmente
 
     // Remover da tabela pending_users
     const { error: deleteError } = await supabaseAdmin
