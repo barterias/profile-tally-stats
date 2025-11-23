@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Auth from "./pages/Auth";
 import UserDashboard from "./pages/UserDashboard";
 import SubmitPost from "./pages/SubmitPost";
@@ -11,7 +12,7 @@ import Wallet from "./pages/Wallet";
 import Profile from "./pages/Profile";
 import Campaigns from "./pages/Campaigns";
 import CampaignDetail from "./pages/CampaignDetail";
-import AdminDashboard from "./pages/AdminDashboard";
+import Admin from "./pages/Admin";
 import ManageVideos from "./pages/ManageVideos";
 import CreateCampaign from "./pages/CreateCampaign";
 import RankingGlobal from "./pages/RankingGlobal";
@@ -29,17 +30,17 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<UserDashboard />} />
-            <Route path="/submit" element={<SubmitPost />} />
-            <Route path="/wallet" element={<Wallet />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/campaigns" element={<Campaigns />} />
-            <Route path="/campaign/:id" element={<CampaignDetail />} />
-            <Route path="/ranking/monthly" element={<RankingGlobal />} />
-            <Route path="/ranking/daily" element={<RankingDaily />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/videos" element={<ManageVideos />} />
-            <Route path="/admin/create-campaign" element={<CreateCampaign />} />
+            <Route path="/" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
+            <Route path="/submit" element={<ProtectedRoute><SubmitPost /></ProtectedRoute>} />
+            <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
+            <Route path="/campaign/:id" element={<ProtectedRoute><CampaignDetail /></ProtectedRoute>} />
+            <Route path="/ranking/monthly" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
+            <Route path="/ranking/daily" element={<ProtectedRoute><RankingDaily /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><Admin /></ProtectedRoute>} />
+            <Route path="/admin/videos" element={<ProtectedRoute requireAdmin={true}><ManageVideos /></ProtectedRoute>} />
+            <Route path="/admin/create-campaign" element={<ProtectedRoute requireAdmin={true}><CreateCampaign /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
