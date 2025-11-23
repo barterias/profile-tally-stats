@@ -157,12 +157,9 @@ export default function RankingGlobal() {
             });
 
             if (match) {
-              console.log('🎬 TikTok Match Global:', {
-                videoId,
-                thumbnail: match.thumbnail,
-                hasThumb: !!match.thumbnail,
-                allFields: match
-              });
+              // Remove o prefixo "=" dos campos do TikTok
+              const cleanText = (text?: string) => text?.startsWith('=') ? text.slice(1) : text;
+              
               return {
                 video_link: video.video_link,
                 platform: video.platform,
@@ -172,10 +169,10 @@ export default function RankingGlobal() {
                 shares: match.shares || 0,
                 saves: match.saves || 0,
                 downloads: match.downloads || 0,
-                thumbnail: match.thumbnail,
+                thumbnail: cleanText(match.thumbnail),
                 video_id: extractVideoId(video.video_link),
-                creator_username: match.creator_username,
-                title: match.title,
+                creator_username: cleanText(match.creator_username),
+                title: cleanText(match.title),
               };
             }
           }
