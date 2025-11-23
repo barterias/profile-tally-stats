@@ -194,7 +194,13 @@ export default function Admin() {
       const { data, error } = await supabase.rpc('get_admin_users_view');
       
       if (error) throw error;
-      setUsers(data || []);
+      
+      // Remove duplicatas usando um Map (mantém apenas a primeira ocorrência de cada user_id)
+      const uniqueUsers = Array.from(
+        new Map((data || []).map(user => [user.id, user])).values()
+      );
+      
+      setUsers(uniqueUsers);
     } catch (error) {
       console.error('Erro ao carregar usuários:', error);
       toast.error('Erro ao carregar usuários');
