@@ -68,18 +68,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, username: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { username },
-        emailRedirectTo: `${window.location.origin}/`,
-      },
-    });
-    return { error };
+    try {
+      // Inserir na tabela pending_users em vez de criar direto no auth
+      const { error } = await supabase
+        .from("pending_users")
+        .insert({
+          email,
+          username,
+          password_hash: password, // Na produção, deve ser hasheado
+        });
+      
+      if (error) throw error;
+      
+      // Salvar email no localStorage para a página de pending
+      localStorage.setItem("pending_email", email);
+      
+      return { error: null };
+    } catch (error: any) {
+      return { error };
+    }
   };
 
   const signIn = async (email: string, password: string) => {
+    // Verificar se o usuário ainda está pendente
+    const { data: pendingUser } = await supabase
+      .from("pending_users")
+      .select("email")
+      .eq("email", email)
+      .maybeSingle();
+    
+    if (pendingUser) {
+      localStorage.setItem("pending_email", email);
+      return { error: { message: "pending_approval" } as any };
+    }
+    
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
   };

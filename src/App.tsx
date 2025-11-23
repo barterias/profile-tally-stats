@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Auth from "./pages/Auth";
+import PendingApproval from "./pages/PendingApproval";
 import UserDashboard from "./pages/UserDashboard";
 import SubmitPost from "./pages/SubmitPost";
 import Wallet from "./pages/Wallet";
@@ -30,6 +31,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/pending-approval" element={<PendingApproval />} />
             <Route path="/" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
             <Route path="/submit" element={<ProtectedRoute><SubmitPost /></ProtectedRoute>} />
             <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
