@@ -157,6 +157,12 @@ export default function RankingGlobal() {
             });
 
             if (match) {
+              console.log('🎬 TikTok Match Global:', {
+                videoId,
+                thumbnail: match.thumbnail,
+                hasThumb: !!match.thumbnail,
+                allFields: match
+              });
               return {
                 video_link: video.video_link,
                 platform: video.platform,

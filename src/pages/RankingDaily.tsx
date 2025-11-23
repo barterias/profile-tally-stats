@@ -125,6 +125,12 @@ export default function RankingDaily() {
           
           if (match) {
             thumbnail = match.thumbnail;
+            console.log('🎬 TikTok Match encontrado:', {
+              videoId,
+              thumbnail: match.thumbnail,
+              hasThumb: !!match.thumbnail,
+              link: match.link || match.video_url
+            });
             return {
               ...video,
               views: match.views || 0,
