@@ -124,13 +124,10 @@ export default function RankingDaily() {
           });
           
           if (match) {
-            thumbnail = match.thumbnail;
-            console.log('🎬 TikTok Match encontrado:', {
-              videoId,
-              thumbnail: match.thumbnail,
-              hasThumb: !!match.thumbnail,
-              link: match.link || match.video_url
-            });
+            // Remove o prefixo "=" dos campos do TikTok
+            const cleanText = (text?: string) => text?.startsWith('=') ? text.slice(1) : text;
+            
+            thumbnail = cleanText(match.thumbnail);
             return {
               ...video,
               views: match.views || 0,
@@ -140,8 +137,8 @@ export default function RankingDaily() {
               saves: match.saves || 0,
               downloads: match.downloads || 0,
               thumbnail,
-              creator_username: match.creator_username,
-              title: match.title,
+              creator_username: cleanText(match.creator_username),
+              title: cleanText(match.title),
             };
           }
         }
