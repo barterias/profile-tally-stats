@@ -203,8 +203,15 @@ export default function Admin() {
 
   const handleApprove = async (userId: string) => {
     try {
-      const { error } = await supabase.rpc('approve_user', { pending_id: userId });
+      const { data, error } = await supabase.functions.invoke('approve-user', {
+        body: { pendingId: userId }
+      });
+      
       if (error) throw error;
+      
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       
       toast.success('Usuário aprovado com sucesso!');
       fetchUsers();

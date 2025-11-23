@@ -27,29 +27,33 @@ export default function Auth() {
       let result;
       if (isLogin) {
         result = await signIn(email, password);
-      } else {
-        result = await signUp(email, password, username);
-      }
-
-      if (result.error) {
+        if (result.error) {
+          if (result.error.message === "pending_approval") {
+            navigate("/pending-approval");
+            return;
+          }
+          throw result.error;
+        }
         toast({
-          title: "Erro",
-          description: result.error.message,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: isLogin ? "Login realizado!" : "Conta criada!",
-          description: isLogin 
-            ? "Bem-vindo de volta!" 
-            : "Sua conta foi criada com sucesso.",
+          title: "Login realizado!",
+          description: "Bem-vindo de volta!",
         });
         navigate("/");
+      } else {
+        result = await signUp(email, password, username);
+        if (result.error) {
+          throw result.error;
+        }
+        toast({
+          title: "Cadastro enviado!",
+          description: "Aguarde aprovação do administrador.",
+        });
+        navigate("/pending-approval");
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Erro",
-        description: "Algo deu errado. Tente novamente.",
+        description: error.message || "Algo deu errado. Tente novamente.",
         variant: "destructive",
       });
     } finally {
