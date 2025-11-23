@@ -373,21 +373,22 @@ export type Database = {
       }
     }
     Views: {
-      admin_users_view: {
-        Row: {
-          date: string | null
-          email: string | null
-          id: string | null
-          role: Database["public"]["Enums"]["app_role"] | null
-          status: string | null
-          username: string | null
-          warning: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       approve_user: { Args: { pending_id: string }; Returns: undefined }
+      get_admin_users_view: {
+        Args: never
+        Returns: {
+          date: string
+          email: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          status: string
+          username: string
+          warning: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
