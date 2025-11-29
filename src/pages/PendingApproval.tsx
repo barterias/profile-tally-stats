@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Clock, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LanguageSelector } from "@/components/LanguageSelector";
 
 export default function PendingApproval() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [checking, setChecking] = useState(true);
   const email = localStorage.getItem("pending_email");
 
@@ -54,10 +57,13 @@ export default function PendingApproval() {
           event: 'DELETE',
           schema: 'public',
           table: 'pending_users',
-          filter: `email=eq.${email}`
         },
         async (payload) => {
           console.log('Usuário removido da fila de pendentes:', payload);
+          
+          // Verificar se o email deletado é o nosso
+          const deletedEmail = (payload.old as any)?.email;
+          if (deletedEmail !== email) return;
           
           // Verificar se foi aprovado tentando fazer login
           // (o admin criou o usuário com a senha que estava armazenada)
@@ -98,6 +104,11 @@ export default function PendingApproval() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/5 to-accent/10 p-4">
+      {/* Language Selector */}
+      <div className="absolute top-4 right-4 z-20">
+        <LanguageSelector />
+      </div>
+
       <div className="max-w-md w-full">
         <div className="bg-card/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 p-8 space-y-6">
           {/* Icon animado */}
@@ -113,17 +124,17 @@ export default function PendingApproval() {
           {/* Título */}
           <div className="text-center space-y-2">
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Aguardando Aprovação
+              {t("pending.title")}
             </h1>
             <p className="text-muted-foreground">
-              Seu cadastro foi recebido com sucesso!
+              {t("pending.subtitle")}
             </p>
           </div>
 
           {/* Email */}
           <div className="bg-muted/50 rounded-lg p-4 border border-border/50">
             <p className="text-sm text-muted-foreground text-center">
-              Cadastro realizado para:
+              {t("pending.registered_for")}
             </p>
             <p className="text-center font-semibold mt-1 text-foreground">
               {email}
@@ -137,9 +148,9 @@ export default function PendingApproval() {
                 <CheckCircle2 className="h-5 w-5 text-green-500" />
               </div>
               <div>
-                <p className="font-medium text-foreground">Cadastro enviado</p>
+                <p className="font-medium text-foreground">{t("pending.submitted")}</p>
                 <p className="text-muted-foreground text-xs">
-                  Suas informações foram recebidas
+                  {t("pending.submitted_desc")}
                 </p>
               </div>
             </div>
@@ -149,9 +160,9 @@ export default function PendingApproval() {
                 <Clock className="h-5 w-5 text-primary animate-pulse" />
               </div>
               <div>
-                <p className="font-medium text-foreground">Em análise</p>
+                <p className="font-medium text-foreground">{t("pending.under_review")}</p>
                 <p className="text-muted-foreground text-xs">
-                  Um administrador revisará seu cadastro em breve
+                  {t("pending.under_review_desc")}
                 </p>
               </div>
             </div>
@@ -161,9 +172,9 @@ export default function PendingApproval() {
                 <XCircle className="h-5 w-5 text-muted-foreground" />
               </div>
               <div>
-                <p className="font-medium text-foreground">Acesso liberado</p>
+                <p className="font-medium text-foreground">{t("pending.access_granted")}</p>
                 <p className="text-muted-foreground text-xs">
-                  Você receberá acesso após aprovação
+                  {t("pending.access_granted_desc")}
                 </p>
               </div>
             </div>
@@ -172,7 +183,7 @@ export default function PendingApproval() {
           {/* Info adicional */}
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
             <p className="text-sm text-center text-muted-foreground">
-              Esta página irá atualizar automaticamente quando seu cadastro for aprovado.
+              {t("pending.auto_update")}
             </p>
           </div>
 
@@ -183,7 +194,7 @@ export default function PendingApproval() {
               variant="outline" 
               className="w-full"
             >
-              Voltar para Login
+              {t("pending.back_to_login")}
             </Button>
           </div>
         </div>

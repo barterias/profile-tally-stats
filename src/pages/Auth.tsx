@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trophy, Zap, Eye, TrendingUp, Lock, Mail, User, ArrowRight } from "lucide-react";
+import { LanguageSelector } from "@/components/LanguageSelector";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -17,6 +19,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,8 +38,8 @@ export default function Auth() {
           throw result.error;
         }
         toast({
-          title: "Login realizado!",
-          description: "Bem-vindo de volta!",
+          title: t("auth.login_success"),
+          description: t("auth.welcome_back"),
         });
         navigate("/");
       } else {
@@ -45,15 +48,15 @@ export default function Auth() {
           throw result.error;
         }
         toast({
-          title: "Cadastro enviado!",
-          description: "Aguarde aprovação do administrador.",
+          title: t("auth.signup_success"),
+          description: t("auth.await_approval"),
         });
         navigate("/pending-approval");
       }
     } catch (error: any) {
       toast({
-        title: "Erro",
-        description: error.message || "Algo deu errado. Tente novamente.",
+        title: t("auth.error"),
+        description: error.message || t("auth.generic_error"),
         variant: "destructive",
       });
     } finally {
@@ -63,6 +66,11 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-background via-background to-primary/5">
+      {/* Language Selector */}
+      <div className="absolute top-4 right-4 z-20">
+        <LanguageSelector />
+      </div>
+
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 -left-48 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse" />
@@ -88,7 +96,7 @@ export default function Auth() {
               </div>
               
               <p className="text-xl text-muted-foreground">
-                A plataforma definitiva para competições de criadores de conteúdo
+                {t("brand.tagline")}
               </p>
             </div>
 
@@ -98,9 +106,9 @@ export default function Auth() {
                   <Trophy className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-1">Competições Épicas</h3>
+                  <h3 className="font-semibold mb-1">{t("brand.epic_competitions")}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Participe de campeonatos e mostre seu talento
+                    {t("brand.epic_competitions_desc")}
                   </p>
                 </div>
               </div>
@@ -110,9 +118,9 @@ export default function Auth() {
                   <TrendingUp className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-1">Ranking em Tempo Real</h3>
+                  <h3 className="font-semibold mb-1">{t("brand.realtime_ranking")}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Acompanhe sua posição e métricas ao vivo
+                    {t("brand.realtime_ranking_desc")}
                   </p>
                 </div>
               </div>
@@ -122,9 +130,9 @@ export default function Auth() {
                   <Eye className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-1">Análise Detalhada</h3>
+                  <h3 className="font-semibold mb-1">{t("brand.detailed_analysis")}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Dashboard completo com todas suas estatísticas
+                    {t("brand.detailed_analysis_desc")}
                   </p>
                 </div>
               </div>
@@ -139,10 +147,10 @@ export default function Auth() {
                   <Zap className="h-12 w-12 text-primary" />
                 </div>
                 <CardTitle className="text-3xl font-bold text-center text-glow">
-                  Bem-vindo
+                  {t("auth.welcome")}
                 </CardTitle>
                 <CardDescription className="text-center text-base">
-                  Entre ou crie sua conta para começar
+                  {t("auth.subtitle")}
                 </CardDescription>
               </CardHeader>
               
@@ -150,10 +158,10 @@ export default function Auth() {
                 <Tabs defaultValue="login" onValueChange={(v) => setIsLogin(v === "login")}>
                   <TabsList className="grid w-full grid-cols-2 mb-6">
                     <TabsTrigger value="login" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                      Entrar
+                      {t("auth.login")}
                     </TabsTrigger>
                     <TabsTrigger value="signup" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                      Criar Conta
+                      {t("auth.signup")}
                     </TabsTrigger>
                   </TabsList>
 
@@ -162,7 +170,7 @@ export default function Auth() {
                       <div className="space-y-2">
                         <Label htmlFor="email" className="flex items-center gap-2">
                           <Mail className="h-4 w-4" />
-                          Email
+                          {t("auth.email")}
                         </Label>
                         <Input
                           id="email"
@@ -178,7 +186,7 @@ export default function Auth() {
                       <div className="space-y-2">
                         <Label htmlFor="password" className="flex items-center gap-2">
                           <Lock className="h-4 w-4" />
-                          Senha
+                          {t("auth.password")}
                         </Label>
                         <Input
                           id="password"
@@ -197,10 +205,10 @@ export default function Auth() {
                         disabled={loading}
                       >
                         {loading ? (
-                          "Entrando..."
+                          t("auth.logging_in")
                         ) : (
                           <>
-                            Entrar
+                            {t("auth.login")}
                             <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                           </>
                         )}
@@ -211,7 +219,7 @@ export default function Auth() {
                       <div className="space-y-2">
                         <Label htmlFor="username" className="flex items-center gap-2">
                           <User className="h-4 w-4" />
-                          Nome de Usuário
+                          {t("auth.username")}
                         </Label>
                         <Input
                           id="username"
@@ -227,7 +235,7 @@ export default function Auth() {
                       <div className="space-y-2">
                         <Label htmlFor="signup-email" className="flex items-center gap-2">
                           <Mail className="h-4 w-4" />
-                          Email
+                          {t("auth.email")}
                         </Label>
                         <Input
                           id="signup-email"
@@ -243,7 +251,7 @@ export default function Auth() {
                       <div className="space-y-2">
                         <Label htmlFor="signup-password" className="flex items-center gap-2">
                           <Lock className="h-4 w-4" />
-                          Senha
+                          {t("auth.password")}
                         </Label>
                         <Input
                           id="signup-password"
@@ -262,10 +270,10 @@ export default function Auth() {
                         disabled={loading}
                       >
                         {loading ? (
-                          "Criando conta..."
+                          t("auth.creating")
                         ) : (
                           <>
-                            Criar Conta
+                            {t("auth.signup")}
                             <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                           </>
                         )}
@@ -276,13 +284,13 @@ export default function Auth() {
 
                 <div className="mt-6 pt-6 border-t border-border">
                   <p className="text-center text-sm text-muted-foreground">
-                    Ao continuar, você concorda com nossos{" "}
+                    {t("auth.terms")}{" "}
                     <a href="#" className="text-primary hover:underline">
-                      Termos de Serviço
+                      {t("auth.terms_of_service")}
                     </a>{" "}
-                    e{" "}
+                    {t("auth.and")}{" "}
                     <a href="#" className="text-primary hover:underline">
-                      Política de Privacidade
+                      {t("auth.privacy_policy")}
                     </a>
                   </p>
                 </div>
