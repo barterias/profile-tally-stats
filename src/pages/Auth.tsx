@@ -175,7 +175,7 @@ export default function Auth() {
                         <Input
                           id="email"
                           type="email"
-                          placeholder="seu@email.com"
+                          placeholder="your@email.com"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           required
@@ -224,7 +224,7 @@ export default function Auth() {
                         <Input
                           id="username"
                           type="text"
-                          placeholder="seu_username"
+                          placeholder="your_username"
                           value={username}
                           onChange={(e) => setUsername(e.target.value)}
                           required
@@ -240,7 +240,7 @@ export default function Auth() {
                         <Input
                           id="signup-email"
                           type="email"
-                          placeholder="seu@email.com"
+                          placeholder="your@email.com"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           required
