@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { n8nWebhook } from "@/lib/externalSupabase";
-import AppLayout from "@/components/Layout/AppLayout";
+import MainLayout from "@/components/Layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -145,7 +145,7 @@ export default function SubmitPost() {
   };
 
   return (
-    <AppLayout>
+    <MainLayout>
       <div className="max-w-4xl mx-auto">
         {/* Progress Steps */}
         <div className="mb-8">
@@ -362,6 +362,6 @@ export default function SubmitPost() {
           </div>
         </Card>
       </div>
-    </AppLayout>
+    </MainLayout>
   );
 }

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { externalSupabase, UnifiedPost, PlatformInsight } from "@/lib/externalSupabase";
-import AppLayout from "@/components/Layout/AppLayout";
+import MainLayout from "@/components/Layout/MainLayout";
 import StatCard from "@/components/Dashboard/StatCard";
 import ChartCard from "@/components/Dashboard/ChartCard";
 import { Button } from "@/components/ui/button";
@@ -170,16 +170,16 @@ export default function UserDashboard() {
 
   if (loading) {
     return (
-      <AppLayout>
+      <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
-      </AppLayout>
+      </MainLayout>
     );
   }
 
   return (
-    <AppLayout>
+    <MainLayout>
       <div className="space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between animate-fade-in">
@@ -490,6 +490,6 @@ export default function UserDashboard() {
           </Card>
         </div>
       </div>
-    </AppLayout>
+    </MainLayout>
   );
 }

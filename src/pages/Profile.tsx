@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { externalSupabase } from "@/lib/externalSupabase";
-import AppLayout from "@/components/Layout/AppLayout";
+import MainLayout from "@/components/Layout/MainLayout";
 import StatCard from "@/components/Dashboard/StatCard";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -138,7 +138,7 @@ export default function Profile() {
   };
 
   return (
-    <AppLayout>
+    <MainLayout>
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
         <div>
@@ -262,6 +262,6 @@ export default function Profile() {
           </div>
         </Card>
       </div>
-    </AppLayout>
+    </MainLayout>
   );
 }

@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -15,8 +15,11 @@ import Profile from "./pages/Profile";
 import Campaigns from "./pages/Campaigns";
 import CampaignDetail from "./pages/CampaignDetail";
 import Admin from "./pages/Admin";
+import AdminUsers from "./pages/AdminUsers";
+import AdminStats from "./pages/AdminStats";
 import ManageVideos from "./pages/ManageVideos";
 import CreateCampaign from "./pages/CreateCampaign";
+import EditCampaign from "./pages/EditCampaign";
 import RankingGlobal from "./pages/RankingGlobal";
 import RankingDaily from "./pages/RankingDaily";
 import NotFound from "./pages/NotFound";
@@ -31,22 +34,26 @@ const App = () => (
       <BrowserRouter>
         <LanguageProvider>
           <AuthProvider>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/pending-approval" element={<PendingApproval />} />
-            <Route path="/" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
-            <Route path="/submit" element={<ProtectedRoute><SubmitPost /></ProtectedRoute>} />
-            <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
-            <Route path="/campaign/:id" element={<ProtectedRoute><CampaignDetail /></ProtectedRoute>} />
-            <Route path="/ranking/monthly" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
-            <Route path="/ranking/daily" element={<ProtectedRoute><RankingDaily /></ProtectedRoute>} />
-            <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><Admin /></ProtectedRoute>} />
-            <Route path="/admin/videos" element={<ProtectedRoute requireAdmin={true}><ManageVideos /></ProtectedRoute>} />
-            <Route path="/admin/create-campaign" element={<ProtectedRoute requireAdmin={true}><CreateCampaign /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/pending-approval" element={<PendingApproval />} />
+              <Route path="/" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
+              <Route path="/submit" element={<ProtectedRoute><SubmitPost /></ProtectedRoute>} />
+              <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+              <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
+              <Route path="/campaign/:id" element={<ProtectedRoute><CampaignDetail /></ProtectedRoute>} />
+              <Route path="/ranking/monthly" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
+              <Route path="/ranking/daily" element={<ProtectedRoute><RankingDaily /></ProtectedRoute>} />
+              {/* Admin Routes */}
+              <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
+              <Route path="/admin/videos" element={<ProtectedRoute requireAdmin><ManageVideos /></ProtectedRoute>} />
+              <Route path="/admin/create-campaign" element={<ProtectedRoute requireAdmin><CreateCampaign /></ProtectedRoute>} />
+              <Route path="/admin/edit-campaign/:id" element={<EditCampaign />} />
+              <Route path="/admin/users" element={<AdminUsers />} />
+              <Route path="/admin/stats" element={<AdminStats />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
           </AuthProvider>
         </LanguageProvider>
       </BrowserRouter>
