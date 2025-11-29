@@ -1,5 +1,5 @@
 import { useState } from "react";
-import AppLayout from "@/components/Layout/AppLayout";
+import MainLayout from "@/components/Layout/MainLayout";
 import StatCard from "@/components/Dashboard/StatCard";
 import ChartCard from "@/components/Dashboard/ChartCard";
 import { Button } from "@/components/ui/button";
@@ -96,7 +96,7 @@ export default function Wallet() {
   };
 
   return (
-    <AppLayout>
+    <MainLayout>
       <div className="space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -257,6 +257,6 @@ export default function Wallet() {
           </Table>
         </Card>
       </div>
-    </AppLayout>
+    </MainLayout>
   );
 }
