@@ -44,12 +44,13 @@ import {
   XCircle,
   Clock,
   MoreHorizontal,
-  Mail,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ClientCampaignModal } from "@/components/Admin/ClientCampaignModal";
 
 interface AdminUser {
   id: string;
@@ -73,6 +74,11 @@ function AdminUsersContent() {
     description: string;
     action: () => void;
   }>({ open: false, title: "", description: "", action: () => {} });
+  const [clientModal, setClientModal] = useState<{
+    open: boolean;
+    userId: string;
+    username: string;
+  }>({ open: false, userId: "", username: "" });
 
   useEffect(() => {
     if (!isAdmin) {
@@ -182,6 +188,9 @@ function AdminUsersContent() {
     if (role === "admin") {
       return <Badge className="bg-primary">Admin</Badge>;
     }
+    if (role === "client") {
+      return <Badge className="bg-blue-500">Cliente</Badge>;
+    }
     if (status === "banned") {
       return <Badge variant="destructive">Banido</Badge>;
     }
@@ -189,6 +198,10 @@ function AdminUsersContent() {
       return <Badge variant="secondary">Pendente</Badge>;
     }
     return <Badge className="bg-success">Ativo</Badge>;
+  };
+
+  const openClientModal = (userId: string, username: string) => {
+    setClientModal({ open: true, userId, username });
   };
 
   const getWarningBadge = (warning: string) => {
@@ -391,6 +404,22 @@ function AdminUsersContent() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {user.role !== "admin" && user.role !== "client" && (
+                                <DropdownMenuItem
+                                  onClick={() => openClientModal(user.id, user.username)}
+                                >
+                                  <Building2 className="h-4 w-4 mr-2" />
+                                  Tornar Cliente
+                                </DropdownMenuItem>
+                              )}
+                              {user.role === "client" && (
+                                <DropdownMenuItem
+                                  onClick={() => openClientModal(user.id, user.username)}
+                                >
+                                  <Building2 className="h-4 w-4 mr-2" />
+                                  Editar Campanhas
+                                </DropdownMenuItem>
+                              )}
                               {user.role !== "admin" && (
                                 <DropdownMenuItem
                                   onClick={() =>
@@ -490,6 +519,15 @@ function AdminUsersContent() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Client Campaign Modal */}
+        <ClientCampaignModal
+          open={clientModal.open}
+          onOpenChange={(open) => setClientModal({ ...clientModal, open })}
+          userId={clientModal.userId}
+          username={clientModal.username}
+          onSuccess={fetchUsers}
+        />
       </div>
     </MainLayout>
   );
