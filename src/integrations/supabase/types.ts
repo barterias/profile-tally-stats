@@ -38,6 +38,13 @@ export type Database = {
             foreignKeyName: "campaign_owners_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "campaign_owners_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
             referencedRelation: "campaign_summary"
             referencedColumns: ["id"]
           },
@@ -86,6 +93,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "campaign_participants_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
           {
             foreignKeyName: "campaign_participants_campaign_id_fkey"
             columns: ["campaign_id"]
@@ -154,6 +168,13 @@ export type Database = {
             foreignKeyName: "campaign_videos_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "campaign_videos_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
             referencedRelation: "campaign_summary"
             referencedColumns: ["id"]
           },
@@ -175,46 +196,64 @@ export type Database = {
       }
       campaigns: {
         Row: {
+          campaign_type: string | null
+          competition_type: string | null
           created_at: string
           description: string | null
           end_date: string
           id: string
           image_url: string | null
           is_active: boolean
+          max_paid_views: number | null
+          min_views: number | null
           name: string
+          payment_rate: number | null
           platform: string
           platforms: string[] | null
           prize_description: string | null
+          prize_pool: number | null
           rules: string | null
           start_date: string
           updated_at: string
         }
         Insert: {
+          campaign_type?: string | null
+          competition_type?: string | null
           created_at?: string
           description?: string | null
           end_date: string
           id?: string
           image_url?: string | null
           is_active?: boolean
+          max_paid_views?: number | null
+          min_views?: number | null
           name: string
+          payment_rate?: number | null
           platform: string
           platforms?: string[] | null
           prize_description?: string | null
+          prize_pool?: number | null
           rules?: string | null
           start_date: string
           updated_at?: string
         }
         Update: {
+          campaign_type?: string | null
+          competition_type?: string | null
           created_at?: string
           description?: string | null
           end_date?: string
           id?: string
           image_url?: string | null
           is_active?: boolean
+          max_paid_views?: number | null
+          min_views?: number | null
           name?: string
+          payment_rate?: number | null
           platform?: string
           platforms?: string[] | null
           prize_description?: string | null
+          prize_pool?: number | null
           rules?: string | null
           start_date?: string
           updated_at?: string
@@ -259,6 +298,13 @@ export type Database = {
           views_count?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "clipper_earnings_estimates_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
           {
             foreignKeyName: "clipper_earnings_estimates_campaign_id_fkey"
             columns: ["campaign_id"]
@@ -321,6 +367,68 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_rankings: {
+        Row: {
+          campaign_id: string | null
+          created_at: string | null
+          id: string
+          position: number | null
+          ranking_date: string
+          user_id: string
+          videos_today: number | null
+          views_today: number | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          position?: number | null
+          ranking_date?: string
+          user_id: string
+          videos_today?: number | null
+          views_today?: number | null
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          position?: number | null
+          ranking_date?: string
+          user_id?: string
+          videos_today?: number | null
+          views_today?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_rankings_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "daily_rankings_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_rankings_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_rankings_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "user_available_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_views: {
         Row: {
           created_at: string
@@ -352,6 +460,68 @@ export type Database = {
             columns: ["video_id"]
             isOneToOne: false
             referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_rankings: {
+        Row: {
+          campaign_id: string | null
+          created_at: string | null
+          id: string
+          position: number | null
+          ranking_month: string
+          total_videos: number | null
+          total_views: number | null
+          user_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          position?: number | null
+          ranking_month: string
+          total_videos?: number | null
+          total_views?: number | null
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          position?: number | null
+          ranking_month?: string
+          total_videos?: number | null
+          total_views?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_rankings_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "monthly_rankings_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_rankings_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_rankings_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "user_available_campaigns"
             referencedColumns: ["id"]
           },
         ]
@@ -711,6 +881,13 @@ export type Database = {
             foreignKeyName: "campaign_participants_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "campaign_participants_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
             referencedRelation: "campaign_summary"
             referencedColumns: ["id"]
           },
@@ -743,6 +920,13 @@ export type Database = {
             foreignKeyName: "campaign_videos_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "campaign_videos_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
             referencedRelation: "campaign_summary"
             referencedColumns: ["id"]
           },
@@ -761,6 +945,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      campaign_stats_view: {
+        Row: {
+          campaign_id: string | null
+          campaign_name: string | null
+          campaign_type: string | null
+          competition_type: string | null
+          is_active: boolean | null
+          payment_rate: number | null
+          prize_pool: number | null
+          total_clippers: number | null
+          total_comments: number | null
+          total_likes: number | null
+          total_shares: number | null
+          total_videos: number | null
+          total_views: number | null
+        }
+        Relationships: []
       }
       campaign_summary: {
         Row: {
@@ -818,6 +1020,13 @@ export type Database = {
             foreignKeyName: "campaign_participants_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "campaign_participants_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
             referencedRelation: "campaign_summary"
             referencedColumns: ["id"]
           },
@@ -850,6 +1059,13 @@ export type Database = {
           username: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "campaign_videos_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
           {
             foreignKeyName: "campaign_videos_campaign_id_fkey"
             columns: ["campaign_id"]
@@ -893,6 +1109,50 @@ export type Database = {
           user_status: string | null
         }
         Relationships: []
+      }
+      user_campaign_earnings: {
+        Row: {
+          avatar_url: string | null
+          campaign_id: string | null
+          campaign_name: string | null
+          campaign_type: string | null
+          estimated_earnings: number | null
+          payment_rate: number | null
+          total_views: number | null
+          user_id: string | null
+          username: string | null
+          video_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_videos_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "campaign_videos_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_videos_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_videos_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "user_available_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_wallet_view: {
         Row: {
