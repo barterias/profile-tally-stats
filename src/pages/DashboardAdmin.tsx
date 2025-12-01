@@ -19,9 +19,17 @@ import {
   Plus, 
   Video,
   TrendingUp,
-  UserCheck
+  UserCheck,
+  Filter
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface CampaignSummary {
   id: string;
@@ -60,6 +68,8 @@ interface PayoutRequest {
 function DashboardAdminContent() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
+  const [allCampaigns, setAllCampaigns] = useState<CampaignSummary[]>([]);
   const [stats, setStats] = useState({
     totalCampaigns: 0,
     totalClippers: 0,
@@ -76,6 +86,12 @@ function DashboardAdminContent() {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    if (allCampaigns.length > 0) {
+      updateFilteredStats();
+    }
+  }, [selectedCampaign, allCampaigns]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -85,13 +101,14 @@ function DashboardAdminContent() {
         .select('*');
       
       if (summaryData) {
+        setAllCampaigns(summaryData);
         setCampaigns(summaryData);
-        setStats(prev => ({
-          ...prev,
+        setStats({
           totalCampaigns: summaryData.length,
           totalViews: summaryData.reduce((acc, c) => acc + Number(c.total_views || 0), 0),
-          totalClippers: summaryData.reduce((acc, c) => acc + Number(c.total_clippers || 0), 0)
-        }));
+          totalClippers: summaryData.reduce((acc, c) => acc + Number(c.total_clippers || 0), 0),
+          pendingPayouts: 0
+        });
       }
 
       // Fetch pending clippers
@@ -119,7 +136,7 @@ function DashboardAdminContent() {
       // Fetch platform distribution
       const { data: platformDistData } = await supabase
         .from('campaign_platform_distribution')
-        .select('platform, total_views');
+        .select('platform, total_views, campaign_id');
       
       if (platformDistData) {
         const grouped = platformDistData.reduce((acc: Record<string, number>, curr) => {
@@ -148,6 +165,53 @@ function DashboardAdminContent() {
     }
   };
 
+  const updateFilteredStats = async () => {
+    if (selectedCampaign === 'all') {
+      setStats({
+        totalCampaigns: allCampaigns.length,
+        totalViews: allCampaigns.reduce((acc, c) => acc + Number(c.total_views || 0), 0),
+        totalClippers: allCampaigns.reduce((acc, c) => acc + Number(c.total_clippers || 0), 0),
+        pendingPayouts: pendingPayouts.length
+      });
+      setCampaigns(allCampaigns);
+      
+      // Update platform data for all
+      const { data: platformDistData } = await supabase
+        .from('campaign_platform_distribution')
+        .select('platform, total_views');
+      
+      if (platformDistData) {
+        const grouped = platformDistData.reduce((acc: Record<string, number>, curr) => {
+          acc[curr.platform] = (acc[curr.platform] || 0) + Number(curr.total_views || 0);
+          return acc;
+        }, {});
+        setPlatformData(Object.entries(grouped).map(([platform, value]) => ({ platform, value })));
+      }
+    } else {
+      const filtered = allCampaigns.filter(c => c.id === selectedCampaign);
+      setStats({
+        totalCampaigns: 1,
+        totalViews: filtered.reduce((acc, c) => acc + Number(c.total_views || 0), 0),
+        totalClippers: filtered.reduce((acc, c) => acc + Number(c.total_clippers || 0), 0),
+        pendingPayouts: pendingPayouts.length
+      });
+      setCampaigns(filtered);
+      
+      // Update platform data for selected campaign
+      const { data: platformDistData } = await supabase
+        .from('campaign_platform_distribution')
+        .select('platform, total_views')
+        .eq('campaign_id', selectedCampaign);
+      
+      if (platformDistData) {
+        setPlatformData(platformDistData.map(p => ({ 
+          platform: p.platform, 
+          value: Number(p.total_views || 0) 
+        })));
+      }
+    }
+  };
+
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(0)}K`;
@@ -168,14 +232,33 @@ function DashboardAdminContent() {
     <MainLayout>
       <div className="space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
               Dashboard Admin
             </h1>
             <p className="text-muted-foreground mt-1">Visão geral do sistema</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+              <SelectTrigger className="w-[250px]">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Filtrar campanha" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  <span className="font-medium">Todas as Campanhas</span>
+                </SelectItem>
+                {allCampaigns.map((campaign) => (
+                  <SelectItem key={campaign.id} value={campaign.id}>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${campaign.is_active ? 'bg-green-500' : 'bg-gray-500'}`} />
+                      {campaign.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button onClick={() => navigate('/admin/campaigns')} variant="outline">
               <Trophy className="h-4 w-4 mr-2" />
               Campanhas
