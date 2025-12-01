@@ -4,11 +4,15 @@ import MainLayout from "@/components/Layout/MainLayout";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { MetricCardGlow } from "@/components/ui/MetricCardGlow";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { RankingList } from "@/components/Ranking/RankingList";
+import { CampaignTypeBadge } from "@/components/Campaign/CampaignTypeBadge";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { CampaignType, RankingItem } from "@/types/campaign";
 import { 
   Trophy, 
   Eye, 
@@ -18,7 +22,11 @@ import {
   Plus,
   Send,
   Loader2,
-  TrendingUp
+  TrendingUp,
+  Crown,
+  Flame,
+  DollarSign,
+  Target
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -45,6 +53,9 @@ interface Campaign {
   description: string;
   is_active: boolean;
   platforms: string[];
+  campaign_type: CampaignType;
+  payment_rate: number;
+  prize_description?: string;
   user_status?: string;
 }
 
@@ -82,7 +93,8 @@ function DashboardClipperContent() {
   const [participations, setParticipations] = useState<Participation[]>([]);
   const [submissions, setSubmissions] = useState<VideoSubmission[]>([]);
   const [wallet, setWallet] = useState<WalletData | null>(null);
-  const [stats, setStats] = useState({ totalViews: 0, totalVideos: 0, ranking: 0 });
+  const [stats, setStats] = useState({ totalViews: 0, totalVideos: 0, ranking: 0, estimatedEarnings: 0 });
+  const [userRanking, setUserRanking] = useState<RankingItem[]>([]);
   
   // Dialogs
   const [payoutDialog, setPayoutDialog] = useState(false);
@@ -114,7 +126,7 @@ function DashboardClipperContent() {
           campaign_id,
           status,
           applied_at,
-          campaigns:campaign_id (name)
+          campaigns:campaign_id (name, campaign_type, payment_rate)
         `)
         .eq('user_id', user?.id);
 
@@ -125,6 +137,8 @@ function DashboardClipperContent() {
       // Mark campaigns with user status
       const campaignsWithStatus = (campaignsData || []).map(c => ({
         ...c,
+        campaign_type: (c.campaign_type || 'pay_per_view') as CampaignType,
+        payment_rate: Number(c.payment_rate || 0),
         user_status: participationMap.get(c.id)?.status || 'available'
       }));
 
@@ -140,16 +154,42 @@ function DashboardClipperContent() {
       // Fetch user submissions
       const { data: submissionsData } = await supabase
         .from('campaign_videos')
-        .select('*')
+        .select('*, campaigns:campaign_id (campaign_type, payment_rate)')
         .eq('submitted_by', user?.id)
         .order('submitted_at', { ascending: false });
 
       setSubmissions(submissionsData || []);
 
-      // Calculate stats
+      // Calculate stats with estimated earnings
       const totalViews = (submissionsData || []).reduce((acc, s) => acc + Number(s.views || 0), 0);
       const totalVideos = (submissionsData || []).length;
-      setStats({ totalViews, totalVideos, ranking: 0 });
+      
+      // Calculate estimated earnings based on campaign payment rates
+      let estimatedEarnings = 0;
+      (submissionsData || []).forEach((video: any) => {
+        if (video.campaigns?.campaign_type === 'pay_per_view') {
+          estimatedEarnings += (Number(video.views || 0) / 1000) * Number(video.campaigns.payment_rate || 0);
+        }
+      });
+
+      setStats({ totalViews, totalVideos, ranking: 0, estimatedEarnings });
+
+      // Fetch user's ranking position in each campaign
+      const { data: rankingData } = await supabase
+        .from('ranking_views')
+        .select('*')
+        .eq('user_id', user?.id);
+
+      if (rankingData) {
+        setUserRanking(rankingData.map(r => ({
+          user_id: r.user_id || '',
+          username: r.username || '',
+          avatar_url: r.avatar_url,
+          total_videos: Number(r.total_videos || 0),
+          total_views: Number(r.total_views || 0),
+          rank_position: Number(r.rank_position || 0),
+        })));
+      }
 
       // Fetch wallet
       const { data: walletData } = await supabase
