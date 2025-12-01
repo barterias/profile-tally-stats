@@ -8,9 +8,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { ImageUpload } from "@/components/ImageUpload";
 import { toast } from "sonner";
-import { Trophy, ArrowLeft, Calendar, Gift, FileText, Layers } from "lucide-react";
+import { Trophy, ArrowLeft, Calendar, Gift, FileText, Layers, DollarSign, Flame, Target } from "lucide-react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import MainLayout from "@/components/Layout/MainLayout";
+import { CampaignType, getCampaignTypeLabel, getCampaignTypeColor } from "@/types/campaign";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function CreateCampaignPage() {
   const navigate = useNavigate();
@@ -24,6 +32,11 @@ function CreateCampaignPage() {
     prize_description: "",
     rules: "",
     image_url: "",
+    campaign_type: "pay_per_view" as CampaignType,
+    payment_rate: 0,
+    min_views: 0,
+    max_paid_views: 0,
+    prize_pool: 0,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,8 +46,20 @@ function CreateCampaignPage() {
     try {
       const { error } = await supabase.from("campaigns").insert([
         {
-          ...formData,
+          name: formData.name,
+          description: formData.description,
+          platforms: formData.platforms,
           platform: formData.platforms[0],
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+          prize_description: formData.prize_description,
+          rules: formData.rules,
+          image_url: formData.image_url || null,
+          campaign_type: formData.campaign_type,
+          payment_rate: formData.payment_rate,
+          min_views: formData.min_views,
+          max_paid_views: formData.max_paid_views,
+          prize_pool: formData.prize_pool,
           is_active: true,
         },
       ]);
@@ -194,6 +219,111 @@ function CreateCampaignPage() {
             </div>
           </GlowCard>
 
+          {/* Campaign Type & Payment */}
+          <GlowCard className="p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-400" />
+              Tipo de Campanha e Pagamento
+            </h3>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label>Tipo de Campanha *</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { id: 'pay_per_view', label: 'Pagamento por View', icon: DollarSign, desc: 'Paga por cada 1.000 views' },
+                    { id: 'fixed', label: 'Pagamento Fixo', icon: Target, desc: 'Valor fixo por participação' },
+                    { id: 'competition_daily', label: 'Competição Diária', icon: Flame, desc: 'Ranking diário com premiação' },
+                    { id: 'competition_monthly', label: 'Competição Mensal', icon: Trophy, desc: 'Ranking mensal com premiação' },
+                  ].map((type) => {
+                    const Icon = type.icon;
+                    return (
+                      <label
+                        key={type.id}
+                        className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
+                          formData.campaign_type === type.id
+                            ? "bg-primary/10 border-primary/50"
+                            : "bg-muted/20 border-border/30 hover:border-border/50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="campaign_type"
+                          value={type.id}
+                          checked={formData.campaign_type === type.id}
+                          onChange={(e) => setFormData({ ...formData, campaign_type: e.target.value as CampaignType })}
+                          className="mt-1"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Icon className="h-4 w-4 text-primary" />
+                            <span className="font-medium">{type.label}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">{type.desc}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {formData.campaign_type === 'pay_per_view' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-green-500/10 border border-green-500/20">
+                  <div className="space-y-2">
+                    <Label htmlFor="payment_rate">Valor por 1K views (R$) *</Label>
+                    <Input
+                      id="payment_rate"
+                      type="number"
+                      step="0.01"
+                      placeholder="3.20"
+                      value={formData.payment_rate || ''}
+                      onChange={(e) => setFormData({ ...formData, payment_rate: parseFloat(e.target.value) || 0 })}
+                      className="bg-background/50 border-border/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="min_views">Views mínimas</Label>
+                    <Input
+                      id="min_views"
+                      type="number"
+                      placeholder="10000"
+                      value={formData.min_views || ''}
+                      onChange={(e) => setFormData({ ...formData, min_views: parseInt(e.target.value) || 0 })}
+                      className="bg-background/50 border-border/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="max_paid_views">Views máx. pagas</Label>
+                    <Input
+                      id="max_paid_views"
+                      type="number"
+                      placeholder="66000"
+                      value={formData.max_paid_views || ''}
+                      onChange={(e) => setFormData({ ...formData, max_paid_views: parseInt(e.target.value) || 0 })}
+                      className="bg-background/50 border-border/50"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {(formData.campaign_type === 'competition_daily' || formData.campaign_type === 'competition_monthly') && (
+                <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
+                  <div className="space-y-2">
+                    <Label htmlFor="prize_pool">Prêmio Total (R$)</Label>
+                    <Input
+                      id="prize_pool"
+                      type="number"
+                      step="0.01"
+                      placeholder="1000.00"
+                      value={formData.prize_pool || ''}
+                      onChange={(e) => setFormData({ ...formData, prize_pool: parseFloat(e.target.value) || 0 })}
+                      className="bg-background/50 border-border/50"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </GlowCard>
+
           {/* Prizes & Rules */}
           <GlowCard className="p-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -202,7 +332,7 @@ function CreateCampaignPage() {
             </h3>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="prize_description">Prêmios</Label>
+                <Label htmlFor="prize_description">Descrição dos Prêmios</Label>
                 <Input
                   id="prize_description"
                   placeholder="Ex: R$ 1.000 para o 1º lugar"
