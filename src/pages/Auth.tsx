@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trophy, Zap, Eye, TrendingUp, Lock, Mail, User, ArrowRight } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { LanguageSelector } from "@/components/LanguageSelector";
 
 export default function Auth() {
@@ -21,6 +22,29 @@ export default function Auth() {
   const { toast } = useToast();
   const { t } = useLanguage();
   const navigate = useNavigate();
+
+  const redirectByRole = async (userId: string) => {
+    // Check if user is admin
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    // Check if user owns any campaigns (client)
+    const { data: ownerData } = await supabase
+      .from('campaign_owners')
+      .select('campaign_id')
+      .eq('user_id', userId);
+
+    if (roleData?.role === 'admin') {
+      navigate('/dashboard/admin');
+    } else if (roleData?.role === 'client' || (ownerData && ownerData.length > 0)) {
+      navigate('/dashboard/client');
+    } else {
+      navigate('/');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +65,14 @@ export default function Auth() {
           title: t("auth.login_success"),
           description: t("auth.welcome_back"),
         });
-        navigate("/");
+        
+        // Redirect based on role
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await redirectByRole(user.id);
+        } else {
+          navigate('/');
+        }
       } else {
         result = await signUp(email, password, username);
         if (result.error) {

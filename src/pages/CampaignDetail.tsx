@@ -6,10 +6,11 @@ import { externalSupabase, n8nWebhook } from "@/lib/externalSupabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { GlowCard } from "@/components/ui/GlowCard";
+import MainLayout from "@/components/Layout/MainLayout";
 import {
   Trophy,
   ArrowLeft,
@@ -26,6 +27,10 @@ import {
   Instagram,
   Music,
   Youtube,
+  CheckCircle,
+  Clock,
+  XCircle,
+  UserPlus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -54,7 +59,10 @@ interface CampaignVideo {
   submitted_at: string;
   submitted_by: string;
   verified: boolean;
+  username?: string;
 }
+
+type ParticipationStatus = 'none' | 'requested' | 'approved' | 'rejected';
 
 function CampaignDetailContent() {
   const { id } = useParams<{ id: string }>();
@@ -66,14 +74,64 @@ function CampaignDetailContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [videoLink, setVideoLink] = useState("");
+  const [participationStatus, setParticipationStatus] = useState<ParticipationStatus>('none');
+  const [requestingParticipation, setRequestingParticipation] = useState(false);
 
   useEffect(() => {
     fetchCampaignData();
-  }, [id]);
+    if (user) {
+      checkParticipationStatus();
+    }
+  }, [id, user]);
+
+  const checkParticipationStatus = async () => {
+    if (!user || !id) return;
+    
+    try {
+      const { data } = await supabase
+        .from('campaign_participants')
+        .select('status')
+        .eq('campaign_id', id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (data) {
+        setParticipationStatus(data.status as ParticipationStatus);
+      }
+    } catch (error) {
+      console.error('Error checking participation:', error);
+    }
+  };
+
+  const handleRequestParticipation = async () => {
+    if (!user || !id) return;
+    
+    setRequestingParticipation(true);
+    try {
+      const { error } = await supabase.rpc('request_campaign_participation', {
+        p_campaign_id: id
+      });
+
+      if (error) throw error;
+
+      setParticipationStatus('requested');
+      toast({
+        title: "Solicitação enviada!",
+        description: "Aguarde a aprovação do administrador.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao solicitar participação",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setRequestingParticipation(false);
+    }
+  };
 
   const fetchCampaignData = async () => {
     try {
-      // Fetch campaign details
       const { data: campaignData, error: campaignError } = await supabase
         .from("campaigns")
         .select("*")
@@ -83,7 +141,6 @@ function CampaignDetailContent() {
       if (campaignError) throw campaignError;
       setCampaign(campaignData);
 
-      // Fetch campaign videos
       const { data: videosData, error: videosError } = await supabase
         .from("campaign_videos")
         .select("*")
@@ -91,20 +148,27 @@ function CampaignDetailContent() {
 
       if (videosError) throw videosError;
 
-      // Buscar métricas reais das tabelas externas
-      if (videosData && videosData.length > 0) {
-        console.log("📹 Vídeos submetidos na campanha:", videosData.length, "vídeos");
+      // Buscar usernames dos participantes
+      const userIds = [...new Set(videosData?.map(v => v.submitted_by).filter(Boolean))];
+      let usernamesMap: Record<string, string> = {};
+      
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', userIds);
         
-        // Buscar TODOS os vídeos do Instagram e TikTok de uma vez
+        if (profiles) {
+          usernamesMap = Object.fromEntries(profiles.map(p => [p.id, p.username]));
+        }
+      }
+
+      if (videosData && videosData.length > 0) {
         const [allInstagramVideos, allTikTokVideos] = await Promise.all([
           externalSupabase.getAllVideos(),
           externalSupabase.getSocialVideos(),
         ]);
 
-        console.log("📱 Instagram DB total:", allInstagramVideos?.length || 0);
-        console.log("🎵 TikTok DB total:", allTikTokVideos?.length || 0);
-
-        // Função para normalizar links (remover variações de protocolo e www)
         const normalizeLink = (link: string): string => {
           if (!link) return '';
           return link
@@ -115,29 +179,22 @@ function CampaignDetailContent() {
             .trim();
         };
 
-        // Função para extrair ID único do vídeo
         const extractVideoId = (link: string): string | null => {
           if (!link) return null;
-          
-          // Instagram: /reel/CODE/ ou /reels/CODE/ ou /p/CODE/
           const instaMatch = link.match(/\/(reels?|p)\/([A-Za-z0-9_-]+)/);
           if (instaMatch) return instaMatch[2];
-          
-          // TikTok: /video/ID
           const tiktokMatch = link.match(/\/video\/(\d+)/);
           if (tiktokMatch) return tiktokMatch[1];
-          
           return null;
         };
 
-        // Processar cada vídeo buscando métricas reais
         const videosWithMetrics = await Promise.all(
           videosData.map(async (video) => {
             const normalizedCampaignLink = normalizeLink(video.video_link);
+            let metrics = { views: 0, likes: 0, comments: 0, shares: 0 };
             
             try {
               if (video.platform === "instagram") {
-                // Buscar no banco Instagram por link normalizado
                 const match = allInstagramVideos?.find(v => {
                   const dbLink = normalizeLink(v.link || v.video_url || '');
                   return dbLink === normalizedCampaignLink || 
@@ -146,51 +203,38 @@ function CampaignDetailContent() {
                 });
 
                 if (match) {
-                  console.log(`✅ Instagram encontrado! Views: ${match.views}, Link: ${video.video_link}`);
-                  return {
-                    ...video,
+                  metrics = {
                     views: match.views || 0,
                     likes: match.likes || 0,
                     comments: match.comments || 0,
                     shares: match.shares || 0,
                   };
-                }
-                
-                // Fallback: tentar buscar por ID extraído
-                const videoId = extractVideoId(video.video_link);
-                if (videoId) {
-                  const matchById = allInstagramVideos?.find(v => {
-                    const dbId = extractVideoId(v.link || v.video_url || '');
-                    return dbId === videoId;
-                  });
-                  
-                  if (matchById) {
-                    console.log(`✅ Instagram encontrado por ID! ID: ${videoId}, Views: ${matchById.views}`);
-                    return {
-                      ...video,
-                      views: matchById.views || 0,
-                      likes: matchById.likes || 0,
-                      comments: matchById.comments || 0,
-                      shares: matchById.shares || 0,
-                    };
+                } else {
+                  const videoId = extractVideoId(video.video_link);
+                  if (videoId) {
+                    const matchById = allInstagramVideos?.find(v => {
+                      const dbId = extractVideoId(v.link || v.video_url || '');
+                      return dbId === videoId;
+                    });
+                    if (matchById) {
+                      metrics = {
+                        views: matchById.views || 0,
+                        likes: matchById.likes || 0,
+                        comments: matchById.comments || 0,
+                        shares: matchById.shares || 0,
+                      };
+                    }
                   }
                 }
-                
-                console.log(`❌ Instagram não encontrado: ${video.video_link}`);
               } else if (video.platform === "tiktok") {
-                // Para TikTok, primeiro tentar buscar por video_id
                 const videoId = extractVideoId(video.video_link);
                 
                 if (videoId) {
-                  // Buscar no banco TikTok usando video_id (com ou sem "=" no início)
                   const matchById = allTikTokVideos?.find(v => 
                     v.video_id === videoId || v.video_id === `=${videoId}`
                   );
-
                   if (matchById) {
-                    console.log(`✅ TikTok encontrado por video_id! ID: ${videoId}, Views: ${matchById.views}`);
-                    return {
-                      ...video,
+                    metrics = {
                       views: matchById.views || 0,
                       likes: matchById.likes || 0,
                       comments: matchById.comments || 0,
@@ -199,53 +243,45 @@ function CampaignDetailContent() {
                   }
                 }
 
-                // Fallback: buscar por link normalizado
-                const match = allTikTokVideos?.find(v => {
-                  const dbLink = normalizeLink(v.link || v.video_url || '');
-                  return dbLink === normalizedCampaignLink || 
-                         dbLink.includes(normalizedCampaignLink) || 
-                         normalizedCampaignLink.includes(dbLink);
-                });
-
-                if (match) {
-                  console.log(`✅ TikTok encontrado por link! Views: ${match.views}, Link: ${video.video_link}`);
-                  return {
-                    ...video,
-                    views: match.views || 0,
-                    likes: match.likes || 0,
-                    comments: match.comments || 0,
-                    shares: match.shares || 0,
-                  };
+                if (metrics.views === 0) {
+                  const match = allTikTokVideos?.find(v => {
+                    const dbLink = normalizeLink(v.link || v.video_url || '');
+                    return dbLink === normalizedCampaignLink || 
+                           dbLink.includes(normalizedCampaignLink) || 
+                           normalizedCampaignLink.includes(dbLink);
+                  });
+                  if (match) {
+                    metrics = {
+                      views: match.views || 0,
+                      likes: match.likes || 0,
+                      comments: match.comments || 0,
+                      shares: match.shares || 0,
+                    };
+                  }
                 }
-                
-                console.log(`❌ TikTok não encontrado: ${video.video_link}`);
               }
             } catch (error) {
-              console.error(`⚠️ Erro ao processar vídeo:`, error);
+              console.error(`Error processing video:`, error);
             }
             
-            return video;
+            return {
+              ...video,
+              ...metrics,
+              username: usernamesMap[video.submitted_by] || `Participante #${video.id.slice(0, 4)}`,
+            };
           })
         );
 
-        console.log("✨ Métricas carregadas:", {
-          total: videosWithMetrics.length,
-          comViews: videosWithMetrics.filter(v => v.views > 0).length,
-          totalViews: videosWithMetrics.reduce((sum, v) => sum + (v.views || 0), 0),
-        });
-
-        // Ordenar por views
         const sortedVideos = videosWithMetrics.sort((a, b) => (b.views || 0) - (a.views || 0));
         setVideos(sortedVideos);
       } else {
-        console.log("⚠️ Nenhum vídeo submetido na campanha");
         setVideos([]);
       }
     } catch (error) {
       console.error("Error fetching campaign data:", error);
       toast({
-        title: "Erro ao carregar campeonato",
-        description: "Não foi possível carregar os dados do campeonato",
+        title: "Erro ao carregar campanha",
+        description: "Não foi possível carregar os dados da campanha",
         variant: "destructive",
       });
     } finally {
@@ -255,10 +291,19 @@ function CampaignDetailContent() {
 
   const handleSubmitVideo = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (participationStatus !== 'approved' && !isAdmin) {
+      toast({
+        title: "Acesso negado",
+        description: "Você precisa ser um participante aprovado para enviar vídeos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      // Validate URL
       let detectedPlatform = "instagram";
       if (videoLink.includes("instagram.com")) {
         detectedPlatform = "instagram";
@@ -270,13 +315,11 @@ function CampaignDetailContent() {
         throw new Error("Por favor, insira um link válido do Instagram, TikTok ou YouTube");
       }
 
-      // Verificar se a plataforma é aceita pela campanha
       const campaignPlatforms = campaign?.platforms || [campaign?.platform || "instagram"];
       if (!campaignPlatforms.includes(detectedPlatform)) {
         throw new Error(`Esta campanha não aceita vídeos de ${detectedPlatform}. Plataformas aceitas: ${campaignPlatforms.join(", ")}`);
       }
 
-      // Insert video record
       const { error: insertError } = await supabase.from("campaign_videos").insert([
         {
           campaign_id: id,
@@ -289,7 +332,6 @@ function CampaignDetailContent() {
 
       if (insertError) throw insertError;
 
-      // Track video via webhook
       await n8nWebhook.trackVideo(videoLink);
 
       toast({
@@ -310,25 +352,33 @@ function CampaignDetailContent() {
     }
   };
 
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return num.toString();
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center gradient-bg-dark">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
+      <MainLayout>
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+        </div>
+      </MainLayout>
     );
   }
 
   if (!campaign) {
     return (
-      <div className="min-h-screen flex items-center justify-center gradient-bg-dark">
-        <Card className="glass-card p-8 text-center">
-          <Trophy className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-          <h2 className="text-2xl font-bold mb-2">Campeonato não encontrado</h2>
+      <MainLayout>
+        <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+          <Trophy className="h-16 w-16 text-muted-foreground mb-4" />
+          <h2 className="text-2xl font-bold mb-2">Campanha não encontrada</h2>
           <Button onClick={() => navigate("/campaigns")} className="mt-4">
-            Voltar para Campeonatos
+            Voltar para Campanhas
           </Button>
-        </Card>
-      </div>
+        </div>
+      </MainLayout>
     );
   }
 
@@ -339,243 +389,313 @@ function CampaignDetailContent() {
     if (platform === "youtube") return Youtube;
     return Video;
   };
-  const PrimaryPlatformIcon = getPlatformIcon(campaignPlatforms[0]);
+
   const totalViews = videos.reduce((sum, v) => sum + (v.views || 0), 0);
   const totalParticipants = new Set(videos.map(v => v.submitted_by)).size;
+  const canSubmitVideo = participationStatus === 'approved' || isAdmin;
+
+  const getParticipationBadge = () => {
+    switch (participationStatus) {
+      case 'approved':
+        return (
+          <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Participante Aprovado
+          </Badge>
+        );
+      case 'requested':
+        return (
+          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+            <Clock className="h-3 w-3 mr-1" />
+            Aguardando Aprovação
+          </Badge>
+        );
+      case 'rejected':
+        return (
+          <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+            <XCircle className="h-3 w-3 mr-1" />
+            Participação Rejeitada
+          </Badge>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div className="min-h-screen gradient-bg-dark">
-      {/* Header */}
-      <header className="border-b border-border/50 bg-background/50 backdrop-blur-md sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <PrimaryPlatformIcon className="h-8 w-8 text-primary animate-float" />
-            <h1 className="text-2xl font-bold text-glow">{campaign.name}</h1>
-            <div className="flex items-center gap-1 ml-2">
-              {campaignPlatforms.map((platform) => {
-                const Icon = getPlatformIcon(platform);
-                return (
-                  <Icon 
-                    key={platform} 
-                    className="h-4 w-4 text-muted-foreground"
-                  />
-                );
-              })}
-            </div>
-          </div>
-          <Button variant="ghost" onClick={() => navigate("/campaigns")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar
-          </Button>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
-        {/* Campaign Info */}
-        <div className="mb-8 animate-fade-in">
-          <div className="flex items-center gap-3 mb-4">
-            <Badge className={campaign.is_active ? "bg-success" : "bg-muted"}>
-              {campaign.is_active ? "Ativo" : "Encerrado"}
-            </Badge>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span className="text-sm">
-                {format(new Date(campaign.start_date), "dd MMM", { locale: ptBR })} -{" "}
-                {format(new Date(campaign.end_date), "dd MMM yyyy", { locale: ptBR })}
-              </span>
-            </div>
-          </div>
-
-          <p className="text-lg text-muted-foreground mb-6">{campaign.description}</p>
-
-          {campaign.prize_description && (
-            <Card className="glass-card neon-border p-6 mb-6">
-              <div className="flex items-start gap-4">
-                <Award className="h-8 w-8 text-primary flex-shrink-0" />
-                <div>
-                  <h3 className="text-xl font-bold mb-2 text-glow">Prêmios</h3>
-                  <p className="text-muted-foreground">{campaign.prize_description}</p>
+    <MainLayout>
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/campaigns")}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
+                  {campaign.name}
+                </h1>
+                <Badge className={campaign.is_active ? "bg-green-500/20 text-green-400" : "bg-muted"}>
+                  {campaign.is_active ? "Ativa" : "Encerrada"}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-4 w-4" />
+                  {format(new Date(campaign.start_date), "dd MMM", { locale: ptBR })} - {format(new Date(campaign.end_date), "dd MMM yyyy", { locale: ptBR })}
+                </div>
+                <div className="flex items-center gap-1">
+                  {campaignPlatforms.map((platform) => {
+                    const Icon = getPlatformIcon(platform);
+                    return <Icon key={platform} className="h-4 w-4" />;
+                  })}
                 </div>
               </div>
-            </Card>
-          )}
-
-          {campaign.rules && (
-            <Card className="glass-card p-6">
-              <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-primary" />
-                Regras
-              </h3>
-              <p className="text-muted-foreground whitespace-pre-line">{campaign.rules}</p>
-            </Card>
-          )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {getParticipationBadge()}
+            {participationStatus === 'none' && campaign.is_active && (
+              <Button 
+                onClick={handleRequestParticipation}
+                disabled={requestingParticipation}
+                className="bg-gradient-to-r from-primary to-purple-500"
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                {requestingParticipation ? "Solicitando..." : "Solicitar Participação"}
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="glass-card hover-glow p-6 animate-slide-up">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                <Eye className="h-6 w-6 text-primary" />
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <GlowCard glowColor="green">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground font-medium">Views Totais</p>
+                <p className="text-3xl font-bold mt-1">{formatNumber(totalViews)}</p>
               </div>
-              <TrendingUp className="h-5 w-5 text-success" />
-            </div>
-            <p className="text-sm text-muted-foreground mb-1">Views Totais</p>
-            <p className="text-3xl font-bold text-glow">{totalViews.toLocaleString()}</p>
-          </Card>
-
-          <Card className="glass-card hover-glow p-6 animate-slide-up" style={{ animationDelay: "0.1s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-full bg-accent/20 flex items-center justify-center">
-                <Video className="h-6 w-6 text-accent" />
+              <div className="p-3 rounded-xl bg-green-500/15">
+                <Eye className="h-6 w-6 text-green-400" />
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-1">Vídeos Enviados</p>
-            <p className="text-3xl font-bold">{videos.length}</p>
-          </Card>
-
-          <Card className="glass-card hover-glow p-6 animate-slide-up" style={{ animationDelay: "0.2s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-full bg-success/20 flex items-center justify-center">
-                <Users className="h-6 w-6 text-success" />
+          </GlowCard>
+          
+          <GlowCard glowColor="blue">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground font-medium">Vídeos Enviados</p>
+                <p className="text-3xl font-bold mt-1">{videos.length}</p>
+              </div>
+              <div className="p-3 rounded-xl bg-blue-500/15">
+                <Video className="h-6 w-6 text-blue-400" />
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-1">Participantes</p>
-            <p className="text-3xl font-bold">{totalParticipants}</p>
-          </Card>
+          </GlowCard>
+          
+          <GlowCard glowColor="purple">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground font-medium">Participantes</p>
+                <p className="text-3xl font-bold mt-1">{totalParticipants}</p>
+              </div>
+              <div className="p-3 rounded-xl bg-purple-500/15">
+                <Users className="h-6 w-6 text-purple-400" />
+              </div>
+            </div>
+          </GlowCard>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Submit Video Form */}
-          {campaign.is_active && (
-            <div className="lg:col-span-1">
-              <Card className="glass-card neon-border p-6 animate-scale-in sticky top-24">
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <Send className="h-5 w-5 text-primary" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Campaign Info & Submit */}
+          <div className="space-y-6">
+            {/* Description */}
+            {campaign.description && (
+              <GlowCard>
+                <h3 className="font-semibold mb-3">Sobre a Campanha</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {campaign.description}
+                </p>
+              </GlowCard>
+            )}
+
+            {/* Prize */}
+            {campaign.prize_description && (
+              <GlowCard glowColor="orange">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-orange-500/15">
+                    <Award className="h-5 w-5 text-orange-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-1">Prêmios</h3>
+                    <p className="text-sm text-muted-foreground">{campaign.prize_description}</p>
+                  </div>
+                </div>
+              </GlowCard>
+            )}
+
+            {/* Rules */}
+            {campaign.rules && (
+              <GlowCard>
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-primary" />
+                  Regras
+                </h3>
+                <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+                  {campaign.rules}
+                </p>
+              </GlowCard>
+            )}
+
+            {/* Submit Form */}
+            {campaign.is_active && (
+              <GlowCard glowColor="primary">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <Send className="h-4 w-4 text-primary" />
                   Enviar Vídeo
                 </h3>
-                <form onSubmit={handleSubmitVideo} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="videoLink">Link do Vídeo</Label>
-                    <Input
-                      id="videoLink"
-                      placeholder={`Cole o link do vídeo (${campaignPlatforms.join(", ")})`}
-                      value={videoLink}
-                      onChange={(e) => setVideoLink(e.target.value)}
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Plataformas aceitas: {campaignPlatforms.join(", ")}
+                
+                {canSubmitVideo ? (
+                  <form onSubmit={handleSubmitVideo} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="videoLink">Link do Vídeo</Label>
+                      <Input
+                        id="videoLink"
+                        placeholder={`Cole o link (${campaignPlatforms.join(", ")})`}
+                        value={videoLink}
+                        onChange={(e) => setVideoLink(e.target.value)}
+                        required
+                        className="bg-background/50"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Plataformas aceitas: {campaignPlatforms.join(", ")}
+                      </p>
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full bg-gradient-to-r from-primary to-purple-500"
+                      disabled={submitting}
+                    >
+                      {submitting ? "Enviando..." : "Enviar Vídeo"}
+                    </Button>
+                  </form>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {participationStatus === 'requested' 
+                        ? "Aguarde a aprovação para enviar vídeos."
+                        : participationStatus === 'rejected'
+                        ? "Sua participação foi rejeitada."
+                        : "Solicite participação para enviar vídeos."}
                     </p>
+                    {participationStatus === 'none' && (
+                      <Button 
+                        onClick={handleRequestParticipation}
+                        disabled={requestingParticipation}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Solicitar Participação
+                      </Button>
+                    )}
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-gradient-primary hover:opacity-90"
-                    disabled={submitting}
-                  >
-                    {submitting ? "Enviando..." : "Enviar Vídeo"}
-                  </Button>
-                </form>
-              </Card>
-            </div>
-          )}
+                )}
+              </GlowCard>
+            )}
+          </div>
 
-          {/* Ranking */}
-          <div className={campaign.is_active ? "lg:col-span-2" : "lg:col-span-3"}>
-            <Card className="glass-card p-6 animate-fade-in">
-              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+          {/* Right Column - Ranking */}
+          <div className="lg:col-span-2">
+            <GlowCard>
+              <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
                 <Trophy className="h-5 w-5 text-primary" />
-                Ranking
+                Ranking de Vídeos
               </h3>
 
               {videos.length === 0 ? (
                 <div className="text-center py-12">
                   <Video className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
                   <p className="text-muted-foreground">Nenhum vídeo enviado ainda</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Seja o primeiro a participar!
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {videos.map((video, index) => (
-                    <Card
+                    <div
                       key={video.id}
-                      className={`p-4 transition-all hover:scale-[1.02] ${
+                      className={`p-4 rounded-xl transition-all hover:scale-[1.01] ${
                         index === 0
-                          ? "bg-gradient-to-r from-primary/20 to-accent/20 neon-border"
+                          ? "bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20"
                           : index === 1
-                          ? "bg-accent/10 border-accent/30"
+                          ? "bg-gradient-to-r from-gray-400/10 to-gray-500/10 border border-gray-400/20"
                           : index === 2
-                          ? "bg-warning/10 border-warning/30"
-                          : "bg-secondary/50"
+                          ? "bg-gradient-to-r from-orange-600/10 to-orange-700/10 border border-orange-600/20"
+                          : "bg-muted/30 border border-border/50"
                       }`}
                     >
                       <div className="flex items-center gap-4">
                         {/* Position */}
-                        <div className="flex-shrink-0">
-                          {index < 3 ? (
-                            <div
-                              className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${
-                                index === 0
-                                  ? "bg-primary text-primary-foreground"
-                                  : index === 1
-                                  ? "bg-accent text-accent-foreground"
-                                  : "bg-warning text-warning-foreground"
-                              }`}
-                            >
-                              {index + 1}
-                            </div>
-                          ) : (
-                            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center font-bold text-lg">
-                              {index + 1}
-                            </div>
-                          )}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                          index === 0
+                            ? "bg-yellow-500/20 text-yellow-400"
+                            : index === 1
+                            ? "bg-gray-400/20 text-gray-300"
+                            : index === 2
+                            ? "bg-orange-600/20 text-orange-400"
+                            : "bg-muted text-muted-foreground"
+                        }`}>
+                          {index + 1}
                         </div>
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold truncate">
-                            Participante #{index + 1}
-                          </p>
+                          <p className="font-medium truncate">{video.username}</p>
                           <a
                             href={video.video_link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-primary hover:underline truncate block"
+                            className="text-xs text-primary/70 hover:text-primary hover:underline truncate block"
                           >
-                            {video.video_link}
+                            Ver vídeo ↗
                           </a>
                         </div>
 
                         {/* Stats */}
-                        <div className="flex gap-4 text-sm flex-shrink-0">
-                          <div className="flex items-center gap-1">
-                            <Eye className="h-4 w-4 text-primary" />
-                            <span className="font-semibold">{video.views?.toLocaleString() || 0}</span>
+                        <div className="flex items-center gap-3 text-sm">
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-background/50">
+                            <Eye className="h-3.5 w-3.5 text-green-400" />
+                            <span className="font-semibold">{formatNumber(video.views)}</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Heart className="h-4 w-4 text-destructive" />
-                            <span>{video.likes?.toLocaleString() || 0}</span>
+                          <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-background/50">
+                            <Heart className="h-3.5 w-3.5 text-red-400" />
+                            <span>{formatNumber(video.likes)}</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <MessageCircle className="h-4 w-4 text-accent" />
-                            <span>{video.comments?.toLocaleString() || 0}</span>
+                          <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-md bg-background/50">
+                            <MessageCircle className="h-3.5 w-3.5 text-blue-400" />
+                            <span>{formatNumber(video.comments)}</span>
                           </div>
                           {video.shares > 0 && (
-                            <div className="flex items-center gap-1">
-                              <Share2 className="h-4 w-4 text-success" />
-                              <span>{video.shares?.toLocaleString()}</span>
+                            <div className="hidden lg:flex items-center gap-1.5 px-2 py-1 rounded-md bg-background/50">
+                              <Share2 className="h-3.5 w-3.5 text-purple-400" />
+                              <span>{formatNumber(video.shares)}</span>
                             </div>
                           )}
                         </div>
                       </div>
-                    </Card>
+                    </div>
                   ))}
                 </div>
               )}
-            </Card>
+            </GlowCard>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </MainLayout>
   );
 }
 
