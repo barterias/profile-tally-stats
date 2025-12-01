@@ -24,22 +24,29 @@ export default function Auth() {
   const navigate = useNavigate();
 
   const redirectByRole = async (userId: string) => {
-    // Check if user is admin
-    const { data: roleData } = await supabase
+    // Check ALL user roles (user can have multiple roles)
+    const { data: rolesData } = await supabase
       .from('user_roles')
       .select('role')
-      .eq('user_id', userId)
-      .maybeSingle();
+      .eq('user_id', userId);
 
-    // Check if user owns any campaigns (client)
+    const roles = rolesData?.map(r => r.role) || [];
+    const hasAdmin = roles.includes('admin');
+    const hasClient = roles.includes('client');
+
+    // Check if user owns any campaigns (also makes them a client)
     const { data: ownerData } = await supabase
       .from('campaign_owners')
       .select('campaign_id')
       .eq('user_id', userId);
 
-    if (roleData?.role === 'admin') {
+    const isOwner = ownerData && ownerData.length > 0;
+
+    console.log('Role check:', { userId, roles, hasAdmin, hasClient, isOwner });
+
+    if (hasAdmin) {
       navigate('/dashboard/admin');
-    } else if (roleData?.role === 'client' || (ownerData && ownerData.length > 0)) {
+    } else if (hasClient || isOwner) {
       navigate('/dashboard/client');
     } else {
       navigate('/');

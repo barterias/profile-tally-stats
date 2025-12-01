@@ -7,6 +7,8 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
+  isClient: boolean;
+  userRole: 'admin' | 'client' | 'user' | null;
   loading: boolean;
   signUp: (email: string, password: string, username: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
@@ -19,6 +21,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+  const [userRole, setUserRole] = useState<'admin' | 'client' | 'user' | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -26,6 +30,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) {
+        checkUserRoles(session.user.id);
+      } else {
+        setLoading(false);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -34,37 +43,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (session?.user) {
         setTimeout(() => {
-          checkAdminStatus(session.user.id);
+          checkUserRoles(session.user.id);
         }, 0);
       } else {
         setIsAdmin(false);
+        setIsClient(false);
+        setUserRole(null);
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkAdminStatus = async (userId: string) => {
-    // Verificar se é o admin fixo
-    const { data: { user } } = await supabase.auth.getUser();
-    const isFixedAdmin = user?.email === "jotav.strategist@gmail.com";
-    
-    if (isFixedAdmin) {
-      setIsAdmin(true);
-      return;
+  const checkUserRoles = async (userId: string) => {
+    try {
+      // Verificar se é o admin fixo
+      const { data: { user } } = await supabase.auth.getUser();
+      const isFixedAdmin = user?.email === "jotav.strategist@gmail.com";
+      
+      if (isFixedAdmin) {
+        setIsAdmin(true);
+        setIsClient(false);
+        setUserRole('admin');
+        setLoading(false);
+        return;
+      }
+      
+      // Buscar TODAS as roles do usuário
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      
+      const hasAdmin = roles?.some(r => r.role === 'admin') || false;
+      const hasClient = roles?.some(r => r.role === 'client') || false;
+      
+      setIsAdmin(hasAdmin);
+      setIsClient(hasClient);
+      
+      // Definir role principal (admin > client > user)
+      if (hasAdmin) {
+        setUserRole('admin');
+      } else if (hasClient) {
+        setUserRole('client');
+      } else {
+        setUserRole('user');
+      }
+    } catch (error) {
+      console.error('Erro ao verificar roles:', error);
+      setUserRole('user');
+    } finally {
+      setLoading(false);
     }
-    
-    // Verificar roles na tabela
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    
-    setIsAdmin(!!data);
   };
 
   const signUp = async (email: string, password: string, username: string) => {
@@ -108,11 +139,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setIsAdmin(false);
+    setIsClient(false);
+    setUserRole(null);
     navigate("/auth");
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, isClient, userRole, loading, signUp, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

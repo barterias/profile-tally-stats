@@ -18,7 +18,8 @@ import {
   Video,
   TrendingUp,
   Medal,
-  DollarSign
+  DollarSign,
+  AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -28,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface Campaign {
   id: string;
@@ -53,7 +55,7 @@ interface RankingItem {
 
 function DashboardClientContent() {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, isClient, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<string>('');
@@ -63,15 +65,17 @@ function DashboardClientContent() {
   const [ranking, setRanking] = useState<RankingItem[]>([]);
   const [platformData, setPlatformData] = useState<{ platform: string; value: number }[]>([]);
   const [viewsData, setViewsData] = useState<{ date: string; views: number }[]>([]);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   useEffect(() => {
     if (user && !authLoading) {
-      console.log('DashboardClient: Fetching campaigns for user:', user.id);
+      console.log('DashboardClient: User:', user.id, 'isClient:', isClient);
+      setDebugInfo(`User: ${user.id}, isClient: ${isClient}`);
       fetchOwnedCampaigns();
     } else if (!authLoading && !user) {
       setLoading(false);
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, isClient]);
 
   useEffect(() => {
     if (selectedCampaign) {
@@ -229,6 +233,18 @@ function DashboardClientContent() {
           <p className="text-muted-foreground mb-4">
             Você não é dono de nenhuma campanha ainda.
           </p>
+          
+          {/* Debug info */}
+          <Alert className="max-w-md mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Info de Debug</AlertTitle>
+            <AlertDescription className="text-xs font-mono">
+              User ID: {user?.id || 'N/A'}<br/>
+              isClient: {String(isClient)}<br/>
+              {debugInfo}
+            </AlertDescription>
+          </Alert>
+          
           <Button onClick={() => navigate('/campaigns')}>
             Ver Campanhas Disponíveis
           </Button>
