@@ -16,6 +16,9 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
+  Eye,
+  Settings,
+  UserCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,17 +30,25 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isClient } = useAuth();
   const { t } = useLanguage();
   const location = useLocation();
 
-  const userNavigation = [
+  const clipperNavigation = [
     { name: t("nav.dashboard"), href: "/", icon: LayoutDashboard },
     { name: t("nav.campaigns"), href: "/campaigns", icon: Trophy },
     { name: t("nav.submit"), href: "/submit", icon: Upload },
     { name: "Ranking Mensal", href: "/ranking/monthly", icon: Medal },
     { name: "Ranking Diário", href: "/ranking/daily", icon: TrendingUp },
     { name: t("nav.wallet"), href: "/wallet", icon: Wallet },
+  ];
+
+  const clientNavigation = [
+    { name: "Dashboard", href: "/dashboard/client", icon: LayoutDashboard },
+    { name: "Minhas Campanhas", href: "/campaigns", icon: Trophy },
+    { name: "Estatísticas", href: "/dashboard/client", icon: BarChart3 },
+    { name: "Clipadores", href: "/dashboard/client", icon: Users },
+    { name: "Ranking", href: "/ranking/monthly", icon: Medal },
   ];
 
   const adminNavigation = [
@@ -49,12 +60,16 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: "Estatísticas", href: "/admin/stats", icon: BarChart3 },
   ];
 
+  const accountNavigation = [
+    { name: "Meu Perfil", href: "/profile", icon: UserCircle },
+  ];
+
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/";
     return location.pathname.startsWith(path);
   };
 
-  const NavItem = ({ item }: { item: typeof userNavigation[0] }) => {
+  const NavItem = ({ item }: { item: typeof clipperNavigation[0] }) => {
     const Icon = item.icon;
     const active = isActive(item.href);
 
@@ -62,14 +77,14 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <Link
         to={item.href}
         className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
+          "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300",
           active
-            ? "bg-primary/15 text-primary border border-primary/30"
+            ? "bg-gradient-to-r from-primary/20 to-accent/10 text-primary border border-primary/30 shadow-[0_0_20px_hsl(var(--primary)/0.2)]"
             : "text-muted-foreground hover:text-foreground hover:bg-secondary/50",
           collapsed && "justify-center px-2"
         )}
       >
-        <Icon className={cn("h-5 w-5 flex-shrink-0", active && "text-primary")} />
+        <Icon className={cn("h-5 w-5 flex-shrink-0 transition-colors", active && "text-primary")} />
         {!collapsed && (
           <span className={cn("font-medium text-sm", active && "text-primary")}>
             {item.name}
@@ -92,35 +107,45 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     return content;
   };
 
+  // Determine which navigation to show based on role
+  const getUserNavigation = () => {
+    if (isClient && !isAdmin) {
+      return clientNavigation;
+    }
+    return clipperNavigation;
+  };
+
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen bg-card/50 backdrop-blur-xl border-r border-border/50 transition-all duration-300",
+        "fixed left-0 top-0 z-40 h-screen bg-gradient-to-b from-card/95 to-card/80 backdrop-blur-xl border-r border-border/30 transition-all duration-300",
         collapsed ? "w-16" : "w-64"
       )}
     >
       <div className="flex flex-col h-full">
         {/* Logo */}
         <div className={cn(
-          "flex items-center h-16 px-4 border-b border-border/50",
+          "flex items-center h-16 px-4 border-b border-border/30",
           collapsed ? "justify-center" : "justify-between"
         )}>
-          <Link to="/" className="flex items-center gap-2">
+          <Link to={isClient && !isAdmin ? "/dashboard/client" : "/"} className="flex items-center gap-2">
             <div className="relative">
-              <Zap className="h-8 w-8 text-primary" />
-              <div className="absolute inset-0 animate-pulse-glow">
+              <div className="absolute inset-0 animate-pulse-glow rounded-lg">
                 <Zap className="h-8 w-8 text-primary opacity-50" />
               </div>
+              <Zap className="h-8 w-8 text-primary relative z-10" />
             </div>
             {!collapsed && (
-              <span className="text-lg font-bold text-glow-sm">CPL</span>
+              <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                CPL
+              </span>
             )}
           </Link>
           <Button
             variant="ghost"
             size="icon"
             onClick={onToggle}
-            className={cn("h-8 w-8", collapsed && "hidden")}
+            className={cn("h-8 w-8 hover:bg-primary/10", collapsed && "hidden")}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -129,23 +154,23 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {/* Navigation */}
         <ScrollArea className="flex-1 px-3 py-4">
           <div className="space-y-6">
-            {/* User Navigation */}
+            {/* User/Client Navigation */}
             <div className="space-y-1">
               {!collapsed && (
-                <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Menu
+                <p className="px-3 text-xs font-semibold text-primary/70 uppercase tracking-wider mb-3">
+                  {isClient && !isAdmin ? "Cliente" : "Menu"}
                 </p>
               )}
-              {userNavigation.map((item) => (
-                <NavItem key={item.href} item={item} />
+              {getUserNavigation().map((item) => (
+                <NavItem key={item.href + item.name} item={item} />
               ))}
             </div>
 
-            {/* Admin Navigation */}
+            {/* Admin Navigation - Only show if admin */}
             {isAdmin && (
               <div className="space-y-1">
                 {!collapsed && (
-                  <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  <p className="px-3 text-xs font-semibold text-primary/70 uppercase tracking-wider mb-3">
                     Administração
                   </p>
                 )}
@@ -154,17 +179,29 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 ))}
               </div>
             )}
+
+            {/* Account Navigation */}
+            <div className="space-y-1">
+              {!collapsed && (
+                <p className="px-3 text-xs font-semibold text-primary/70 uppercase tracking-wider mb-3">
+                  Conta
+                </p>
+              )}
+              {accountNavigation.map((item) => (
+                <NavItem key={item.href} item={item} />
+              ))}
+            </div>
           </div>
         </ScrollArea>
 
         {/* Collapse Toggle */}
         {collapsed && (
-          <div className="p-3 border-t border-border/50">
+          <div className="p-3 border-t border-border/30">
             <Button
               variant="ghost"
               size="icon"
               onClick={onToggle}
-              className="w-full h-10"
+              className="w-full h-10 hover:bg-primary/10"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>

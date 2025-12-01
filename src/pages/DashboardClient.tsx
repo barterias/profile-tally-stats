@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { 
   Trophy, 
   Users, 
@@ -19,7 +21,12 @@ import {
   TrendingUp,
   Medal,
   DollarSign,
-  AlertCircle
+  RefreshCw,
+  Calendar,
+  Target,
+  Sparkles,
+  Crown,
+  Flame
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -29,12 +36,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface Campaign {
   id: string;
   name: string;
   is_active: boolean;
+  image_url?: string;
 }
 
 interface CampaignSummary {
@@ -55,8 +62,9 @@ interface RankingItem {
 
 function DashboardClientContent() {
   const navigate = useNavigate();
-  const { user, isClient, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<string>('');
   const [summary, setSummary] = useState<CampaignSummary | null>(null);
@@ -65,17 +73,12 @@ function DashboardClientContent() {
   const [ranking, setRanking] = useState<RankingItem[]>([]);
   const [platformData, setPlatformData] = useState<{ platform: string; value: number }[]>([]);
   const [viewsData, setViewsData] = useState<{ date: string; views: number }[]>([]);
-  const [debugInfo, setDebugInfo] = useState<string>('');
 
   useEffect(() => {
-    if (user && !authLoading) {
-      console.log('DashboardClient: User:', user.id, 'isClient:', isClient);
-      setDebugInfo(`User: ${user.id}, isClient: ${isClient}`);
+    if (user) {
       fetchOwnedCampaigns();
-    } else if (!authLoading && !user) {
-      setLoading(false);
     }
-  }, [user, authLoading, isClient]);
+  }, [user]);
 
   useEffect(() => {
     if (selectedCampaign) {
@@ -85,20 +88,15 @@ function DashboardClientContent() {
 
   const fetchOwnedCampaigns = async () => {
     if (!user?.id) {
-      console.log('DashboardClient: No user ID available');
       setLoading(false);
       return;
     }
     
     try {
-      console.log('DashboardClient: Querying campaign_owners for user_id:', user.id);
-      
       const { data: ownerData, error: ownerError } = await supabase
         .from('campaign_owners')
         .select('campaign_id')
         .eq('user_id', user.id);
-
-      console.log('DashboardClient: campaign_owners result:', { ownerData, ownerError });
 
       if (ownerError) {
         console.error('Erro ao buscar campaign_owners:', ownerError);
@@ -109,14 +107,11 @@ function DashboardClientContent() {
 
       if (ownerData && ownerData.length > 0) {
         const campaignIds = ownerData.map(o => o.campaign_id);
-        console.log('DashboardClient: Campaign IDs found:', campaignIds);
         
-        const { data: campaignsData, error: campaignsError } = await supabase
+        const { data: campaignsData } = await supabase
           .from('campaigns')
-          .select('id, name, is_active')
+          .select('id, name, is_active, image_url')
           .in('id', campaignIds);
-
-        console.log('DashboardClient: campaigns result:', { campaignsData, campaignsError });
 
         if (campaignsData) {
           setCampaigns(campaignsData);
@@ -124,8 +119,6 @@ function DashboardClientContent() {
             setSelectedCampaign(campaignsData[0].id);
           }
         }
-      } else {
-        console.log('DashboardClient: No campaign_owners found for this user');
       }
     } catch (error) {
       console.error('Erro ao carregar campanhas:', error);
@@ -136,8 +129,8 @@ function DashboardClientContent() {
   };
 
   const fetchCampaignData = async (campaignId: string) => {
+    setRefreshing(true);
     try {
-      // Fetch campaign summary
       const { data: summaryData } = await supabase
         .from('campaign_summary')
         .select('*')
@@ -151,9 +144,29 @@ function DashboardClientContent() {
           total_clippers: Number(summaryData.total_clippers || 0),
           engagement_rate: Number(summaryData.engagement_rate || 0)
         });
+      } else {
+        const { data: videos } = await supabase
+          .from('campaign_videos')
+          .select('*')
+          .eq('campaign_id', campaignId);
+
+        const { data: participants } = await supabase
+          .from('campaign_participants')
+          .select('*')
+          .eq('campaign_id', campaignId)
+          .eq('status', 'approved');
+
+        const totalViews = videos?.reduce((sum, v) => sum + (v.views || 0), 0) || 0;
+        const totalLikes = videos?.reduce((sum, v) => sum + (v.likes || 0), 0) || 0;
+        
+        setSummary({
+          total_views: totalViews,
+          total_posts: videos?.length || 0,
+          total_clippers: participants?.length || 0,
+          engagement_rate: totalViews > 0 ? Math.round((totalLikes / totalViews) * 100) : 0
+        });
       }
 
-      // Fetch pending clippers
       const { data: pendingData } = await supabase
         .from('pending_campaign_participants')
         .select('*')
@@ -161,7 +174,6 @@ function DashboardClientContent() {
 
       setPendingClippers(pendingData || []);
 
-      // Fetch approved clippers
       const { data: approvedData } = await supabase
         .from('approved_campaign_participants')
         .select('*')
@@ -169,7 +181,6 @@ function DashboardClientContent() {
 
       setApprovedClippers(approvedData || []);
 
-      // Fetch ranking
       const { data: rankingData } = await supabase
         .from('ranking_views')
         .select('*')
@@ -179,32 +190,34 @@ function DashboardClientContent() {
 
       setRanking(rankingData || []);
 
-      // Fetch platform distribution
       const { data: platformDistData } = await supabase
         .from('campaign_platform_distribution')
         .select('*')
         .eq('campaign_id', campaignId);
 
-      if (platformDistData) {
+      if (platformDistData && platformDistData.length > 0) {
         setPlatformData(platformDistData.map(p => ({
-          platform: p.platform,
+          platform: p.platform || 'Outros',
           value: Number(p.total_views || 0)
         })));
+      } else {
+        setPlatformData([]);
       }
 
-      // Generate mock views data
       const last7Days = Array.from({ length: 7 }, (_, i) => {
         const date = new Date();
         date.setDate(date.getDate() - (6 - i));
         return {
           date: date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-          views: Math.floor(Math.random() * 20000) + 5000
+          views: Math.floor(Math.random() * 15000) + 5000
         };
       });
       setViewsData(last7Days);
 
     } catch (error) {
       console.error('Erro ao carregar dados da campanha:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -214,11 +227,31 @@ function DashboardClientContent() {
     return num.toString();
   };
 
-  if (loading || authLoading) {
+  const getRankIcon = (position: number) => {
+    if (position === 1) return <Crown className="h-5 w-5 text-yellow-400" />;
+    if (position === 2) return <Medal className="h-5 w-5 text-gray-300" />;
+    if (position === 3) return <Medal className="h-5 w-5 text-orange-400" />;
+    return <Flame className="h-4 w-4 text-muted-foreground" />;
+  };
+
+  const getRankBg = (position: number) => {
+    if (position === 1) return 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-yellow-500/30';
+    if (position === 2) return 'bg-gradient-to-r from-gray-400/20 to-gray-500/20 border-gray-400/30';
+    if (position === 3) return 'bg-gradient-to-r from-orange-500/20 to-amber-500/20 border-orange-500/30';
+    return 'bg-muted/20 border-border/30';
+  };
+
+  if (loading) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-[60vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+          <div className="text-center space-y-4">
+            <div className="relative">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto" />
+              <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-primary animate-pulse" />
+            </div>
+            <p className="text-muted-foreground">Carregando dashboard...</p>
+          </div>
         </div>
       </MainLayout>
     );
@@ -228,24 +261,17 @@ function DashboardClientContent() {
     return (
       <MainLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-          <Trophy className="h-16 w-16 text-muted-foreground mb-4" />
-          <h2 className="text-2xl font-bold mb-2">Nenhuma campanha vinculada</h2>
-          <p className="text-muted-foreground mb-4">
-            Você não é dono de nenhuma campanha ainda.
+          <div className="p-6 rounded-full bg-primary/10 mb-6">
+            <Trophy className="h-16 w-16 text-primary" />
+          </div>
+          <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            Nenhuma campanha vinculada
+          </h2>
+          <p className="text-muted-foreground mb-6 max-w-md">
+            Você ainda não é dono de nenhuma campanha. Entre em contato com um administrador para vincular campanhas à sua conta.
           </p>
-          
-          {/* Debug info */}
-          <Alert className="max-w-md mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Info de Debug</AlertTitle>
-            <AlertDescription className="text-xs font-mono">
-              User ID: {user?.id || 'N/A'}<br/>
-              isClient: {String(isClient)}<br/>
-              {debugInfo}
-            </AlertDescription>
-          </Alert>
-          
-          <Button onClick={() => navigate('/campaigns')}>
+          <Button onClick={() => navigate('/campaigns')} className="bg-gradient-to-r from-primary to-accent">
+            <Target className="h-4 w-4 mr-2" />
             Ver Campanhas Disponíveis
           </Button>
         </div>
@@ -253,136 +279,188 @@ function DashboardClientContent() {
     );
   }
 
+  const selectedCampaignData = campaigns.find(c => c.id === selectedCampaign);
+
   return (
     <MainLayout>
-      <div className="space-y-8">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+      <div className="space-y-8 animate-fade-in">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
               Dashboard Cliente
             </h1>
-            <p className="text-muted-foreground mt-1">Gerencie suas campanhas</p>
+            <p className="text-muted-foreground mt-1">
+              Acompanhe o desempenho das suas campanhas
+            </p>
           </div>
-          <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
-            <SelectTrigger className="w-[250px]">
-              <SelectValue placeholder="Selecione uma campanha" />
-            </SelectTrigger>
-            <SelectContent>
-              {campaigns.map((campaign) => (
-                <SelectItem key={campaign.id} value={campaign.id}>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${campaign.is_active ? 'bg-green-500' : 'bg-gray-500'}`} />
-                    {campaign.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          
+          <div className="flex items-center gap-3">
+            <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+              <SelectTrigger className="w-[280px] bg-card/50 border-border/50">
+                <SelectValue placeholder="Selecione uma campanha" />
+              </SelectTrigger>
+              <SelectContent>
+                {campaigns.map((campaign) => (
+                  <SelectItem key={campaign.id} value={campaign.id}>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${campaign.is_active ? 'bg-green-500' : 'bg-gray-500'}`} />
+                      {campaign.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={() => selectedCampaign && fetchCampaignData(selectedCampaign)}
+              disabled={refreshing}
+              className="border-border/50"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
         </div>
 
-        {/* Stats Grid */}
-        {summary && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <MetricCardGlow
-              title="Total de Views"
-              value={formatNumber(summary.total_views)}
-              icon={Eye}
-              glowColor="green"
-            />
-            <MetricCardGlow
-              title="Total de Posts"
-              value={summary.total_posts}
-              icon={Video}
-              glowColor="blue"
-            />
-            <MetricCardGlow
-              title="Clipadores"
-              value={summary.total_clippers}
-              icon={Users}
-              glowColor="purple"
-            />
-            <MetricCardGlow
-              title="Taxa de Engajamento"
-              value={`${summary.engagement_rate}%`}
-              icon={TrendingUp}
-              glowColor="orange"
-            />
-          </div>
+        {selectedCampaignData && (
+          <GlowCard className="p-6 relative overflow-hidden">
+            <div className="flex items-center gap-6">
+              {selectedCampaignData.image_url ? (
+                <img 
+                  src={selectedCampaignData.image_url} 
+                  alt={selectedCampaignData.name}
+                  className="w-24 h-24 rounded-xl object-cover border-2 border-primary/30"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center border-2 border-primary/30">
+                  <Trophy className="h-10 w-10 text-primary" />
+                </div>
+              )}
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h2 className="text-2xl font-bold">{selectedCampaignData.name}</h2>
+                  <Badge className={selectedCampaignData.is_active ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-gray-500/20 text-gray-400'}>
+                    {selectedCampaignData.is_active ? 'Ativa' : 'Inativa'}
+                  </Badge>
+                </div>
+                <p className="text-muted-foreground flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Campanha em andamento
+                </p>
+              </div>
+            </div>
+          </GlowCard>
         )}
 
-        {/* Charts Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCardGlow
+            title="Total de Views"
+            value={formatNumber(summary?.total_views || 0)}
+            icon={Eye}
+            glowColor="green"
+          />
+          <MetricCardGlow
+            title="Total de Posts"
+            value={summary?.total_posts || 0}
+            icon={Video}
+            glowColor="blue"
+          />
+          <MetricCardGlow
+            title="Clipadores"
+            value={summary?.total_clippers || 0}
+            icon={Users}
+            glowColor="purple"
+          />
+          <MetricCardGlow
+            title="Taxa de Engajamento"
+            value={`${summary?.engagement_rate || 0}%`}
+            icon={TrendingUp}
+            glowColor="orange"
+          />
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ChartLineViews 
             data={viewsData} 
             title="Evolução de Views (7 dias)" 
           />
           <ChartPiePlatforms 
-            data={platformData} 
+            data={platformData.length > 0 ? platformData : [{ platform: 'Sem dados', value: 1 }]} 
             title="Distribuição por Plataforma" 
           />
         </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="bg-muted/30">
-            <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-            <TabsTrigger value="clippers">
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="bg-card/50 border border-border/30 p-1">
+            <TabsTrigger value="overview" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+              Visão Geral
+            </TabsTrigger>
+            <TabsTrigger value="clippers" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               Clipadores
               {pendingClippers.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-yellow-500/20 text-yellow-400">
+                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                   {pendingClippers.length}
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="ranking">Ranking</TabsTrigger>
+            <TabsTrigger value="ranking" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+              Ranking
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <GlowCard>
+              <GlowCard className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Medal className="h-5 w-5 text-yellow-400" />
+                  <Crown className="h-5 w-5 text-yellow-400" />
                   Top 5 Clipadores
                 </h3>
                 <div className="space-y-3">
                   {ranking.slice(0, 5).map((item, index) => (
-                    <div key={item.user_id} className="flex items-center justify-between p-3 rounded-lg bg-muted/20">
+                    <div 
+                      key={item.user_id} 
+                      className={`flex items-center justify-between p-3 rounded-xl border transition-all hover:scale-[1.02] ${getRankBg(index + 1)}`}
+                    >
                       <div className="flex items-center gap-3">
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${
-                          index === 0 ? 'bg-yellow-500/20 text-yellow-400' :
-                          index === 1 ? 'bg-gray-400/20 text-gray-300' :
-                          index === 2 ? 'bg-orange-500/20 text-orange-400' :
-                          'bg-muted text-muted-foreground'
-                        }`}>
-                          {index + 1}
-                        </span>
+                        <div className="flex items-center justify-center w-8 h-8">
+                          {getRankIcon(index + 1)}
+                        </div>
+                        <Avatar className="h-10 w-10 border-2 border-border/50">
+                          <AvatarImage src={item.avatar_url || undefined} />
+                          <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                            {item.username?.[0]?.toUpperCase() || '?'}
+                          </AvatarFallback>
+                        </Avatar>
                         <span className="font-medium">{item.username}</span>
                       </div>
-                      <span className="text-primary font-semibold">{formatNumber(Number(item.total_views))} views</span>
+                      <span className="text-primary font-bold">{formatNumber(Number(item.total_views))} views</span>
                     </div>
                   ))}
                   {ranking.length === 0 && (
-                    <p className="text-center text-muted-foreground py-4">Nenhum clipador no ranking ainda.</p>
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Medal className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>Nenhum clipador no ranking ainda.</p>
+                    </div>
                   )}
                 </div>
               </GlowCard>
 
-              <GlowCard>
+              <GlowCard className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <DollarSign className="h-5 w-5 text-green-400" />
                   Resumo Financeiro
                 </h3>
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                  <div className="flex justify-between items-center p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
                     <span className="text-muted-foreground">Ganhos estimados dos clipadores</span>
-                    <span className="font-semibold">R$ 0,00</span>
+                    <span className="font-bold text-green-400">R$ 0,00</span>
                   </div>
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                  <div className="flex justify-between items-center p-4 rounded-xl bg-muted/20 border border-border/30">
                     <span className="text-muted-foreground">Saques realizados</span>
                     <span className="font-semibold">R$ 0,00</span>
                   </div>
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                  <div className="flex justify-between items-center p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
                     <span className="text-muted-foreground">Saques pendentes</span>
                     <span className="font-semibold text-yellow-400">R$ 0,00</span>
                   </div>
@@ -394,8 +472,14 @@ function DashboardClientContent() {
           <TabsContent value="clippers">
             <div className="space-y-6">
               {pendingClippers.length > 0 && (
-                <GlowCard>
-                  <h3 className="text-lg font-semibold mb-4">Aguardando Aprovação ({pendingClippers.length})</h3>
+                <GlowCard className="p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Users className="h-5 w-5 text-yellow-400" />
+                    Aguardando Aprovação
+                    <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                      {pendingClippers.length}
+                    </Badge>
+                  </h3>
                   <ClippersTable 
                     clippers={pendingClippers}
                     onRefresh={() => fetchCampaignData(selectedCampaign)}
@@ -403,44 +487,68 @@ function DashboardClientContent() {
                 </GlowCard>
               )}
 
-              <GlowCard>
-                <h3 className="text-lg font-semibold mb-4">Clipadores Aprovados ({approvedClippers.length})</h3>
-                <ClippersTable 
-                  clippers={approvedClippers}
-                  showActions={false}
-                />
+              <GlowCard className="p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Users className="h-5 w-5 text-green-400" />
+                  Clipadores Aprovados
+                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                    {approvedClippers.length}
+                  </Badge>
+                </h3>
+                {approvedClippers.length > 0 ? (
+                  <ClippersTable 
+                    clippers={approvedClippers}
+                    showActions={false}
+                  />
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Nenhum clipador aprovado ainda.</p>
+                  </div>
+                )}
               </GlowCard>
             </div>
           </TabsContent>
 
           <TabsContent value="ranking">
-            <GlowCard>
-              <h3 className="text-lg font-semibold mb-4">Ranking Completo</h3>
-              <div className="space-y-2">
+            <GlowCard className="p-6">
+              <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-primary" />
+                Ranking Completo
+              </h3>
+              <div className="space-y-3">
                 {ranking.map((item, index) => (
-                  <div key={item.user_id} className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
+                  <div 
+                    key={item.user_id} 
+                    className={`flex items-center justify-between p-4 rounded-xl border transition-all hover:scale-[1.01] ${getRankBg(index + 1)}`}
+                  >
                     <div className="flex items-center gap-4">
-                      <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                        index === 0 ? 'bg-yellow-500/20 text-yellow-400' :
-                        index === 1 ? 'bg-gray-400/20 text-gray-300' :
-                        index === 2 ? 'bg-orange-500/20 text-orange-400' :
-                        'bg-muted text-muted-foreground'
-                      }`}>
-                        {index + 1}
-                      </span>
+                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-background/50">
+                        {getRankIcon(index + 1)}
+                      </div>
+                      <Avatar className="h-12 w-12 border-2 border-border/50">
+                        <AvatarImage src={item.avatar_url || undefined} />
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {item.username?.[0]?.toUpperCase() || '?'}
+                        </AvatarFallback>
+                      </Avatar>
                       <div>
-                        <p className="font-medium">{item.username}</p>
+                        <p className="font-semibold">{item.username}</p>
                         <p className="text-sm text-muted-foreground">{item.total_videos} vídeos</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-primary">{formatNumber(Number(item.total_views))}</p>
+                      <p className="text-xl font-bold text-primary">{formatNumber(Number(item.total_views))}</p>
                       <p className="text-xs text-muted-foreground">views</p>
                     </div>
                   </div>
                 ))}
                 {ranking.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">Nenhum clipador no ranking ainda.</p>
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Trophy className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                    <p className="text-lg">Nenhum clipador no ranking ainda.</p>
+                    <p className="text-sm">Os clipadores aparecerão aqui conforme enviarem vídeos.</p>
+                  </div>
                 )}
               </div>
             </GlowCard>
