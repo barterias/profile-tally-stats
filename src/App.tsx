@@ -50,12 +50,17 @@ const App = () => (
               <Route path="/ranking/monthly" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
               <Route path="/ranking/daily" element={<ProtectedRoute><RankingDaily /></ProtectedRoute>} />
               {/* Admin Routes */}
-              <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
+              <Route path="/admin" element={<AdminDashboardNew />} />
+              <Route path="/admin/dashboard" element={<AdminDashboardNew />} />
+              <Route path="/admin/campaigns" element={<AdminCampaigns />} />
               <Route path="/admin/videos" element={<ProtectedRoute requireAdmin><ManageVideos /></ProtectedRoute>} />
+              <Route path="/admin/submissions" element={<AdminSubmissions />} />
+              <Route path="/admin/payouts" element={<AdminPayouts />} />
               <Route path="/admin/create-campaign" element={<ProtectedRoute requireAdmin><CreateCampaign /></ProtectedRoute>} />
               <Route path="/admin/edit-campaign/:id" element={<EditCampaign />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/stats" element={<AdminStats />} />
+              <Route path="/ranking" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
