@@ -3,23 +3,35 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { externalSupabase } from "@/lib/externalSupabase";
 import MainLayout from "@/components/Layout/MainLayout";
-import StatCard from "@/components/Dashboard/StatCard";
+import { ImageUpload } from "@/components/ImageUpload";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Eye, Video, Trophy, TrendingUp, Save } from "lucide-react";
+import { toast } from "sonner";
+import { GlowCard } from "@/components/ui/GlowCard";
+import { MetricCardGlow } from "@/components/ui/MetricCardGlow";
+import { 
+  Eye, 
+  Video, 
+  Trophy, 
+  TrendingUp, 
+  Save, 
+  Mail,
+  User,
+  Shield,
+  Bell,
+  Lock,
+  Trash2
+} from "lucide-react";
 
 export default function Profile() {
   const { user } = useAuth();
-  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({
     username: "",
     email: user?.email || "",
+    avatar_url: "",
   });
   const [stats, setStats] = useState({
     totalViews: 0,
@@ -34,28 +46,31 @@ export default function Profile() {
   }, [user]);
 
   const fetchProfile = async () => {
+    if (!user?.id) return;
+    
     const { data } = await supabase
       .from("profiles")
       .select("*")
-      .eq("id", user?.id)
+      .eq("id", user.id)
       .single();
 
     if (data) {
       setProfile({
         username: data.username || "",
         email: user?.email || "",
+        avatar_url: data.avatar_url || "",
       });
     }
   };
 
   const fetchStats = async () => {
-    // Fetch user stats
+    if (!user?.id) return;
+    
     const { data: videos } = await supabase
       .from("campaign_videos")
       .select("*, campaigns(*)")
-      .eq("submitted_by", user?.id);
+      .eq("submitted_by", user.id);
 
-    // Buscar métricas reais das views externas
     let totalViews = 0;
     if (videos && videos.length > 0) {
       const viewsPromises = videos.map(async (video) => {
@@ -73,7 +88,7 @@ export default function Profile() {
         } catch (error) {
           console.error("Erro ao buscar métricas do vídeo:", error);
         }
-        return 0;
+        return video.views || 0;
       });
 
       const viewsArray = await Promise.all(viewsPromises);
@@ -82,7 +97,6 @@ export default function Profile() {
 
     const campaigns = new Set(videos?.map((v) => v.campaign_id)).size;
 
-    // Calcular ranking médio baseado em todas as campanhas do usuário
     let avgRank = 0;
     if (videos && videos.length > 0) {
       const campaignIds = [...new Set(videos.map((v) => v.campaign_id))];
@@ -112,155 +126,213 @@ export default function Profile() {
     });
   };
 
+  const handleAvatarUpload = async (url: string) => {
+    setProfile({ ...profile, avatar_url: url });
+    
+    // Update in database
+    const { error } = await supabase
+      .from("profiles")
+      .update({ avatar_url: url })
+      .eq("id", user?.id);
+
+    if (error) {
+      toast.error("Erro ao salvar avatar");
+    }
+  };
+
   const handleSave = async () => {
     setLoading(true);
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({ username: profile.username })
+        .update({ 
+          username: profile.username,
+          avatar_url: profile.avatar_url 
+        })
         .eq("id", user?.id);
 
       if (error) throw error;
 
-      toast({
-        title: "Perfil atualizado!",
-        description: "Suas informações foram salvas com sucesso.",
-      });
+      toast.success("Perfil atualizado com sucesso!");
     } catch (error: any) {
-      toast({
-        title: "Erro ao atualizar perfil",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error("Erro ao atualizar perfil: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return num.toString();
+  };
+
   return (
     <MainLayout>
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-glow mb-2">Perfil</h1>
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent mb-2">
+            Meu Perfil
+          </h1>
           <p className="text-muted-foreground">
-            Gerencie suas informações pessoais
+            Gerencie suas informações e acompanhe seu desempenho
           </p>
         </div>
 
         {/* Profile Card */}
-        <Card className="glass-card p-6">
-          <div className="flex items-center gap-6 mb-6">
-            <Avatar className="h-24 w-24 border-4 border-primary/50">
-              <AvatarFallback className="bg-primary/10 text-primary text-2xl font-bold">
-                {user?.email?.[0].toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold mb-1">
-                {profile.username || "Usuário"}
-              </h2>
-              <p className="text-muted-foreground">{profile.email}</p>
-            </div>
-          </div>
-
-          <Separator className="my-6" />
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Nome de usuário</Label>
-              <Input
-                id="username"
-                placeholder="Seu nome de usuário"
-                value={profile.username}
-                onChange={(e) =>
-                  setProfile({ ...profile, username: e.target.value })
-                }
+        <GlowCard className="p-8">
+          <div className="flex flex-col md:flex-row items-center gap-8">
+            {/* Avatar Upload */}
+            <div className="flex flex-col items-center gap-3">
+              <ImageUpload
+                bucket="avatars"
+                folder={user?.id || "unknown"}
+                currentImageUrl={profile.avatar_url}
+                onUpload={handleAvatarUpload}
+                type="avatar"
               />
+              <span className="text-xs text-muted-foreground">
+                Clique para alterar
+              </span>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" value={profile.email} disabled />
-              <p className="text-xs text-muted-foreground">
-                O email não pode ser alterado
-              </p>
-            </div>
+            {/* Profile Info */}
+            <div className="flex-1 w-full space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="username" className="text-sm font-medium flex items-center gap-2">
+                    <User className="h-4 w-4 text-primary" />
+                    Nome de usuário
+                  </Label>
+                  <Input
+                    id="username"
+                    placeholder="Seu nome de usuário"
+                    value={profile.username}
+                    onChange={(e) =>
+                      setProfile({ ...profile, username: e.target.value })
+                    }
+                    className="bg-background/50 border-border/50 focus:border-primary"
+                  />
+                </div>
 
-            <Button
-              onClick={handleSave}
-              disabled={loading}
-              className="premium-gradient"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {loading ? "Salvando..." : "Salvar Alterações"}
-            </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-medium flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-primary" />
+                    Email
+                  </Label>
+                  <Input 
+                    id="email" 
+                    value={profile.email} 
+                    disabled 
+                    className="bg-muted/30 text-muted-foreground"
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleSave}
+                disabled={loading}
+                className="w-full md:w-auto bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {loading ? "Salvando..." : "Salvar Alterações"}
+              </Button>
+            </div>
           </div>
-        </Card>
+        </GlowCard>
 
         {/* Stats Grid */}
         <div>
-          <h3 className="text-xl font-semibold mb-4">Estatísticas Gerais</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard
+          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            Estatísticas Gerais
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCardGlow
               title="Total de Views"
-              value={stats.totalViews.toLocaleString()}
+              value={formatNumber(stats.totalViews)}
               icon={Eye}
+              glowColor="green"
             />
-            <StatCard
+            <MetricCardGlow
               title="Vídeos Enviados"
               value={stats.totalVideos}
               icon={Video}
+              glowColor="blue"
             />
-            <StatCard
+            <MetricCardGlow
               title="Competições"
               value={stats.campaigns}
-              subtitle="participações"
               icon={Trophy}
+              glowColor="purple"
             />
-            <StatCard
+            <MetricCardGlow
               title="Ranking Médio"
               value={stats.avgRank > 0 ? `#${stats.avgRank}` : "-"}
               icon={TrendingUp}
+              glowColor="orange"
             />
           </div>
         </div>
 
         {/* Account Settings */}
-        <Card className="glass-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Configurações da Conta</h3>
+        <GlowCard className="p-6">
+          <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            Configurações da Conta
+          </h3>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Notificações por Email</p>
-                <p className="text-sm text-muted-foreground">
-                  Receba atualizações sobre suas competições
-                </p>
+            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/20 hover:bg-muted/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <Bell className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Notificações por Email</p>
+                  <p className="text-sm text-muted-foreground">
+                    Receba atualizações sobre suas competições
+                  </p>
+                </div>
               </div>
-              <Button variant="outline">Configurar</Button>
+              <Button variant="outline" size="sm" className="border-border/50">
+                Configurar
+              </Button>
             </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Privacidade</p>
-                <p className="text-sm text-muted-foreground">
-                  Controle quem pode ver seu perfil
-                </p>
+            
+            <Separator className="bg-border/30" />
+            
+            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/20 hover:bg-muted/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <Lock className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Privacidade</p>
+                  <p className="text-sm text-muted-foreground">
+                    Controle quem pode ver seu perfil
+                  </p>
+                </div>
               </div>
-              <Button variant="outline">Gerenciar</Button>
+              <Button variant="outline" size="sm" className="border-border/50">
+                Gerenciar
+              </Button>
             </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-destructive">Excluir Conta</p>
-                <p className="text-sm text-muted-foreground">
-                  Remover permanentemente sua conta
-                </p>
+            
+            <Separator className="bg-border/30" />
+            
+            <div className="flex items-center justify-between p-4 rounded-xl bg-destructive/5 hover:bg-destructive/10 transition-colors">
+              <div className="flex items-center gap-3">
+                <Trash2 className="h-5 w-5 text-destructive" />
+                <div>
+                  <p className="font-medium text-destructive">Excluir Conta</p>
+                  <p className="text-sm text-muted-foreground">
+                    Remover permanentemente sua conta
+                  </p>
+                </div>
               </div>
-              <Button variant="destructive">Excluir</Button>
+              <Button variant="destructive" size="sm">
+                Excluir
+              </Button>
             </div>
           </div>
-        </Card>
+        </GlowCard>
       </div>
     </MainLayout>
   );
