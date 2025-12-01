@@ -28,7 +28,11 @@ import {
   Target,
   Sparkles,
   Crown,
-  BarChart3
+  BarChart3,
+  Calculator,
+  Download,
+  FileSpreadsheet,
+  FileText
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -38,6 +42,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { EarningsBreakdownModal } from "@/components/Campaign/EarningsBreakdownModal";
+import { exportToCSV, exportToPDF } from "@/lib/exportUtils";
 
 interface CampaignBasic {
   id: string;
@@ -57,6 +69,7 @@ function DashboardClientContent() {
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<CampaignBasic[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+  const [earningsModalOpen, setEarningsModalOpen] = useState(false);
 
   const { 
     loading: campaignLoading, 
@@ -236,6 +249,73 @@ function DashboardClientContent() {
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => setEarningsModalOpen(true)}
+              className="hover-glow"
+              disabled={!selectedCampaign}
+            >
+              <Calculator className="h-4 w-4 mr-2" />
+              Detalhes
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="hover-glow" disabled={!selectedCampaign || !summary}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (selectedCampaign && summary) {
+                      exportToCSV({
+                        campaign: {
+                          name: selectedCampaign.name,
+                          campaign_type: selectedCampaign.campaign_type,
+                          payment_rate: selectedCampaign.payment_rate,
+                          prize_pool: campaign?.prize_pool || 0,
+                          start_date: selectedCampaign.start_date,
+                          end_date: selectedCampaign.end_date,
+                          platforms: selectedCampaign.platforms,
+                        },
+                        summary,
+                        ranking,
+                      }, selectedCampaign.name.toLowerCase().replace(/\s+/g, '-'));
+                      toast.success('Relatório CSV exportado com sucesso!');
+                    }
+                  }}
+                >
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Exportar CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (selectedCampaign && summary) {
+                      exportToPDF({
+                        campaign: {
+                          name: selectedCampaign.name,
+                          campaign_type: selectedCampaign.campaign_type,
+                          payment_rate: selectedCampaign.payment_rate,
+                          prize_pool: campaign?.prize_pool || 0,
+                          start_date: selectedCampaign.start_date,
+                          end_date: selectedCampaign.end_date,
+                          platforms: selectedCampaign.platforms,
+                        },
+                        summary,
+                        ranking,
+                      }, selectedCampaign.name.toLowerCase().replace(/\s+/g, '-'));
+                      toast.success('Relatório PDF gerado com sucesso!');
+                    }
+                  }}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Exportar PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -459,6 +539,18 @@ function DashboardClientContent() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Earnings Breakdown Modal */}
+        {selectedCampaign && (
+          <EarningsBreakdownModal
+            open={earningsModalOpen}
+            onOpenChange={setEarningsModalOpen}
+            campaignType={selectedCampaign.campaign_type}
+            paymentRate={selectedCampaign.payment_rate}
+            prizePool={campaign?.prize_pool || 0}
+            ranking={ranking}
+          />
+        )}
       </div>
     </MainLayout>
   );
