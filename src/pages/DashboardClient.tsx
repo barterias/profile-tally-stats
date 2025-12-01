@@ -53,7 +53,7 @@ interface RankingItem {
 
 function DashboardClientContent() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<string>('');
@@ -65,10 +65,13 @@ function DashboardClientContent() {
   const [viewsData, setViewsData] = useState<{ date: string; views: number }[]>([]);
 
   useEffect(() => {
-    if (user) {
+    if (user && !authLoading) {
+      console.log('DashboardClient: Fetching campaigns for user:', user.id);
       fetchOwnedCampaigns();
+    } else if (!authLoading && !user) {
+      setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (selectedCampaign) {
@@ -77,19 +80,39 @@ function DashboardClientContent() {
   }, [selectedCampaign]);
 
   const fetchOwnedCampaigns = async () => {
+    if (!user?.id) {
+      console.log('DashboardClient: No user ID available');
+      setLoading(false);
+      return;
+    }
+    
     try {
-      const { data: ownerData } = await supabase
+      console.log('DashboardClient: Querying campaign_owners for user_id:', user.id);
+      
+      const { data: ownerData, error: ownerError } = await supabase
         .from('campaign_owners')
         .select('campaign_id')
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
+
+      console.log('DashboardClient: campaign_owners result:', { ownerData, ownerError });
+
+      if (ownerError) {
+        console.error('Erro ao buscar campaign_owners:', ownerError);
+        toast.error('Erro ao verificar suas campanhas');
+        setLoading(false);
+        return;
+      }
 
       if (ownerData && ownerData.length > 0) {
         const campaignIds = ownerData.map(o => o.campaign_id);
+        console.log('DashboardClient: Campaign IDs found:', campaignIds);
         
-        const { data: campaignsData } = await supabase
+        const { data: campaignsData, error: campaignsError } = await supabase
           .from('campaigns')
           .select('id, name, is_active')
           .in('id', campaignIds);
+
+        console.log('DashboardClient: campaigns result:', { campaignsData, campaignsError });
 
         if (campaignsData) {
           setCampaigns(campaignsData);
@@ -97,6 +120,8 @@ function DashboardClientContent() {
             setSelectedCampaign(campaignsData[0].id);
           }
         }
+      } else {
+        console.log('DashboardClient: No campaign_owners found for this user');
       }
     } catch (error) {
       console.error('Erro ao carregar campanhas:', error);
@@ -185,7 +210,7 @@ function DashboardClientContent() {
     return num.toString();
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-[60vh]">
