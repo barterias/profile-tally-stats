@@ -44,6 +44,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: "Painel Admin", href: "/admin", icon: Shield },
     { name: "Campanhas", href: "/admin/campaigns", icon: Trophy },
     { name: "Submissões", href: "/admin/submissions", icon: Video },
+    { name: "Financeiro", href: "/admin/payouts", icon: Wallet },
     { name: "Usuários", href: "/admin/users", icon: Users },
     { name: "Estatísticas", href: "/admin/stats", icon: BarChart3 },
   ];

@@ -1,7 +1,9 @@
 import { Toaster } from "@/components/ui/toaster";
-import AdminDashboardNew from "./pages/AdminDashboardNew";
+import DashboardAdmin from "./pages/DashboardAdmin";
+import DashboardClient from "./pages/DashboardClient";
+import DashboardClipper from "./pages/DashboardClipper";
+import FinanceiroAdmin from "./pages/FinanceiroAdmin";
 import AdminCampaigns from "./pages/AdminCampaigns";
-import AdminPayouts from "./pages/AdminPayouts";
 import AdminSubmissions from "./pages/AdminSubmissions";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -49,13 +51,17 @@ const App = () => (
               <Route path="/campaign/:id" element={<ProtectedRoute><CampaignDetail /></ProtectedRoute>} />
               <Route path="/ranking/monthly" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
               <Route path="/ranking/daily" element={<ProtectedRoute><RankingDaily /></ProtectedRoute>} />
+              {/* Dashboard Routes by Role */}
+              <Route path="/dashboard/admin" element={<DashboardAdmin />} />
+              <Route path="/dashboard/client" element={<DashboardClient />} />
+              <Route path="/dashboard/clipper" element={<DashboardClipper />} />
               {/* Admin Routes */}
-              <Route path="/admin" element={<AdminDashboardNew />} />
-              <Route path="/admin/dashboard" element={<AdminDashboardNew />} />
+              <Route path="/admin" element={<DashboardAdmin />} />
+              <Route path="/admin/dashboard" element={<DashboardAdmin />} />
               <Route path="/admin/campaigns" element={<AdminCampaigns />} />
               <Route path="/admin/videos" element={<ProtectedRoute requireAdmin><ManageVideos /></ProtectedRoute>} />
               <Route path="/admin/submissions" element={<AdminSubmissions />} />
-              <Route path="/admin/payouts" element={<AdminPayouts />} />
+              <Route path="/admin/payouts" element={<FinanceiroAdmin />} />
               <Route path="/admin/create-campaign" element={<ProtectedRoute requireAdmin><CreateCampaign /></ProtectedRoute>} />
               <Route path="/admin/edit-campaign/:id" element={<EditCampaign />} />
               <Route path="/admin/users" element={<AdminUsers />} />

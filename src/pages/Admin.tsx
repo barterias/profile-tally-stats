@@ -63,7 +63,7 @@ interface AdminUser {
   email: string;
   username: string;
   status: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'client' | 'user';
   warning: string;
   date: string;
 }
