@@ -100,7 +100,7 @@ export function useCampaignData(campaignId: string | null) {
         });
       }
 
-      // Fetch ranking
+      // Fetch ranking from ranking_views
       const { data: rankingData } = await supabase
         .from('ranking_views')
         .select('*')
@@ -108,20 +108,38 @@ export function useCampaignData(campaignId: string | null) {
         .order('rank_position', { ascending: true })
         .limit(20);
 
-      // Calculate earnings for each user based on campaign type
+      // Calculate earnings based on campaign type
+      const prizeDistribution = [0.5, 0.3, 0.2]; // 50%, 30%, 20% for top 3 in competitions
+      const prizePool = Number(campaignData.prize_pool || 0);
+      const paymentRate = Number(campaignData.payment_rate || 0);
+
       const rankingWithEarnings = (rankingData || []).map(item => {
         let earnings = 0;
+        const position = Number(item.rank_position || 0);
+        const views = Number(item.total_views || 0);
+
         if (campaignData.campaign_type === 'pay_per_view') {
-          earnings = (Number(item.total_views || 0) / 1000) * Number(campaignData.payment_rate || 0);
+          // Pay per view: (views / 1000) * rate
+          earnings = (views / 1000) * paymentRate;
+        } else if (campaignData.campaign_type === 'competition_daily' || campaignData.campaign_type === 'competition_monthly') {
+          // Competition: distribute prize pool to top 3
+          if (position >= 1 && position <= 3 && prizePool > 0) {
+            earnings = prizePool * prizeDistribution[position - 1];
+          }
+        } else if (campaignData.campaign_type === 'fixed') {
+          // Fixed payment per video
+          const videoCount = Number(item.total_videos || 0);
+          earnings = videoCount * paymentRate;
         }
+
         return {
-          user_id: item.user_id,
+          user_id: item.user_id || '',
           username: item.username || 'Usuário',
           avatar_url: item.avatar_url,
           total_videos: Number(item.total_videos || 0),
-          total_views: Number(item.total_views || 0),
+          total_views: views,
           total_likes: Number(item.total_likes || 0),
-          rank_position: Number(item.rank_position || 0),
+          rank_position: position,
           estimated_earnings: earnings,
         };
       });
