@@ -241,9 +241,9 @@ export default function Admin() {
   const handleUpdateRole = async (userId: string, newRole: string) => {
     try {
       const { error } = await supabase.rpc('update_role', { 
-        user_id: userId, 
-        new_role: newRole 
-      });
+        p_user_id: userId, 
+        p_new_role: newRole 
+      } as any);
       if (error) throw error;
       
       toast.success(`Role atualizada para ${newRole}`);

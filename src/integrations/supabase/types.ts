@@ -966,7 +966,7 @@ export type Database = {
         Returns: string
       }
       update_role: {
-        Args: { new_role: string; user_id: string }
+        Args: { p_new_role: string; p_user_id: string }
         Returns: undefined
       }
       update_warning: {
