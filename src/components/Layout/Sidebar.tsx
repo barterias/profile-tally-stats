@@ -10,9 +10,7 @@ import {
   TrendingUp,
   Shield,
   Video,
-  Plus,
   Users,
-  Settings,
   BarChart3,
   Medal,
   Zap,
@@ -44,11 +42,10 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   const adminNavigation = [
     { name: "Painel Admin", href: "/admin", icon: Shield },
-    { name: "Nova Campanha", href: "/admin/create-campaign", icon: Plus },
-    { name: "Gerenciar Vídeos", href: "/admin/videos", icon: Video },
+    { name: "Campanhas", href: "/admin/campaigns", icon: Trophy },
+    { name: "Submissões", href: "/admin/submissions", icon: Video },
     { name: "Usuários", href: "/admin/users", icon: Users },
     { name: "Estatísticas", href: "/admin/stats", icon: BarChart3 },
-    { name: "Configurações", href: "/admin/settings", icon: Settings },
   ];
 
   const isActive = (path: string) => {
