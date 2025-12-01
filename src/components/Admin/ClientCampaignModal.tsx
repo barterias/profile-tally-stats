@@ -91,9 +91,9 @@ export function ClientCampaignModal({
     try {
       // Update user role to client
       const { error: roleError } = await supabase.rpc("update_role", {
-        user_id: userId,
-        new_role: "client",
-      });
+        p_user_id: userId,
+        p_new_role: "client",
+      } as any);
       if (roleError) throw roleError;
 
       // Find campaigns to add and remove
