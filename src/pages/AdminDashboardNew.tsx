@@ -87,7 +87,7 @@ function AdminDashboardContent() {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch basic stats and external videos in parallel
+      // Fetch all data in parallel - same approach as Dashboard.tsx
       const [campaignsRes, videosRes, profilesRes, pendingUsersRes, externalVideos, socialVideos] = await Promise.all([
         supabase.from("campaigns").select("*").eq("is_active", true),
         supabase.from("campaign_videos").select("*"),
@@ -97,7 +97,17 @@ function AdminDashboardContent() {
         externalSupabase.getSocialVideos(),
       ]);
 
-      // Create a map of external video metrics by normalized link
+      // Calculate total views from ALL external videos (same as Dashboard.tsx)
+      const allExternalVideos = [...externalVideos, ...socialVideos];
+      const totalViews = allExternalVideos.reduce(
+        (sum, video) => sum + (video.views || 0),
+        0
+      );
+      const totalExternalVideos = allExternalVideos.length;
+
+      const unverifiedVideos = videosRes.data?.filter((v) => !v.verified) || [];
+
+      // Calculate top clippers using external video metrics
       const normalizeLink = (link: string | undefined | null): string => {
         if (!link) return "";
         let normalized = link.split("?")[0];
@@ -106,27 +116,18 @@ function AdminDashboardContent() {
         return normalized;
       };
 
-      const metricsMap = new Map<string, { views: number; likes: number }>();
-      for (const video of [...externalVideos, ...socialVideos]) {
+      const metricsMap = new Map<string, number>();
+      for (const video of allExternalVideos) {
         const link = normalizeLink(video.link || video.video_url);
         if (link) {
-          metricsMap.set(link, {
-            views: video.views || 0,
-            likes: video.likes || 0,
-          });
+          metricsMap.set(link, video.views || 0);
         }
       }
 
-      // Calculate total views from external sources for campaign videos
-      let totalViews = 0;
       const userStats = new Map();
-
       videosRes.data?.forEach((video) => {
         const normalized = normalizeLink(video.video_link);
-        const externalMetrics = metricsMap.get(normalized);
-        const videoViews = externalMetrics?.views || video.views || 0;
-        
-        totalViews += videoViews;
+        const videoViews = metricsMap.get(normalized) || video.views || 0;
 
         const userId = video.submitted_by;
         if (userId) {
@@ -137,8 +138,6 @@ function AdminDashboardContent() {
           });
         }
       });
-
-      const unverifiedVideos = videosRes.data?.filter((v) => !v.verified) || [];
 
       const topClippersData = Array.from(userStats.entries())
         .map(([id, stats]) => {
@@ -155,23 +154,21 @@ function AdminDashboardContent() {
         .slice(0, 10);
 
       // Enrich pending videos with usernames
-      const enrichedPendingVideos = await Promise.all(
-        unverifiedVideos.slice(0, 10).map(async (video) => {
-          const profile = profilesRes.data?.find((p) => p.id === video.submitted_by);
-          return {
-            id: video.id,
-            video_link: video.video_link,
-            platform: video.platform,
-            submitted_by: video.submitted_by || "",
-            submitted_at: video.submitted_at,
-            username: profile?.username || "Usuário",
-          };
-        })
-      );
+      const enrichedPendingVideos = unverifiedVideos.slice(0, 10).map((video) => {
+        const profile = profilesRes.data?.find((p) => p.id === video.submitted_by);
+        return {
+          id: video.id,
+          video_link: video.video_link,
+          platform: video.platform,
+          submitted_by: video.submitted_by || "",
+          submitted_at: video.submitted_at,
+          username: profile?.username || "Usuário",
+        };
+      });
 
       setStats({
         totalUsers: profilesRes.data?.length || 0,
-        totalVideos: videosRes.data?.length || 0,
+        totalVideos: (videosRes.data?.length || 0) + totalExternalVideos,
         activeCampaigns: campaignsRes.data?.length || 0,
         totalViews,
         pendingUsers: pendingUsersRes.data?.length || 0,
