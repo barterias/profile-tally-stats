@@ -28,6 +28,7 @@ import CreateCampaign from "./pages/CreateCampaign";
 import EditCampaign from "./pages/EditCampaign";
 import RankingGlobal from "./pages/RankingGlobal";
 import RankingDaily from "./pages/RankingDaily";
+import PaymentManagement from "./pages/PaymentManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -66,6 +67,8 @@ const App = () => (
               <Route path="/admin/edit-campaign/:id" element={<EditCampaign />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/stats" element={<AdminStats />} />
+              <Route path="/admin/payments" element={<PaymentManagement />} />
+              <Route path="/payments" element={<PaymentManagement />} />
               <Route path="/ranking" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
