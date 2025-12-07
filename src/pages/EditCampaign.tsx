@@ -10,9 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { GlowCard } from "@/components/ui/GlowCard";
+import { PrizeConfigForm } from "@/components/Ranking/PrizeConfigForm";
+import { useCompetitionPrizes, PrizeConfig } from "@/hooks/useCompetitionPrizes";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { Trophy, ArrowLeft, Save, Trash2 } from "lucide-react";
+import { Trophy, ArrowLeft, Save, Trash2, DollarSign, Flame, Target } from "lucide-react";
+import { CampaignType } from "@/types/campaign";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +36,9 @@ function EditCampaignContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
+  const { prizes, savePrizes, loading: prizesLoading } = useCompetitionPrizes(id || null);
+  const [localPrizes, setLocalPrizes] = useState<PrizeConfig[]>([]);
+  
   const [campaign, setCampaign] = useState({
     name: "",
     description: "",
@@ -41,6 +48,11 @@ function EditCampaignContent() {
     prizeDescription: "",
     rules: "",
     isActive: true,
+    campaign_type: "pay_per_view" as CampaignType,
+    payment_rate: 0,
+    min_views: 0,
+    max_paid_views: 0,
+    prize_pool: 0,
   });
 
   const platformOptions = [
@@ -52,6 +64,12 @@ function EditCampaignContent() {
   useEffect(() => {
     fetchCampaign();
   }, [id]);
+
+  useEffect(() => {
+    if (prizes.length > 0) {
+      setLocalPrizes(prizes);
+    }
+  }, [prizes]);
 
   const fetchCampaign = async () => {
     try {
@@ -72,6 +90,11 @@ function EditCampaignContent() {
         prizeDescription: data.prize_description || "",
         rules: data.rules || "",
         isActive: data.is_active,
+        campaign_type: (data.campaign_type || 'pay_per_view') as CampaignType,
+        payment_rate: Number(data.payment_rate || 0),
+        min_views: Number(data.min_views || 0),
+        max_paid_views: Number(data.max_paid_views || 0),
+        prize_pool: Number(data.prize_pool || 0),
       });
     } catch (error) {
       console.error("Error fetching campaign:", error);
@@ -99,10 +122,20 @@ function EditCampaignContent() {
           prize_description: campaign.prizeDescription,
           rules: campaign.rules,
           is_active: campaign.isActive,
+          campaign_type: campaign.campaign_type,
+          payment_rate: campaign.payment_rate,
+          min_views: campaign.min_views,
+          max_paid_views: campaign.max_paid_views,
+          prize_pool: campaign.prize_pool,
         })
         .eq("id", id);
 
       if (error) throw error;
+
+      // Save prizes for competition campaigns
+      if (campaign.campaign_type === 'competition_daily' || campaign.campaign_type === 'competition_monthly') {
+        await savePrizes(localPrizes);
+      }
 
       toast({
         title: "Campanha atualizada!",
@@ -247,6 +280,113 @@ function EditCampaignContent() {
               rows={3}
             />
           </div>
+
+          {/* Campaign Type & Payment Settings */}
+          <GlowCard className="p-4 space-y-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-400" />
+              Tipo e Pagamento
+            </h3>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { id: 'pay_per_view', label: 'Pay Per View', icon: DollarSign },
+                { id: 'fixed', label: 'Fixo', icon: Target },
+                { id: 'competition_daily', label: 'Comp. Diária', icon: Flame },
+                { id: 'competition_monthly', label: 'Comp. Mensal', icon: Trophy },
+              ].map((type) => {
+                const Icon = type.icon;
+                return (
+                  <label
+                    key={type.id}
+                    className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${
+                      campaign.campaign_type === type.id
+                        ? "bg-primary/10 border-primary/50"
+                        : "bg-muted/20 border-border/30 hover:border-border/50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="campaign_type"
+                      value={type.id}
+                      checked={campaign.campaign_type === type.id}
+                      onChange={(e) => setCampaign({ ...campaign, campaign_type: e.target.value as CampaignType })}
+                    />
+                    <Icon className="h-4 w-4 text-primary" />
+                    <span className="text-sm">{type.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+
+            {campaign.campaign_type === 'pay_per_view' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                <div className="space-y-2">
+                  <Label>R$ por 1K views</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={campaign.payment_rate || ''}
+                    onChange={(e) => setCampaign({ ...campaign, payment_rate: parseFloat(e.target.value) || 0 })}
+                    className="bg-background/50"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Views mínimas</Label>
+                  <Input
+                    type="number"
+                    value={campaign.min_views || ''}
+                    onChange={(e) => setCampaign({ ...campaign, min_views: parseInt(e.target.value) || 0 })}
+                    className="bg-background/50"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Views máx. pagas</Label>
+                  <Input
+                    type="number"
+                    value={campaign.max_paid_views || ''}
+                    onChange={(e) => setCampaign({ ...campaign, max_paid_views: parseInt(e.target.value) || 0 })}
+                    className="bg-background/50"
+                  />
+                </div>
+              </div>
+            )}
+
+            {(campaign.campaign_type === 'competition_daily' || campaign.campaign_type === 'competition_monthly') && (
+              <div className="space-y-4 p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                <div className="space-y-2">
+                  <Label>Prêmio Total (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={campaign.prize_pool || ''}
+                    onChange={(e) => setCampaign({ ...campaign, prize_pool: parseFloat(e.target.value) || 0 })}
+                    className="bg-background/50"
+                  />
+                </div>
+                <PrizeConfigForm 
+                  prizes={localPrizes}
+                  onChange={setLocalPrizes}
+                  totalPrizePool={campaign.prize_pool}
+                />
+              </div>
+            )}
+
+            {campaign.campaign_type === 'fixed' && (
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <div className="space-y-2">
+                  <Label>Valor fixo por vídeo (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={campaign.payment_rate || ''}
+                    onChange={(e) => setCampaign({ ...campaign, payment_rate: parseFloat(e.target.value) || 0 })}
+                    className="bg-background/50"
+                  />
+                </div>
+              </div>
+            )}
+          </GlowCard>
 
           {/* Platforms */}
           <div className="space-y-3">
