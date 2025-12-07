@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Crown, 
   Medal, 
@@ -46,6 +47,28 @@ export function RankingWithPayment({
 }: RankingWithPaymentProps) {
   const [selectedUser, setSelectedUser] = useState<RankingItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [paidUsersList, setPaidUsersList] = useState<string[]>(paidUsers);
+
+  // Fetch paid users from campaign_payment_records
+  useEffect(() => {
+    const fetchPaidUsers = async () => {
+      if (!campaignId) return;
+      
+      const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+      const { data } = await supabase
+        .from('campaign_payment_records')
+        .select('user_id')
+        .eq('campaign_id', campaignId)
+        .eq('status', 'paid')
+        .gte('period_date', `${currentMonth}-01`);
+      
+      if (data) {
+        setPaidUsersList([...paidUsers, ...data.map(d => d.user_id)]);
+      }
+    };
+    
+    fetchPaidUsers();
+  }, [campaignId, paidUsers]);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -90,7 +113,7 @@ export function RankingWithPayment({
     setModalOpen(true);
   };
 
-  const isPaid = (userId: string) => paidUsers.includes(userId);
+  const isPaid = (userId: string) => paidUsersList.includes(userId);
 
   if (ranking.length === 0) {
     return (

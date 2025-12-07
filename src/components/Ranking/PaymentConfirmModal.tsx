@@ -79,7 +79,26 @@ export function PaymentConfirmModal({
           reference_id: campaignId,
         });
 
-      // 3. Create earnings record
+      // 3. Create payment record for tracking
+      await supabase
+        .from('campaign_payment_records')
+        .upsert({
+          campaign_id: campaignId,
+          user_id: user.user_id,
+          period_type: 'monthly',
+          period_date: new Date().toISOString().split('T')[0],
+          amount: amount,
+          views_count: user.total_views,
+          videos_count: user.total_videos,
+          position: user.rank_position,
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+          notes: notes || 'Pagamento via ranking',
+        }, {
+          onConflict: 'campaign_id,user_id,period_type,period_date'
+        });
+
+      // 4. Create earnings record
       await supabase
         .from('clipper_earnings_estimates')
         .insert({

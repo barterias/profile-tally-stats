@@ -17,7 +17,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCampaignData } from "@/hooks/useCampaignData";
 import { useVideoMetricsHistory } from "@/hooks/useVideoMetricsHistory";
 import { useCompetitionPrizes } from "@/hooks/useCompetitionPrizes";
+import { useCampaignPayments } from "@/hooks/useCampaignPayments";
 import { SyncMetricsButton } from "@/components/Admin/SyncMetricsButton";
+import { PaymentTable } from "@/components/Payments/PaymentTable";
+import { PaymentSummaryCard } from "@/components/Payments/PaymentSummaryCard";
 import { CampaignType } from "@/types/campaign";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -37,7 +40,8 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
-  Film
+  Film,
+  Wallet
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -89,6 +93,16 @@ function DashboardClientContent() {
   } = useCampaignData(selectedCampaignId);
 
   const { prizes } = useCompetitionPrizes(selectedCampaignId);
+
+  // Payment management hook
+  const { 
+    clippers: paymentClippers, 
+    loading: paymentsLoading, 
+    totalPending, 
+    totalPaid,
+    processPayment,
+    refetch: refetchPayments
+  } = useCampaignPayments(selectedCampaignId, 'monthly', new Date());
 
   useEffect(() => {
     if (user) {
@@ -436,6 +450,15 @@ function DashboardClientContent() {
               <BarChart3 className="h-4 w-4 mr-2" />
               Estatísticas
             </TabsTrigger>
+            <TabsTrigger value="payments" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+              <Wallet className="h-4 w-4 mr-2" />
+              Pagamentos
+              {totalPending > 0 && (
+                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                  Pendente
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="ranking">
@@ -566,6 +589,35 @@ function DashboardClientContent() {
                     </div>
                   )}
                 </div>
+              </GlowCard>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="payments">
+            <div className="space-y-6">
+              <PaymentSummaryCard
+                totalPending={totalPending}
+                totalPaid={totalPaid}
+                totalClippers={paymentClippers.length}
+                paidClippers={paymentClippers.filter(c => c.payment_status === 'paid').length}
+              />
+              
+              <GlowCard className="p-6" glowColor="green">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-green-400" />
+                  Pagamentos do Mês
+                </h3>
+                <PaymentTable
+                  clippers={paymentClippers}
+                  onPayment={async (userId, amount, notes) => {
+                    const result = await processPayment(userId, amount, notes);
+                    if (result.success) {
+                      refresh();
+                    }
+                    return result;
+                  }}
+                  loading={paymentsLoading}
+                />
               </GlowCard>
             </div>
           </TabsContent>
