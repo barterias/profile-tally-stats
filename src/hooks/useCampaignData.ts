@@ -2,6 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Campaign, RankingItem, CampaignType } from '@/types/campaign';
 import { toast } from 'sonner';
+import { externalSupabase } from '@/lib/externalSupabase';
+
+// Normaliza um link de vídeo para comparação
+function normalizeLink(link: string | undefined | null): string {
+  if (!link) return "";
+  let normalized = link.split("?")[0];
+  normalized = normalized.replace(/\/$/, "");
+  normalized = normalized.toLowerCase();
+  return normalized;
+}
 
 interface CampaignSummary {
   total_views: number;
@@ -54,51 +64,65 @@ export function useCampaignData(campaignId: string | null) {
         prize_pool: Number(campaignData.prize_pool || 0),
       });
 
-      // Fetch summary from view
-      const { data: summaryData } = await supabase
-        .from('campaign_summary')
+      // Fetch videos da campanha
+      const { data: videos } = await supabase
+        .from('campaign_videos')
         .select('*')
-        .eq('id', campaignId)
-        .maybeSingle();
+        .eq('campaign_id', campaignId);
 
-      if (summaryData) {
-        setSummary({
-          total_views: Number(summaryData.total_views || 0),
-          total_posts: Number(summaryData.total_posts || 0),
-          total_clippers: Number(summaryData.total_clippers || 0),
-          total_likes: Number(summaryData.total_likes || 0),
-          total_comments: Number(summaryData.total_comments || 0),
-          total_shares: Number(summaryData.total_shares || 0),
-          engagement_rate: Number(summaryData.engagement_rate || 0),
-        });
-      } else {
-        // Fallback: calculate from videos directly
-        const { data: videos } = await supabase
-          .from('campaign_videos')
-          .select('*')
-          .eq('campaign_id', campaignId);
+      const { data: participants } = await supabase
+        .from('campaign_participants')
+        .select('*')
+        .eq('campaign_id', campaignId)
+        .eq('status', 'approved');
 
-        const { data: participants } = await supabase
-          .from('campaign_participants')
-          .select('*')
-          .eq('campaign_id', campaignId)
-          .eq('status', 'approved');
+      // Buscar métricas reais do banco externo
+      const [externalVideos, externalSocialVideos] = await Promise.all([
+        externalSupabase.getAllVideos(),
+        externalSupabase.getSocialVideos(),
+      ]);
 
-        const totalViews = videos?.reduce((sum, v) => sum + (v.views || 0), 0) || 0;
-        const totalLikes = videos?.reduce((sum, v) => sum + (v.likes || 0), 0) || 0;
-        const totalComments = videos?.reduce((sum, v) => sum + (v.comments || 0), 0) || 0;
-        const totalShares = videos?.reduce((sum, v) => sum + (v.shares || 0), 0) || 0;
-        
-        setSummary({
-          total_views: totalViews,
-          total_posts: videos?.length || 0,
-          total_clippers: participants?.length || 0,
-          total_likes: totalLikes,
-          total_comments: totalComments,
-          total_shares: totalShares,
-          engagement_rate: totalViews > 0 ? Math.round((totalLikes / totalViews) * 100) : 0,
-        });
+      // Criar mapa de métricas por link normalizado
+      const metricsMap = new Map<string, { views: number; likes: number; comments: number; shares: number }>();
+      
+      for (const video of [...externalVideos, ...externalSocialVideos]) {
+        const link = normalizeLink(video.link || video.video_url);
+        if (link) {
+          metricsMap.set(link, {
+            views: video.views || 0,
+            likes: video.likes || 0,
+            comments: video.comments || 0,
+            shares: video.shares || 0,
+          });
+        }
       }
+
+      // Calcular totais usando métricas do banco externo
+      let totalViews = 0;
+      let totalLikes = 0;
+      let totalComments = 0;
+      let totalShares = 0;
+
+      for (const video of (videos || [])) {
+        const normalized = normalizeLink(video.video_link);
+        const metrics = metricsMap.get(normalized);
+        if (metrics) {
+          totalViews += metrics.views;
+          totalLikes += metrics.likes;
+          totalComments += metrics.comments;
+          totalShares += metrics.shares;
+        }
+      }
+
+      setSummary({
+        total_views: totalViews,
+        total_posts: videos?.length || 0,
+        total_clippers: participants?.length || 0,
+        total_likes: totalLikes,
+        total_comments: totalComments,
+        total_shares: totalShares,
+        engagement_rate: totalViews > 0 ? Math.round((totalLikes / totalViews) * 100) : 0,
+      });
 
       // Fetch ranking from ranking_views
       const { data: rankingData } = await supabase
