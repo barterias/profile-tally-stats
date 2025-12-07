@@ -19,6 +19,7 @@ import {
   Eye,
   Settings,
   UserCircle,
+  DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -46,7 +47,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const clientNavigation = [
     { name: "Dashboard", href: "/dashboard/client", icon: LayoutDashboard },
     { name: "Minhas Campanhas", href: "/campaigns", icon: Trophy },
-    { name: "Estatísticas", href: "/dashboard/client", icon: BarChart3 },
+    { name: "Pagamentos", href: "/payments", icon: DollarSign },
     { name: "Clipadores", href: "/dashboard/client", icon: Users },
     { name: "Ranking", href: "/ranking/monthly", icon: Medal },
   ];
@@ -55,6 +56,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: "Painel Admin", href: "/admin", icon: Shield },
     { name: "Campanhas", href: "/admin/campaigns", icon: Trophy },
     { name: "Submissões", href: "/admin/submissions", icon: Video },
+    { name: "Pagamentos", href: "/payments", icon: DollarSign },
     { name: "Financeiro", href: "/admin/payouts", icon: Wallet },
     { name: "Usuários", href: "/admin/users", icon: Users },
     { name: "Estatísticas", href: "/admin/stats", icon: BarChart3 },
