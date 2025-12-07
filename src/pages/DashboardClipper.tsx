@@ -381,13 +381,21 @@ function DashboardClipperContent() {
                   {availableCampaigns.map((campaign) => (
                     <div 
                       key={campaign.id} 
-                      className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors"
+                      className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors border border-border/30"
                     >
-                      <div>
-                        <p className="font-medium">{campaign.name}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-medium">{campaign.name}</p>
+                          <CampaignTypeBadge type={campaign.campaign_type} />
+                        </div>
                         <p className="text-sm text-muted-foreground line-clamp-1">
                           {campaign.description || 'Sem descrição'}
                         </p>
+                        {campaign.campaign_type === 'pay_per_view' && campaign.payment_rate > 0 && (
+                          <p className="text-xs text-green-400 mt-1">
+                            R$ {campaign.payment_rate.toFixed(2)} / 1K views
+                          </p>
+                        )}
                         <div className="flex gap-2 mt-2">
                           {campaign.platforms?.map((platform) => (
                             <span key={platform} className="text-xs px-2 py-1 rounded bg-primary/20 text-primary">

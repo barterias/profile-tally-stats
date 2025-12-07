@@ -7,6 +7,8 @@ import { ChartLineViews } from "@/components/Charts/ChartLineViews";
 import { ChartPiePlatforms } from "@/components/Charts/ChartPiePlatforms";
 import { ClippersTable } from "@/components/Tables/ClippersTable";
 import { RankingList } from "@/components/Ranking/RankingList";
+import { CompetitionRanking } from "@/components/Ranking/CompetitionRanking";
+import { PayPerViewRanking } from "@/components/Ranking/PayPerViewRanking";
 import { CampaignTypeBadge } from "@/components/Campaign/CampaignTypeBadge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +16,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCampaignData } from "@/hooks/useCampaignData";
+import { useVideoMetricsHistory } from "@/hooks/useVideoMetricsHistory";
+import { SyncMetricsButton } from "@/components/Admin/SyncMetricsButton";
 import { CampaignType } from "@/types/campaign";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -160,14 +164,13 @@ function DashboardClientContent() {
     return campaign.prize_pool || 0;
   };
 
-  const viewsData = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (6 - i));
-    return {
-      date: date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-      views: Math.floor(Math.random() * Math.max(summary?.total_views || 1000, 1000) / 7) + 100
-    };
-  });
+  // Using real metrics from hook
+  const { data: metricsHistory } = useVideoMetricsHistory(selectedCampaignId, 7);
+  
+  const viewsData = metricsHistory.map(item => ({
+    date: new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+    views: item.views
+  }));
 
   if (loading) {
     return (
@@ -430,11 +433,33 @@ function DashboardClientContent() {
 
           <TabsContent value="ranking">
             <GlowCard className="p-6">
-              <RankingList 
-                ranking={ranking}
-                showEarnings={selectedCampaign?.campaign_type === 'pay_per_view'}
-                title="Ranking de Clipadores"
-              />
+              {selectedCampaign?.campaign_type === 'pay_per_view' ? (
+                <PayPerViewRanking 
+                  ranking={ranking}
+                  paymentRate={selectedCampaign.payment_rate}
+                  minViews={campaign?.min_views || 0}
+                  maxPaidViews={campaign?.max_paid_views || Infinity}
+                  title="Ranking de Ganhos"
+                />
+              ) : (selectedCampaign?.campaign_type === 'competition_daily' || selectedCampaign?.campaign_type === 'competition_monthly') ? (
+                <CompetitionRanking 
+                  ranking={ranking}
+                  prizeDistribution={[
+                    { position: 1, prize: 500 },
+                    { position: 2, prize: 300 },
+                    { position: 3, prize: 200 },
+                    { position: 4, prize: 100 },
+                    { position: 5, prize: 50 },
+                  ]}
+                  title="Ranking da Competição"
+                />
+              ) : (
+                <RankingList 
+                  ranking={ranking}
+                  showEarnings={false}
+                  title="Ranking de Clipadores"
+                />
+              )}
             </GlowCard>
           </TabsContent>
 

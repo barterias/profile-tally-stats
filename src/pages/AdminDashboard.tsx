@@ -8,6 +8,7 @@ import StatCard from "@/components/Dashboard/StatCard";
 import ChartCard from "@/components/Dashboard/ChartCard";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SyncMetricsButton } from "@/components/Admin/SyncMetricsButton";
 import {
   Table,
   TableBody,
@@ -182,6 +183,7 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex gap-3">
+            <SyncMetricsButton />
             <Button
               variant="outline"
               onClick={() => navigate("/admin/videos")}
