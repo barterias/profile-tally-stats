@@ -382,6 +382,108 @@ function CampaignDetailContent() {
     );
   }
 
+  // Restrict access: only approved participants and admins can see full details
+  const hasFullAccess = participationStatus === 'approved' || isAdmin;
+
+  // Show restricted view for non-approved users
+  if (!hasFullAccess) {
+    return (
+      <MainLayout>
+        <div className="space-y-8 max-w-2xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/campaigns")}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
+                {campaign.name}
+              </h1>
+              <Badge className={campaign.is_active ? "bg-green-500/20 text-green-400" : "bg-muted"}>
+                {campaign.is_active ? "Ativa" : "Encerrada"}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Restricted Access Card */}
+          <GlowCard glowColor="purple" className="text-center py-12">
+            <div className="flex flex-col items-center gap-4">
+              {participationStatus === 'none' && (
+                <>
+                  <div className="p-4 rounded-full bg-primary/15">
+                    <UserPlus className="h-12 w-12 text-primary" />
+                  </div>
+                  <h2 className="text-2xl font-bold">Solicite sua Participação</h2>
+                  <p className="text-muted-foreground max-w-md">
+                    Para visualizar os detalhes desta campanha, ranking e enviar vídeos, 
+                    você precisa solicitar participação e aguardar a aprovação.
+                  </p>
+                  {campaign.is_active && (
+                    <Button 
+                      onClick={handleRequestParticipation}
+                      disabled={requestingParticipation}
+                      size="lg"
+                      className="mt-4 bg-gradient-to-r from-primary to-purple-500"
+                    >
+                      <UserPlus className="h-5 w-5 mr-2" />
+                      {requestingParticipation ? "Solicitando..." : "Solicitar Participação"}
+                    </Button>
+                  )}
+                </>
+              )}
+
+              {participationStatus === 'requested' && (
+                <>
+                  <div className="p-4 rounded-full bg-yellow-500/15">
+                    <Clock className="h-12 w-12 text-yellow-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold">Aguardando Aprovação</h2>
+                  <p className="text-muted-foreground max-w-md">
+                    Sua solicitação de participação foi enviada. Aguarde a aprovação 
+                    do administrador para ter acesso aos detalhes da campanha.
+                  </p>
+                  <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-base px-4 py-2">
+                    <Clock className="h-4 w-4 mr-2" />
+                    Solicitação Pendente
+                  </Badge>
+                </>
+              )}
+
+              {participationStatus === 'rejected' && (
+                <>
+                  <div className="p-4 rounded-full bg-red-500/15">
+                    <XCircle className="h-12 w-12 text-red-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold">Participação Rejeitada</h2>
+                  <p className="text-muted-foreground max-w-md">
+                    Infelizmente sua solicitação de participação foi rejeitada. 
+                    Entre em contato com o administrador para mais informações.
+                  </p>
+                  <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-base px-4 py-2">
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Acesso Negado
+                  </Badge>
+                </>
+              )}
+            </div>
+          </GlowCard>
+
+          {/* Campaign Basic Info */}
+          <GlowCard glowColor="blue">
+            <h3 className="text-lg font-semibold mb-3">Sobre a Campanha</h3>
+            <p className="text-muted-foreground">{campaign.description || "Sem descrição disponível."}</p>
+            <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Calendar className="h-4 w-4" />
+                {format(new Date(campaign.start_date), "dd MMM", { locale: ptBR })} - {format(new Date(campaign.end_date), "dd MMM yyyy", { locale: ptBR })}
+              </div>
+            </div>
+          </GlowCard>
+        </div>
+      </MainLayout>
+    );
+  }
+
   const campaignPlatforms = campaign.platforms || [campaign.platform];
   const getPlatformIcon = (platform: string) => {
     if (platform === "instagram") return Instagram;

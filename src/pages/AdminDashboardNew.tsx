@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase } from "@/lib/externalSupabase";
 import MainLayout from "@/components/Layout/MainLayout";
 import AdminStatsGrid from "@/components/Admin/AdminStatsGrid";
 import PendingItemsCard from "@/components/Admin/PendingItemsCard";
@@ -86,29 +87,58 @@ function AdminDashboardContent() {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch basic stats
-      const [campaignsRes, videosRes, profilesRes, pendingUsersRes] = await Promise.all([
+      // Fetch basic stats and external videos in parallel
+      const [campaignsRes, videosRes, profilesRes, pendingUsersRes, externalVideos, socialVideos] = await Promise.all([
         supabase.from("campaigns").select("*").eq("is_active", true),
         supabase.from("campaign_videos").select("*"),
         supabase.from("profiles").select("*"),
         supabase.from("pending_users").select("*"),
+        externalSupabase.getAllVideos(),
+        externalSupabase.getSocialVideos(),
       ]);
 
-      const totalViews = videosRes.data?.reduce((sum, v) => sum + (v.views || 0), 0) || 0;
-      const unverifiedVideos = videosRes.data?.filter((v) => !v.verified) || [];
+      // Create a map of external video metrics by normalized link
+      const normalizeLink = (link: string | undefined | null): string => {
+        if (!link) return "";
+        let normalized = link.split("?")[0];
+        normalized = normalized.replace(/\/$/, "");
+        normalized = normalized.toLowerCase();
+        return normalized;
+      };
 
-      // Calculate top clippers from campaign videos
+      const metricsMap = new Map<string, { views: number; likes: number }>();
+      for (const video of [...externalVideos, ...socialVideos]) {
+        const link = normalizeLink(video.link || video.video_url);
+        if (link) {
+          metricsMap.set(link, {
+            views: video.views || 0,
+            likes: video.likes || 0,
+          });
+        }
+      }
+
+      // Calculate total views from external sources for campaign videos
+      let totalViews = 0;
       const userStats = new Map();
+
       videosRes.data?.forEach((video) => {
+        const normalized = normalizeLink(video.video_link);
+        const externalMetrics = metricsMap.get(normalized);
+        const videoViews = externalMetrics?.views || video.views || 0;
+        
+        totalViews += videoViews;
+
         const userId = video.submitted_by;
         if (userId) {
           const current = userStats.get(userId) || { views: 0, videos: 0 };
           userStats.set(userId, {
-            views: current.views + (video.views || 0),
+            views: current.views + videoViews,
             videos: current.videos + 1,
           });
         }
       });
+
+      const unverifiedVideos = videosRes.data?.filter((v) => !v.verified) || [];
 
       const topClippersData = Array.from(userStats.entries())
         .map(([id, stats]) => {
