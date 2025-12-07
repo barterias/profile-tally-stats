@@ -123,6 +123,89 @@ export type Database = {
           },
         ]
       }
+      campaign_payment_records: {
+        Row: {
+          amount: number
+          campaign_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          paid_at: string | null
+          paid_by: string | null
+          period_date: string
+          period_type: string
+          position: number | null
+          status: string
+          updated_at: string
+          user_id: string
+          videos_count: number | null
+          views_count: number | null
+        }
+        Insert: {
+          amount?: number
+          campaign_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          period_date: string
+          period_type: string
+          position?: number | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          videos_count?: number | null
+          views_count?: number | null
+        }
+        Update: {
+          amount?: number
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          period_date?: string
+          period_type?: string
+          position?: number | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          videos_count?: number | null
+          views_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_payment_records_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "campaign_payment_records_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_payment_records_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_payment_records_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "user_available_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_videos: {
         Row: {
           campaign_id: string
