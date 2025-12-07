@@ -7,11 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { ImageUpload } from "@/components/ImageUpload";
+import { PrizeConfigForm } from "@/components/Ranking/PrizeConfigForm";
 import { toast } from "sonner";
 import { Trophy, ArrowLeft, Calendar, Gift, FileText, Layers, DollarSign, Flame, Target } from "lucide-react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import MainLayout from "@/components/Layout/MainLayout";
 import { CampaignType, getCampaignTypeLabel, getCampaignTypeColor } from "@/types/campaign";
+import { PrizeConfig } from "@/hooks/useCompetitionPrizes";
 import {
   Select,
   SelectContent,
@@ -23,6 +25,11 @@ import {
 function CreateCampaignPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [prizes, setPrizes] = useState<PrizeConfig[]>([
+    { position: 1, prize_amount: 500 },
+    { position: 2, prize_amount: 300 },
+    { position: 3, prize_amount: 200 },
+  ]);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -44,7 +51,7 @@ function CreateCampaignPage() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.from("campaigns").insert([
+      const { data: campaignData, error } = await supabase.from("campaigns").insert([
         {
           name: formData.name,
           description: formData.description,
@@ -62,9 +69,20 @@ function CreateCampaignPage() {
           prize_pool: formData.prize_pool,
           is_active: true,
         },
-      ]);
+      ]).select().single();
 
       if (error) throw error;
+
+      // Save competition prizes if it's a competition type
+      if ((formData.campaign_type === 'competition_daily' || formData.campaign_type === 'competition_monthly') && prizes.length > 0) {
+        await supabase.from('competition_prizes').insert(
+          prizes.map(p => ({
+            campaign_id: campaignData.id,
+            position: p.position,
+            prize_amount: p.prize_amount,
+          }))
+        );
+      }
 
       toast.success("Campanha criada com sucesso!");
       navigate("/admin/campaigns");
@@ -306,7 +324,7 @@ function CreateCampaignPage() {
               )}
 
               {(formData.campaign_type === 'competition_daily' || formData.campaign_type === 'competition_monthly') && (
-                <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
+                <div className="space-y-4 p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
                   <div className="space-y-2">
                     <Label htmlFor="prize_pool">Prêmio Total (R$)</Label>
                     <Input
@@ -319,6 +337,12 @@ function CreateCampaignPage() {
                       className="bg-background/50 border-border/50"
                     />
                   </div>
+                  
+                  <PrizeConfigForm 
+                    prizes={prizes}
+                    onChange={setPrizes}
+                    totalPrizePool={formData.prize_pool}
+                  />
                 </div>
               )}
             </div>

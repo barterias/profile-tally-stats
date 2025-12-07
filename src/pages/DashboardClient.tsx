@@ -6,9 +6,8 @@ import { MetricCardGlow } from "@/components/ui/MetricCardGlow";
 import { ChartLineViews } from "@/components/Charts/ChartLineViews";
 import { ChartPiePlatforms } from "@/components/Charts/ChartPiePlatforms";
 import { ClippersTable } from "@/components/Tables/ClippersTable";
-import { RankingList } from "@/components/Ranking/RankingList";
-import { CompetitionRanking } from "@/components/Ranking/CompetitionRanking";
-import { PayPerViewRanking } from "@/components/Ranking/PayPerViewRanking";
+import { RankingWithPayment } from "@/components/Ranking/RankingWithPayment";
+import { CampaignVideosTab } from "@/components/Campaign/CampaignVideosTab";
 import { CampaignTypeBadge } from "@/components/Campaign/CampaignTypeBadge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCampaignData } from "@/hooks/useCampaignData";
 import { useVideoMetricsHistory } from "@/hooks/useVideoMetricsHistory";
+import { useCompetitionPrizes } from "@/hooks/useCompetitionPrizes";
 import { SyncMetricsButton } from "@/components/Admin/SyncMetricsButton";
 import { CampaignType } from "@/types/campaign";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +36,8 @@ import {
   Calculator,
   Download,
   FileSpreadsheet,
-  FileText
+  FileText,
+  Film
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -86,6 +87,8 @@ function DashboardClientContent() {
     approvedClippers,
     refresh 
   } = useCampaignData(selectedCampaignId);
+
+  const { prizes } = useCompetitionPrizes(selectedCampaignId);
 
   useEffect(() => {
     if (user) {
@@ -416,6 +419,10 @@ function DashboardClientContent() {
               <Crown className="h-4 w-4 mr-2" />
               Ranking
             </TabsTrigger>
+            <TabsTrigger value="videos" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+              <Film className="h-4 w-4 mr-2" />
+              Vídeos
+            </TabsTrigger>
             <TabsTrigger value="clippers" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <Users className="h-4 w-4 mr-2" />
               Clipadores
@@ -433,32 +440,31 @@ function DashboardClientContent() {
 
           <TabsContent value="ranking">
             <GlowCard className="p-6">
-              {selectedCampaign?.campaign_type === 'pay_per_view' ? (
-                <PayPerViewRanking 
+              {selectedCampaign && (
+                <RankingWithPayment
                   ranking={ranking}
+                  campaignId={selectedCampaignId}
+                  campaignType={selectedCampaign.campaign_type}
                   paymentRate={selectedCampaign.payment_rate}
                   minViews={campaign?.min_views || 0}
                   maxPaidViews={campaign?.max_paid_views || Infinity}
-                  title="Ranking de Ganhos"
+                  prizes={prizes}
+                  onPaymentComplete={refresh}
+                  title="Ranking com Pagamentos"
+                  showPaymentActions={true}
                 />
-              ) : (selectedCampaign?.campaign_type === 'competition_daily' || selectedCampaign?.campaign_type === 'competition_monthly') ? (
-                <CompetitionRanking 
-                  ranking={ranking}
-                  prizeDistribution={[
-                    { position: 1, prize: 500 },
-                    { position: 2, prize: 300 },
-                    { position: 3, prize: 200 },
-                    { position: 4, prize: 100 },
-                    { position: 5, prize: 50 },
-                  ]}
-                  title="Ranking da Competição"
-                />
-              ) : (
-                <RankingList 
-                  ranking={ranking}
-                  showEarnings={false}
-                  title="Ranking de Clipadores"
-                />
+              )}
+            </GlowCard>
+          </TabsContent>
+
+          <TabsContent value="videos">
+            <GlowCard className="p-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Film className="h-5 w-5 text-primary" />
+                Vídeos da Campanha
+              </h3>
+              {selectedCampaignId && (
+                <CampaignVideosTab campaignId={selectedCampaignId} />
               )}
             </GlowCard>
           </TabsContent>
