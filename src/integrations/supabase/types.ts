@@ -328,6 +328,59 @@ export type Database = {
           },
         ]
       }
+      competition_prizes: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          position: number
+          prize_amount: number
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          position: number
+          prize_amount?: number
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          position?: number
+          prize_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_prizes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_stats_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "competition_prizes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_prizes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_prizes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "user_available_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       creators: {
         Row: {
           avatar_url: string | null
@@ -769,6 +822,39 @@ export type Database = {
           total_withdrawn?: number
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      video_metrics_history: {
+        Row: {
+          comments: number | null
+          created_at: string
+          id: string
+          likes: number | null
+          recorded_at: string
+          shares: number | null
+          video_id: string
+          views: number | null
+        }
+        Insert: {
+          comments?: number | null
+          created_at?: string
+          id?: string
+          likes?: number | null
+          recorded_at?: string
+          shares?: number | null
+          video_id: string
+          views?: number | null
+        }
+        Update: {
+          comments?: number | null
+          created_at?: string
+          id?: string
+          likes?: number | null
+          recorded_at?: string
+          shares?: number | null
+          video_id?: string
+          views?: number | null
         }
         Relationships: []
       }
