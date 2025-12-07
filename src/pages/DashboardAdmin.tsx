@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase } from "@/lib/externalSupabase";
 import { 
   Trophy, 
   Users, 
@@ -95,21 +96,99 @@ function DashboardAdminContent() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch campaign summaries
-      const { data: summaryData } = await supabase
-        .from('campaign_summary')
+      // Fetch all external videos for metrics
+      const [externalVideos, socialVideos] = await Promise.all([
+        externalSupabase.getAllVideos(),
+        externalSupabase.getSocialVideos(),
+      ]);
+
+      const allExternalVideos = [...externalVideos, ...socialVideos];
+      const totalExternalViews = allExternalVideos.reduce((sum, v) => sum + (v.views || 0), 0);
+
+      // Fetch campaigns
+      const { data: campaignsData } = await supabase
+        .from('campaigns')
         .select('*');
-      
-      if (summaryData) {
-        setAllCampaigns(summaryData);
-        setCampaigns(summaryData);
-        setStats({
-          totalCampaigns: summaryData.length,
-          totalViews: summaryData.reduce((acc, c) => acc + Number(c.total_views || 0), 0),
-          totalClippers: summaryData.reduce((acc, c) => acc + Number(c.total_clippers || 0), 0),
-          pendingPayouts: 0
-        });
+
+      // Fetch campaign videos to match with external
+      const { data: campaignVideosData } = await supabase
+        .from('campaign_videos')
+        .select('*');
+
+      // Fetch participants count
+      const { data: participantsData } = await supabase
+        .from('campaign_participants')
+        .select('campaign_id, user_id')
+        .eq('status', 'approved');
+
+      // Create metrics map from external videos
+      const normalizeLink = (link: string | undefined | null): string => {
+        if (!link) return "";
+        let normalized = link.split("?")[0];
+        normalized = normalized.replace(/\/$/, "");
+        normalized = normalized.toLowerCase();
+        return normalized;
+      };
+
+      const metricsMap = new Map<string, { views: number; likes: number; platform: string }>();
+      for (const video of allExternalVideos) {
+        const link = normalizeLink(video.link || video.video_url);
+        if (link) {
+          metricsMap.set(link, {
+            views: video.views || 0,
+            likes: video.likes || 0,
+            platform: video.platform || 'instagram',
+          });
+        }
       }
+
+      // Calculate stats per campaign using external metrics
+      const campaignStats: CampaignSummary[] = (campaignsData || []).map(campaign => {
+        const campaignVids = campaignVideosData?.filter(v => v.campaign_id === campaign.id) || [];
+        const campaignParticipants = new Set(participantsData?.filter(p => p.campaign_id === campaign.id).map(p => p.user_id)).size;
+        
+        let totalViews = 0;
+        let totalLikes = 0;
+        let instagramViews = 0;
+        let tiktokViews = 0;
+
+        for (const vid of campaignVids) {
+          const normalized = normalizeLink(vid.video_link);
+          const metrics = metricsMap.get(normalized);
+          if (metrics) {
+            totalViews += metrics.views;
+            totalLikes += metrics.likes;
+            if (metrics.platform === 'instagram') {
+              instagramViews += metrics.views;
+            } else if (metrics.platform === 'tiktok') {
+              tiktokViews += metrics.views;
+            }
+          }
+        }
+
+        return {
+          id: campaign.id,
+          name: campaign.name,
+          is_active: campaign.is_active,
+          total_views: totalViews,
+          total_posts: campaignVids.length,
+          total_clippers: campaignParticipants,
+          engagement_rate: totalViews > 0 ? Math.round((totalLikes / totalViews) * 100) : 0,
+        };
+      });
+      
+      setAllCampaigns(campaignStats);
+      setCampaigns(campaignStats);
+      
+      const grandTotalViews = campaignStats.reduce((acc, c) => acc + c.total_views, 0);
+      const grandTotalClippers = campaignStats.reduce((acc, c) => acc + c.total_clippers, 0);
+      
+      setStats({
+        totalCampaigns: campaignStats.length,
+        totalViews: grandTotalViews,
+        totalClippers: grandTotalClippers,
+        pendingPayouts: 0
+      });
 
       // Fetch pending clippers
       const { data: clippersData } = await supabase
@@ -133,29 +212,24 @@ function DashboardAdminContent() {
         setStats(prev => ({ ...prev, pendingPayouts: payoutsData.length }));
       }
 
-      // Fetch platform distribution
-      const { data: platformDistData } = await supabase
-        .from('campaign_platform_distribution')
-        .select('platform, total_views, campaign_id');
-      
-      if (platformDistData) {
-        const grouped = platformDistData.reduce((acc: Record<string, number>, curr) => {
-          acc[curr.platform] = (acc[curr.platform] || 0) + Number(curr.total_views || 0);
-          return acc;
-        }, {});
-        setPlatformData(Object.entries(grouped).map(([platform, value]) => ({ platform, value })));
+      // Calculate platform distribution from campaign videos with real metrics
+      const platformTotals: Record<string, number> = { instagram: 0, tiktok: 0 };
+      for (const vid of (campaignVideosData || [])) {
+        const normalized = normalizeLink(vid.video_link);
+        const metrics = metricsMap.get(normalized);
+        if (metrics) {
+          platformTotals[vid.platform] = (platformTotals[vid.platform] || 0) + metrics.views;
+        }
       }
+      setPlatformData(Object.entries(platformTotals).map(([platform, value]) => ({ platform, value })));
 
-      // Generate mock views data for chart (last 7 days)
-      const last7Days = Array.from({ length: 7 }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (6 - i));
-        return {
-          date: date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-          views: Math.floor(Math.random() * 50000) + 10000
-        };
-      });
-      setViewsData(last7Days);
+      // Fetch daily growth from external
+      const dailyGrowth = await externalSupabase.getDailyGrowth(7);
+      const formattedGrowth = dailyGrowth.map((day) => ({
+        date: new Date(day.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+        views: day.total_views,
+      }));
+      setViewsData(formattedGrowth);
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -165,50 +239,24 @@ function DashboardAdminContent() {
     }
   };
 
-  const updateFilteredStats = async () => {
+  const updateFilteredStats = () => {
     if (selectedCampaign === 'all') {
       setStats({
         totalCampaigns: allCampaigns.length,
-        totalViews: allCampaigns.reduce((acc, c) => acc + Number(c.total_views || 0), 0),
-        totalClippers: allCampaigns.reduce((acc, c) => acc + Number(c.total_clippers || 0), 0),
+        totalViews: allCampaigns.reduce((acc, c) => acc + c.total_views, 0),
+        totalClippers: allCampaigns.reduce((acc, c) => acc + c.total_clippers, 0),
         pendingPayouts: pendingPayouts.length
       });
       setCampaigns(allCampaigns);
-      
-      // Update platform data for all
-      const { data: platformDistData } = await supabase
-        .from('campaign_platform_distribution')
-        .select('platform, total_views');
-      
-      if (platformDistData) {
-        const grouped = platformDistData.reduce((acc: Record<string, number>, curr) => {
-          acc[curr.platform] = (acc[curr.platform] || 0) + Number(curr.total_views || 0);
-          return acc;
-        }, {});
-        setPlatformData(Object.entries(grouped).map(([platform, value]) => ({ platform, value })));
-      }
     } else {
       const filtered = allCampaigns.filter(c => c.id === selectedCampaign);
       setStats({
         totalCampaigns: 1,
-        totalViews: filtered.reduce((acc, c) => acc + Number(c.total_views || 0), 0),
-        totalClippers: filtered.reduce((acc, c) => acc + Number(c.total_clippers || 0), 0),
+        totalViews: filtered.reduce((acc, c) => acc + c.total_views, 0),
+        totalClippers: filtered.reduce((acc, c) => acc + c.total_clippers, 0),
         pendingPayouts: pendingPayouts.length
       });
       setCampaigns(filtered);
-      
-      // Update platform data for selected campaign
-      const { data: platformDistData } = await supabase
-        .from('campaign_platform_distribution')
-        .select('platform, total_views')
-        .eq('campaign_id', selectedCampaign);
-      
-      if (platformDistData) {
-        setPlatformData(platformDistData.map(p => ({ 
-          platform: p.platform, 
-          value: Number(p.total_views || 0) 
-        })));
-      }
     }
   };
 
