@@ -191,9 +191,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
               {accountNavigation.map((item) => (
                 <NavItem key={item.href} item={item} />
               ))}
-              {accountNavigation.map((item) => (
-                <NavItem key={item.href} item={item} />
-              ))}
             </div>
           </div>
         </ScrollArea>

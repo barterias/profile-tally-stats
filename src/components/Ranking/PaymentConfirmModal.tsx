@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import { Wallet, DollarSign, CheckCircle, AlertCircle } from "lucide-react";
 import { RankingItem } from "@/types/campaign";
@@ -26,11 +27,15 @@ export function PaymentConfirmModal({
   campaignId,
   onSuccess,
 }: PaymentConfirmModalProps) {
+  const { t, language } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState("");
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    return new Intl.NumberFormat(language === 'pt' ? 'pt-BR' : 'en-US', { 
+      style: 'currency', 
+      currency: language === 'pt' ? 'BRL' : 'USD' 
+    }).format(value);
   };
 
   const handleConfirm = async () => {
@@ -75,7 +80,7 @@ export function PaymentConfirmModal({
           user_id: user.user_id,
           amount: amount,
           type: 'earning',
-          description: `Ganhos da campanha - ${notes || 'Pagamento de ranking'}`,
+          description: `${t('payment_modal.campaign_earnings')} - ${notes || t('payment_modal.ranking_payment')}`,
           reference_id: campaignId,
         });
 
@@ -93,7 +98,7 @@ export function PaymentConfirmModal({
           position: user.rank_position,
           status: 'paid',
           paid_at: new Date().toISOString(),
-          notes: notes || 'Pagamento via ranking',
+          notes: notes || t('payment_modal.payment_via_ranking'),
         }, {
           onConflict: 'campaign_id,user_id,period_type,period_date'
         });
@@ -110,11 +115,11 @@ export function PaymentConfirmModal({
           period_end: new Date().toISOString().split('T')[0],
         });
 
-      toast.success(`Pagamento de ${formatCurrency(amount)} realizado para ${user.username}!`);
+      toast.success(`${t('payment_modal.payment_success')} ${formatCurrency(amount)} ${t('payment_modal.to')} ${user.username}!`);
       onSuccess();
     } catch (error) {
       console.error('Error processing payment:', error);
-      toast.error('Erro ao processar pagamento');
+      toast.error(t('payment_modal.payment_error'));
     } finally {
       setLoading(false);
     }
@@ -126,7 +131,7 @@ export function PaymentConfirmModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wallet className="h-5 w-5 text-green-400" />
-            Confirmar Pagamento
+            {t('payment_modal.confirm_payment')}
           </DialogTitle>
         </DialogHeader>
 
@@ -140,14 +145,14 @@ export function PaymentConfirmModal({
             <div>
               <p className="font-semibold">{user.username}</p>
               <p className="text-sm text-muted-foreground">
-                Posição #{user.rank_position}
+                {t('payment_modal.position')} #{user.rank_position}
               </p>
             </div>
           </div>
 
           {/* Amount */}
           <div className="p-6 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 text-center">
-            <p className="text-sm text-muted-foreground mb-1">Valor a ser pago</p>
+            <p className="text-sm text-muted-foreground mb-1">{t('payment_modal.amount_to_pay')}</p>
             <p className="text-3xl font-bold text-green-400 flex items-center justify-center gap-2">
               <DollarSign className="h-8 w-8" />
               {formatCurrency(amount)}
@@ -156,10 +161,10 @@ export function PaymentConfirmModal({
 
           {/* Notes */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Observações (opcional)</Label>
+            <Label htmlFor="notes">{t('payment_modal.notes_label')}</Label>
             <Textarea
               id="notes"
-              placeholder="Adicione uma nota sobre este pagamento..."
+              placeholder={t('payment_modal.notes_placeholder')}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="bg-background/50 border-border/50"
@@ -171,14 +176,14 @@ export function PaymentConfirmModal({
           <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
             <AlertCircle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-yellow-400">
-              Este valor será adicionado ao saldo disponível do clipador. Esta ação não pode ser desfeita.
+              {t('payment_modal.warning')}
             </p>
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button 
             onClick={handleConfirm} 
@@ -186,11 +191,11 @@ export function PaymentConfirmModal({
             className="bg-green-600 hover:bg-green-700 text-white"
           >
             {loading ? (
-              <>Processando...</>
+              <>{t('payment_modal.processing')}</>
             ) : (
               <>
                 <CheckCircle className="h-4 w-4 mr-2" />
-                Confirmar Pagamento
+                {t('payment_modal.confirm')}
               </>
             )}
           </Button>
