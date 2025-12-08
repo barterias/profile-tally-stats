@@ -30,9 +30,10 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { ptBR, enUS } from "date-fns/locale";
 import {
   Wallet as WalletIcon,
   DollarSign,
@@ -41,9 +42,6 @@ import {
   ArrowDownLeft,
   TrendingUp,
   Loader2,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
 } from "lucide-react";
 
 interface WalletData {
@@ -61,25 +59,19 @@ interface Transaction {
   created_at: string;
 }
 
-interface PayoutRequest {
-  id: string;
-  amount: number;
-  status: string;
-  requested_at: string;
-  rejection_reason: string | null;
-}
-
 function WalletContent() {
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [pixKey, setPixKey] = useState("");
   const [pixType, setPixType] = useState("");
   const [processing, setProcessing] = useState(false);
+
+  const locale = language === 'pt' ? ptBR : enUS;
 
   const fetchData = async () => {
     if (!user) return;
@@ -100,13 +92,6 @@ function WalletContent() {
         .order('created_at', { ascending: false })
         .limit(50);
       setTransactions(txData || []);
-
-      const { data: payoutData } = await supabase
-        .from('payout_requests')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('requested_at', { ascending: false });
-      setPayoutRequests(payoutData || []);
     } catch (error) {
       console.error('Error fetching wallet:', error);
     } finally {
@@ -120,89 +105,163 @@ function WalletContent() {
     if (!user || !wallet) return;
     const amount = parseFloat(withdrawAmount);
     if (isNaN(amount) || amount <= 0 || amount > wallet.available_balance) {
-      toast.error('Valor inválido ou saldo insuficiente');
+      toast.error(t('insufficientBalance'));
       return;
     }
     if (!pixKey || !pixType) {
-      toast.error('Informe a chave PIX');
+      toast.error(t('enterPixKey'));
       return;
     }
     setProcessing(true);
     try {
       const { error } = await supabase.rpc('request_payout', { p_amount: amount, p_pix_key: pixKey, p_pix_type: pixType });
       if (error) throw error;
-      toast.success('Saque solicitado!');
+      toast.success(t('withdrawalRequested'));
       setWithdrawModalOpen(false);
       await fetchData();
     } catch (error: any) {
-      toast.error(error.message || 'Erro ao solicitar saque');
+      toast.error(error.message || t('error'));
     } finally {
       setProcessing(false);
     }
   };
 
-  const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  const formatCurrency = (value: number) => new Intl.NumberFormat(language === 'pt' ? 'pt-BR' : 'en-US', { 
+    style: 'currency', 
+    currency: language === 'pt' ? 'BRL' : 'USD' 
+  }).format(value);
 
-  if (loading) return <MainLayout><div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></MainLayout>;
+  if (loading) return (
+    <MainLayout>
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    </MainLayout>
+  );
 
   return (
     <MainLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold flex items-center gap-2"><WalletIcon className="h-6 w-6 text-primary" />Minha Carteira</h1>
-          <Button onClick={() => setWithdrawModalOpen(true)} className="bg-green-600 hover:bg-green-700" disabled={!wallet || wallet.available_balance <= 0}>
-            <ArrowUpRight className="h-4 w-4 mr-2" />Solicitar Saque
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <WalletIcon className="h-6 w-6 text-primary" />
+            {t('myWallet')}
+          </h1>
+          <Button 
+            onClick={() => setWithdrawModalOpen(true)} 
+            className="bg-green-600 hover:bg-green-700" 
+            disabled={!wallet || wallet.available_balance <= 0}
+          >
+            <ArrowUpRight className="h-4 w-4 mr-2" />
+            {t('requestWithdrawal')}
           </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="bg-gradient-to-br from-green-500/20 to-emerald-500/10 border-green-500/30">
-            <CardContent className="p-4"><DollarSign className="h-5 w-5 text-green-400" /><p className="text-sm text-muted-foreground">Disponível</p><p className="text-2xl font-bold text-green-400">{formatCurrency(wallet?.available_balance || 0)}</p></CardContent>
+            <CardContent className="p-4">
+              <DollarSign className="h-5 w-5 text-green-400" />
+              <p className="text-sm text-muted-foreground">{t('available')}</p>
+              <p className="text-2xl font-bold text-green-400">{formatCurrency(wallet?.available_balance || 0)}</p>
+            </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-yellow-500/20 to-orange-500/10 border-yellow-500/30">
-            <CardContent className="p-4"><Clock className="h-5 w-5 text-yellow-400" /><p className="text-sm text-muted-foreground">Pendente</p><p className="text-2xl font-bold text-yellow-400">{formatCurrency(wallet?.pending_balance || 0)}</p></CardContent>
+            <CardContent className="p-4">
+              <Clock className="h-5 w-5 text-yellow-400" />
+              <p className="text-sm text-muted-foreground">{t('pendingBalance')}</p>
+              <p className="text-2xl font-bold text-yellow-400">{formatCurrency(wallet?.pending_balance || 0)}</p>
+            </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border-blue-500/30">
-            <CardContent className="p-4"><TrendingUp className="h-5 w-5 text-blue-400" /><p className="text-sm text-muted-foreground">Total Ganho</p><p className="text-2xl font-bold text-blue-400">{formatCurrency(wallet?.total_earned || 0)}</p></CardContent>
+            <CardContent className="p-4">
+              <TrendingUp className="h-5 w-5 text-blue-400" />
+              <p className="text-sm text-muted-foreground">{t('totalEarned')}</p>
+              <p className="text-2xl font-bold text-blue-400">{formatCurrency(wallet?.total_earned || 0)}</p>
+            </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-purple-500/20 to-pink-500/10 border-purple-500/30">
-            <CardContent className="p-4"><ArrowUpRight className="h-5 w-5 text-purple-400" /><p className="text-sm text-muted-foreground">Total Sacado</p><p className="text-2xl font-bold text-purple-400">{formatCurrency(wallet?.total_withdrawn || 0)}</p></CardContent>
+            <CardContent className="p-4">
+              <ArrowUpRight className="h-5 w-5 text-purple-400" />
+              <p className="text-sm text-muted-foreground">{t('totalWithdrawn')}</p>
+              <p className="text-2xl font-bold text-purple-400">{formatCurrency(wallet?.total_withdrawn || 0)}</p>
+            </CardContent>
           </Card>
         </div>
 
         <Card>
-          <CardHeader><CardTitle>Transações</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t('transactions')}</CardTitle></CardHeader>
           <CardContent>
             {transactions.length > 0 ? (
               <Table>
-                <TableHeader><TableRow><TableHead>Tipo</TableHead><TableHead>Descrição</TableHead><TableHead>Data</TableHead><TableHead className="text-right">Valor</TableHead></TableRow></TableHeader>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('type')}</TableHead>
+                    <TableHead>{t('description')}</TableHead>
+                    <TableHead>{t('date')}</TableHead>
+                    <TableHead className="text-right">{t('amount')}</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {transactions.map(tx => (
                     <TableRow key={tx.id}>
-                      <TableCell>{tx.type === 'earning' ? <ArrowDownLeft className="h-4 w-4 text-green-400" /> : <ArrowUpRight className="h-4 w-4 text-red-400" />}</TableCell>
+                      <TableCell>
+                        {tx.type === 'earning' ? (
+                          <ArrowDownLeft className="h-4 w-4 text-green-400" />
+                        ) : (
+                          <ArrowUpRight className="h-4 w-4 text-red-400" />
+                        )}
+                      </TableCell>
                       <TableCell>{tx.description || '-'}</TableCell>
-                      <TableCell>{format(new Date(tx.created_at), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
-                      <TableCell className={`text-right font-medium ${tx.type === 'earning' ? 'text-green-400' : 'text-red-400'}`}>{tx.type === 'earning' ? '+' : '-'}{formatCurrency(tx.amount)}</TableCell>
+                      <TableCell>{format(new Date(tx.created_at), "dd/MM/yyyy", { locale })}</TableCell>
+                      <TableCell className={`text-right font-medium ${tx.type === 'earning' ? 'text-green-400' : 'text-red-400'}`}>
+                        {tx.type === 'earning' ? '+' : '-'}{formatCurrency(tx.amount)}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            ) : <p className="text-center py-8 text-muted-foreground">Nenhuma transação</p>}
+            ) : (
+              <p className="text-center py-8 text-muted-foreground">{t('noTransactions')}</p>
+            )}
           </CardContent>
         </Card>
 
         <Dialog open={withdrawModalOpen} onOpenChange={setWithdrawModalOpen}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Solicitar Saque</DialogTitle><DialogDescription>Informe o valor e a chave PIX.</DialogDescription></DialogHeader>
+            <DialogHeader>
+              <DialogTitle>{t('requestWithdrawal')}</DialogTitle>
+              <DialogDescription>{t('enterPixKey')}</DialogDescription>
+            </DialogHeader>
             <div className="space-y-4">
-              <p className="text-green-400 font-bold">Disponível: {formatCurrency(wallet?.available_balance || 0)}</p>
-              <Input type="number" placeholder="Valor" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} />
-              <Select value={pixType} onValueChange={setPixType}><SelectTrigger><SelectValue placeholder="Tipo PIX" /></SelectTrigger><SelectContent><SelectItem value="cpf">CPF</SelectItem><SelectItem value="email">E-mail</SelectItem><SelectItem value="phone">Telefone</SelectItem><SelectItem value="random">Chave Aleatória</SelectItem></SelectContent></Select>
-              <Input placeholder="Chave PIX" value={pixKey} onChange={(e) => setPixKey(e.target.value)} />
+              <p className="text-green-400 font-bold">{t('available')}: {formatCurrency(wallet?.available_balance || 0)}</p>
+              <Input 
+                type="number" 
+                placeholder={t('amount')} 
+                value={withdrawAmount} 
+                onChange={(e) => setWithdrawAmount(e.target.value)} 
+              />
+              <Select value={pixType} onValueChange={setPixType}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t('pixType')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cpf">{t('cpf')}</SelectItem>
+                  <SelectItem value="email">{t('emailOption')}</SelectItem>
+                  <SelectItem value="phone">{t('phone')}</SelectItem>
+                  <SelectItem value="random">{t('randomKey')}</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input 
+                placeholder={t('pixKey')} 
+                value={pixKey} 
+                onChange={(e) => setPixKey(e.target.value)} 
+              />
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setWithdrawModalOpen(false)}>Cancelar</Button>
-              <Button onClick={handleWithdraw} disabled={processing} className="bg-green-600">{processing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Solicitar'}</Button>
+              <Button variant="outline" onClick={() => setWithdrawModalOpen(false)}>{t('cancel')}</Button>
+              <Button onClick={handleWithdraw} disabled={processing} className="bg-green-600">
+                {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : t('request')}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
