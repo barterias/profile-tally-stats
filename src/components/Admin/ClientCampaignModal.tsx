@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,7 @@ export function ClientCampaignModal({
   username,
   onSuccess,
 }: ClientCampaignModalProps) {
+  const { t } = useLanguage();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const [existingCampaigns, setExistingCampaigns] = useState<string[]>([]);
@@ -71,8 +73,8 @@ export function ClientCampaignModal({
       setExistingCampaigns(existingIds);
       setSelectedCampaigns(existingIds);
     } catch (error) {
-      console.error("Erro ao carregar dados:", error);
-      toast.error("Erro ao carregar campanhas");
+      console.error("Error loading data:", error);
+      toast.error(t('client_modal.error_loading'));
     } finally {
       setLoading(false);
     }
@@ -122,12 +124,12 @@ export function ClientCampaignModal({
         if (addError) throw addError;
       }
 
-      toast.success(`${username} agora é cliente de ${selectedCampaigns.length} campanha(s)`);
+      toast.success(t('client_modal.success').replace('{username}', username).replace('{count}', String(selectedCampaigns.length)));
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
-      console.error("Erro ao salvar:", error);
-      toast.error(error.message || "Erro ao vincular cliente às campanhas");
+      console.error("Error saving:", error);
+      toast.error(error.message || t('client_modal.error_linking'));
     } finally {
       setSaving(false);
     }
@@ -139,10 +141,10 @@ export function ClientCampaignModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-primary" />
-            Tornar Cliente
+            {t('client_modal.title')}
           </DialogTitle>
           <DialogDescription>
-            Selecione as campanhas que <strong>{username}</strong> irá gerenciar como cliente.
+            {t('client_modal.description').replace('{username}', username)}
           </DialogDescription>
         </DialogHeader>
 
@@ -153,7 +155,7 @@ export function ClientCampaignModal({
             </div>
           ) : campaigns.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
-              Nenhuma campanha cadastrada
+              {t('client_modal.no_campaigns')}
             </p>
           ) : (
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
@@ -173,7 +175,7 @@ export function ClientCampaignModal({
                   >
                     <span>{campaign.name}</span>
                     {!campaign.is_active && (
-                      <span className="text-xs text-muted-foreground">(Inativa)</span>
+                      <span className="text-xs text-muted-foreground">({t('inactive')})</span>
                     )}
                   </Label>
                 </div>
@@ -184,7 +186,7 @@ export function ClientCampaignModal({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={handleSave}
@@ -193,10 +195,10 @@ export function ClientCampaignModal({
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Salvando...
+                {t('client_modal.saving')}
               </>
             ) : (
-              `Confirmar (${selectedCampaigns.length})`
+              `${t('common.confirm')} (${selectedCampaigns.length})`
             )}
           </Button>
         </DialogFooter>

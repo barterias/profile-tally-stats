@@ -395,6 +395,52 @@ const translations: Translations = {
   "status.active": { pt: "Ativo", en: "Active" },
   "status.warning": { pt: "Advertência", en: "Warning" },
   "status.severe_warning": { pt: "Advertência Grave", en: "Severe Warning" },
+
+  // Client Campaign Modal
+  "client_modal.title": { pt: "Tornar Cliente", en: "Make Client" },
+  "client_modal.description": { pt: "Selecione as campanhas que {username} irá gerenciar como cliente.", en: "Select the campaigns that {username} will manage as a client." },
+  "client_modal.no_campaigns": { pt: "Nenhuma campanha cadastrada", en: "No campaigns registered" },
+  "client_modal.saving": { pt: "Salvando...", en: "Saving..." },
+  "client_modal.success": { pt: "{username} agora é cliente de {count} campanha(s)", en: "{username} is now a client of {count} campaign(s)" },
+  "client_modal.error_loading": { pt: "Erro ao carregar campanhas", en: "Error loading campaigns" },
+  "client_modal.error_linking": { pt: "Erro ao vincular cliente às campanhas", en: "Error linking client to campaigns" },
+
+  // Payment Confirm Modal
+  "payment_modal.confirm_payment": { pt: "Confirmar Pagamento", en: "Confirm Payment" },
+  "payment_modal.position": { pt: "Posição", en: "Position" },
+  "payment_modal.amount_to_pay": { pt: "Valor a ser pago", en: "Amount to pay" },
+  "payment_modal.notes_label": { pt: "Observações (opcional)", en: "Notes (optional)" },
+  "payment_modal.notes_placeholder": { pt: "Adicione uma nota sobre este pagamento...", en: "Add a note about this payment..." },
+  "payment_modal.warning": { pt: "Este valor será adicionado ao saldo disponível do clipador. Esta ação não pode ser desfeita.", en: "This amount will be added to the clipper's available balance. This action cannot be undone." },
+  "payment_modal.processing": { pt: "Processando...", en: "Processing..." },
+  "payment_modal.confirm": { pt: "Confirmar Pagamento", en: "Confirm Payment" },
+  "payment_modal.payment_success": { pt: "Pagamento de", en: "Payment of" },
+  "payment_modal.to": { pt: "realizado para", en: "made to" },
+  "payment_modal.payment_error": { pt: "Erro ao processar pagamento", en: "Error processing payment" },
+  "payment_modal.campaign_earnings": { pt: "Ganhos da campanha", en: "Campaign earnings" },
+  "payment_modal.ranking_payment": { pt: "Pagamento de ranking", en: "Ranking payment" },
+  "payment_modal.payment_via_ranking": { pt: "Pagamento via ranking", en: "Payment via ranking" },
+
+  // Earnings Breakdown Modal
+  "earnings_modal.title": { pt: "Detalhamento de Ganhos", en: "Earnings Breakdown" },
+  "earnings_modal.subtitle": { pt: "Veja como os ganhos de cada clipador são calculados", en: "See how each clipper's earnings are calculated" },
+  "earnings_modal.pay_per_view": { pt: "Pagamento por View", en: "Pay Per View" },
+  "earnings_modal.fixed": { pt: "Pagamento Fixo", en: "Fixed Payment" },
+  "earnings_modal.competition_daily": { pt: "Competição Diária", en: "Daily Competition" },
+  "earnings_modal.competition_monthly": { pt: "Competição Mensal", en: "Monthly Competition" },
+  "earnings_modal.views": { pt: "views", en: "views" },
+  "earnings_modal.videos": { pt: "vídeos", en: "videos" },
+  "earnings_modal.total_prize": { pt: "Premiação Total", en: "Total Prize" },
+  "earnings_modal.ppv_description": { pt: "Os ganhos são calculados com base no total de visualizações dividido por 1.000, multiplicado pela taxa de pagamento.", en: "Earnings are calculated based on total views divided by 1,000, multiplied by the payment rate." },
+  "earnings_modal.competition_description": { pt: "Os ganhos são distribuídos entre os 3 primeiros colocados: 1º lugar (50%), 2º lugar (30%), 3º lugar (20%).", en: "Earnings are distributed among the top 3: 1st place (50%), 2nd place (30%), 3rd place (20%)." },
+  "earnings_modal.fixed_description": { pt: "Os ganhos são calculados multiplicando o número de vídeos submetidos pelo valor fixo por vídeo.", en: "Earnings are calculated by multiplying the number of submitted videos by the fixed value per video." },
+  "earnings_modal.earnings_calculation": { pt: "Cálculo de Ganhos", en: "Earnings Calculation" },
+  "earnings_modal.formula_not_defined": { pt: "Fórmula não definida", en: "Formula not defined" },
+  "earnings_modal.type_not_defined": { pt: "O tipo de campanha não possui uma fórmula de cálculo definida.", en: "The campaign type does not have a defined calculation formula." },
+  "earnings_modal.prize_distribution": { pt: "Distribuição de Prêmios", en: "Prize Distribution" },
+  "earnings_modal.earnings_per_clipper": { pt: "Ganhos por Clipador", en: "Earnings per Clipper" },
+  "earnings_modal.no_clippers": { pt: "Nenhum clipador no ranking ainda.", en: "No clippers in the ranking yet." },
+  "earnings_modal.total_to_distribute": { pt: "Total a ser distribuído", en: "Total to be distributed" },
 };
 
 interface LanguageContextType {

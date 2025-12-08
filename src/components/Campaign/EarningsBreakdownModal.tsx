@@ -7,7 +7,8 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CampaignType, getCampaignTypeLabel } from "@/types/campaign";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { CampaignType } from "@/types/campaign";
 import { DollarSign, Eye, Video, Trophy, Calculator, Info } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -39,8 +40,13 @@ export function EarningsBreakdownModal({
   prizePool,
   ranking,
 }: EarningsBreakdownModalProps) {
+  const { t, language } = useLanguage();
+
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    return new Intl.NumberFormat(language === 'pt' ? 'pt-BR' : 'en-US', { 
+      style: 'currency', 
+      currency: language === 'pt' ? 'BRL' : 'USD' 
+    }).format(value);
   };
 
   const formatNumber = (num: number) => {
@@ -49,21 +55,33 @@ export function EarningsBreakdownModal({
     return num.toString();
   };
 
+  const getCampaignTypeLabel = (type: CampaignType) => {
+    switch (type) {
+      case 'pay_per_view': return t('earnings_modal.pay_per_view');
+      case 'fixed': return t('earnings_modal.fixed');
+      case 'competition_daily': return t('earnings_modal.competition_daily');
+      case 'competition_monthly': return t('earnings_modal.competition_monthly');
+      default: return type;
+    }
+  };
+
   const getEarningsFormula = () => {
+    const currencySymbol = language === 'pt' ? 'R$' : '$';
+    
     switch (campaignType) {
       case 'pay_per_view':
         return {
-          title: 'Pagamento por View',
-          formula: `(Views ÷ 1.000) × R$ ${paymentRate.toFixed(2)}`,
-          description: 'Os ganhos são calculados com base no total de visualizações dividido por 1.000, multiplicado pela taxa de pagamento.',
+          title: t('earnings_modal.pay_per_view'),
+          formula: `(${t('earnings_modal.views')} ÷ 1,000) × ${currencySymbol} ${paymentRate.toFixed(2)}`,
+          description: t('earnings_modal.ppv_description'),
           icon: Eye,
         };
       case 'competition_daily':
       case 'competition_monthly':
         return {
           title: getCampaignTypeLabel(campaignType),
-          formula: `Premiação Total: ${formatCurrency(prizePool)}`,
-          description: 'Os ganhos são distribuídos entre os 3 primeiros colocados: 1º lugar (50%), 2º lugar (30%), 3º lugar (20%).',
+          formula: `${t('earnings_modal.total_prize')}: ${formatCurrency(prizePool)}`,
+          description: t('earnings_modal.competition_description'),
           icon: Trophy,
           distribution: [
             { position: 1, percentage: 50, amount: prizePool * 0.5 },
@@ -73,16 +91,16 @@ export function EarningsBreakdownModal({
         };
       case 'fixed':
         return {
-          title: 'Pagamento Fixo',
-          formula: `Vídeos × R$ ${paymentRate.toFixed(2)}`,
-          description: 'Os ganhos são calculados multiplicando o número de vídeos submetidos pelo valor fixo por vídeo.',
+          title: t('earnings_modal.fixed'),
+          formula: `${t('earnings_modal.videos')} × ${currencySymbol} ${paymentRate.toFixed(2)}`,
+          description: t('earnings_modal.fixed_description'),
           icon: Video,
         };
       default:
         return {
-          title: 'Cálculo de Ganhos',
-          formula: 'Fórmula não definida',
-          description: 'O tipo de campanha não possui uma fórmula de cálculo definida.',
+          title: t('earnings_modal.earnings_calculation'),
+          formula: t('earnings_modal.formula_not_defined'),
+          description: t('earnings_modal.type_not_defined'),
           icon: Calculator,
         };
     }
@@ -116,10 +134,10 @@ export function EarningsBreakdownModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calculator className="h-5 w-5 text-primary" />
-            Detalhamento de Ganhos
+            {t('earnings_modal.title')}
           </DialogTitle>
           <DialogDescription>
-            Veja como os ganhos de cada clipador são calculados
+            {t('earnings_modal.subtitle')}
           </DialogDescription>
         </DialogHeader>
 
@@ -146,7 +164,7 @@ export function EarningsBreakdownModal({
               <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
                 <h4 className="font-medium mb-3 flex items-center gap-2">
                   <Trophy className="h-4 w-4 text-yellow-500" />
-                  Distribuição de Prêmios
+                  {t('earnings_modal.prize_distribution')}
                 </h4>
                 <div className="grid grid-cols-3 gap-3">
                   {formulaInfo.distribution.map((d) => (
@@ -166,18 +184,19 @@ export function EarningsBreakdownModal({
             <div className="space-y-3">
               <h4 className="font-medium flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-green-400" />
-                Ganhos por Clipador
+                {t('earnings_modal.earnings_per_clipper')}
               </h4>
               
               {ranking.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Info className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>Nenhum clipador no ranking ainda.</p>
+                  <p>{t('earnings_modal.no_clippers')}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {ranking.slice(0, 10).map((item) => {
                     const earnings = calculateEarnings(item);
+                    const currencySymbol = language === 'pt' ? 'R$' : '$';
                     return (
                       <div
                         key={item.user_id}
@@ -193,19 +212,19 @@ export function EarningsBreakdownModal({
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate">{item.username}</p>
                           <p className="text-xs text-muted-foreground">
-                            {formatNumber(item.total_views)} views • {item.total_videos} vídeos
+                            {formatNumber(item.total_views)} {t('earnings_modal.views')} • {item.total_videos} {t('earnings_modal.videos')}
                           </p>
                         </div>
                         <div className="text-right">
                           <p className="font-semibold text-green-400">{formatCurrency(earnings)}</p>
                           {campaignType === 'pay_per_view' && (
                             <p className="text-xs text-muted-foreground">
-                              {(item.total_views / 1000).toFixed(1)}K × R${paymentRate.toFixed(2)}
+                              {(item.total_views / 1000).toFixed(1)}K × {currencySymbol}{paymentRate.toFixed(2)}
                             </p>
                           )}
                           {campaignType === 'fixed' && (
                             <p className="text-xs text-muted-foreground">
-                              {item.total_videos} × R${paymentRate.toFixed(2)}
+                              {item.total_videos} × {currencySymbol}{paymentRate.toFixed(2)}
                             </p>
                           )}
                         </div>
@@ -219,7 +238,7 @@ export function EarningsBreakdownModal({
             {/* Total */}
             <div className="p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
               <div className="flex justify-between items-center">
-                <span className="font-medium">Total a ser distribuído</span>
+                <span className="font-medium">{t('earnings_modal.total_to_distribute')}</span>
                 <span className="text-xl font-bold text-green-400">{formatCurrency(totalDistributed)}</span>
               </div>
             </div>
