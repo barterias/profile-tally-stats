@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import MainLayout from "@/components/Layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -51,11 +52,12 @@ import {
   FileVideo,
   Download,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { enUS, ptBR } from "date-fns/locale";
 
 interface VideoSubmission {
   id: string;
@@ -72,6 +74,7 @@ interface VideoSubmission {
 
 function AdminSubmissionsContent() {
   const navigate = useNavigate();
+  const { t, language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [submissions, setSubmissions] = useState<VideoSubmission[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -82,7 +85,8 @@ function AdminSubmissionsContent() {
     title: string;
     description: string;
     action: () => void;
-  }>({ open: false, title: "", description: "", action: () => {} });
+    variant?: "default" | "destructive";
+  }>({ open: false, title: "", description: "", action: () => {}, variant: "default" });
 
   useEffect(() => {
     fetchSubmissions();
@@ -97,7 +101,6 @@ function AdminSubmissionsContent() {
 
       if (error) throw error;
 
-      // Fetch profiles for usernames
       const userIds = [...new Set((videosData || []).map((v) => v.submitted_by).filter(Boolean))];
       const { data: profiles } = await supabase
         .from("profiles")
@@ -109,7 +112,7 @@ function AdminSubmissionsContent() {
       const enrichedData: VideoSubmission[] = (videosData || []).map((v: any) => ({
         id: v.id,
         user_id: v.submitted_by || "",
-        username: profileMap.get(v.submitted_by) || "Usuário",
+        username: profileMap.get(v.submitted_by) || t("submissions.unknown_user"),
         campaign_id: v.campaign_id,
         campaign_name: v.campaigns?.name || "—",
         platform: v.platform,
@@ -122,7 +125,7 @@ function AdminSubmissionsContent() {
       setSubmissions(enrichedData);
     } catch (error) {
       console.error("Error fetching submissions:", error);
-      toast.error("Erro ao carregar submissões");
+      toast.error(t("submissions.error_loading"));
     } finally {
       setLoading(false);
     }
@@ -137,15 +140,36 @@ function AdminSubmissionsContent() {
 
       if (error) throw error;
 
-      toast.success(verified ? "Vídeo validado!" : "Vídeo rejeitado");
+      toast.success(verified ? t("submissions.video_validated") : t("submissions.video_rejected"));
       fetchSubmissions();
     } catch (error: any) {
-      toast.error(error.message || "Erro ao processar");
+      toast.error(error.message || t("submissions.error_processing"));
     }
   };
 
-  const openConfirmDialog = (title: string, description: string, action: () => void) => {
-    setConfirmDialog({ open: true, title, description, action });
+  const handleDelete = async (submissionId: string) => {
+    try {
+      const { error } = await supabase
+        .from("campaign_videos")
+        .delete()
+        .eq("id", submissionId);
+
+      if (error) throw error;
+
+      toast.success(t("submissions.video_deleted"));
+      fetchSubmissions();
+    } catch (error: any) {
+      toast.error(error.message || t("submissions.error_deleting"));
+    }
+  };
+
+  const openConfirmDialog = (
+    title: string, 
+    description: string, 
+    action: () => void,
+    variant: "default" | "destructive" = "default"
+  ) => {
+    setConfirmDialog({ open: true, title, description, action, variant });
   };
 
   const getStatusBadge = (verified: boolean) => {
@@ -153,14 +177,14 @@ function AdminSubmissionsContent() {
       return (
         <Badge className="bg-success/15 text-success border-success/30">
           <CheckCircle className="h-3 w-3 mr-1" />
-          Validado
+          {t("submissions.validated")}
         </Badge>
       );
     }
     return (
       <Badge className="bg-warning/15 text-warning border-warning/30">
         <Clock className="h-3 w-3 mr-1" />
-        Pendente
+        {t("submissions.pending")}
       </Badge>
     );
   };
@@ -179,15 +203,15 @@ function AdminSubmissionsContent() {
   };
 
   const exportCSV = () => {
-    const headers = ["ID", "Usuário", "Campanha", "Plataforma", "Status", "Views", "Data"];
+    const headers = ["ID", t("submissions.user"), t("submissions.campaign"), t("submissions.platform"), t("common.status"), "Views", t("submissions.date")];
     const rows = filteredSubmissions.map((s) => [
       s.id,
       s.username,
       s.campaign_name,
       s.platform,
-      s.verified ? "Validado" : "Pendente",
+      s.verified ? t("submissions.validated") : t("submissions.pending"),
       s.views,
-      format(new Date(s.submitted_at), "dd/MM/yyyy HH:mm"),
+      format(new Date(s.submitted_at), "MM/dd/yyyy HH:mm"),
     ]);
 
     const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
@@ -196,7 +220,7 @@ function AdminSubmissionsContent() {
     link.href = URL.createObjectURL(blob);
     link.download = `submissions_${format(new Date(), "yyyy-MM-dd")}.csv`;
     link.click();
-    toast.success("Relatório exportado!");
+    toast.success(t("submissions.report_exported"));
   };
 
   const filteredSubmissions = submissions.filter((submission) => {
@@ -216,6 +240,7 @@ function AdminSubmissionsContent() {
   });
 
   const pendingCount = submissions.filter((s) => !s.verified).length;
+  const dateLocale = language === 'pt' ? ptBR : enUS;
 
   if (loading) {
     return (
@@ -237,20 +262,20 @@ function AdminSubmissionsContent() {
               <FileVideo className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Submissões de Vídeo</h1>
+              <h1 className="text-2xl font-bold">{t("submissions.title")}</h1>
               <p className="text-sm text-muted-foreground">
-                {pendingCount} pendentes de verificação
+                {pendingCount} {t("submissions.pending_verification")}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={fetchSubmissions}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Atualizar
+              {t("common.refresh")}
             </Button>
             <Button variant="outline" size="sm" onClick={exportCSV}>
               <Download className="h-4 w-4 mr-2" />
-              Exportar
+              {t("common.export")}
             </Button>
           </div>
         </div>
@@ -259,13 +284,13 @@ function AdminSubmissionsContent() {
         <div className="grid grid-cols-3 gap-4">
           <Card className="border-warning/30 bg-warning/5">
             <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground">Pendentes</p>
+              <p className="text-xs text-muted-foreground">{t("submissions.pending")}</p>
               <p className="text-2xl font-bold text-warning">{pendingCount}</p>
             </CardContent>
           </Card>
           <Card className="border-success/30 bg-success/5">
             <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground">Validados</p>
+              <p className="text-xs text-muted-foreground">{t("submissions.validated")}</p>
               <p className="text-2xl font-bold text-success">
                 {submissions.filter((s) => s.verified).length}
               </p>
@@ -273,7 +298,7 @@ function AdminSubmissionsContent() {
           </Card>
           <Card className="border-border/50">
             <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-xs text-muted-foreground">{t("common.total")}</p>
               <p className="text-2xl font-bold">{submissions.length}</p>
             </CardContent>
           </Card>
@@ -286,7 +311,7 @@ function AdminSubmissionsContent() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por usuário, campanha ou link..."
+                  placeholder={t("submissions.search_placeholder")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -294,20 +319,20 @@ function AdminSubmissionsContent() {
               </div>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
                 <SelectTrigger className="w-full sm:w-36">
-                  <SelectValue placeholder="Status" />
+                  <SelectValue placeholder={t("common.status")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="pending">Pendentes</SelectItem>
-                  <SelectItem value="verified">Validados</SelectItem>
+                  <SelectItem value="all">{t("common.all")}</SelectItem>
+                  <SelectItem value="pending">{t("submissions.pending")}</SelectItem>
+                  <SelectItem value="verified">{t("submissions.validated")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={filterPlatform} onValueChange={setFilterPlatform}>
                 <SelectTrigger className="w-full sm:w-36">
-                  <SelectValue placeholder="Plataforma" />
+                  <SelectValue placeholder={t("submissions.platform")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="all">{t("common.all")}</SelectItem>
                   <SelectItem value="instagram">Instagram</SelectItem>
                   <SelectItem value="tiktok">TikTok</SelectItem>
                   <SelectItem value="youtube">YouTube</SelectItem>
@@ -323,13 +348,13 @@ function AdminSubmissionsContent() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Usuário</TableHead>
-                  <TableHead>Campanha</TableHead>
-                  <TableHead>Plataforma</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>{t("submissions.user")}</TableHead>
+                  <TableHead>{t("submissions.campaign")}</TableHead>
+                  <TableHead>{t("submissions.platform")}</TableHead>
+                  <TableHead>{t("common.status")}</TableHead>
                   <TableHead className="text-center">Views</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead>{t("submissions.date")}</TableHead>
+                  <TableHead className="text-right">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -337,7 +362,7 @@ function AdminSubmissionsContent() {
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-12">
                       <FileVideo className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                      <p className="text-muted-foreground">Nenhuma submissão encontrada</p>
+                      <p className="text-muted-foreground">{t("submissions.no_submissions")}</p>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -360,13 +385,13 @@ function AdminSubmissionsContent() {
                         <div className="flex items-center justify-center gap-1">
                           <Eye className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium">
-                            {submission.views.toLocaleString("pt-BR")}
+                            {submission.views.toLocaleString(language === 'pt' ? 'pt-BR' : 'en-US')}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          <p>{format(new Date(submission.submitted_at), "dd/MM/yyyy")}</p>
+                          <p>{format(new Date(submission.submitted_at), "MM/dd/yyyy", { locale: dateLocale })}</p>
                           <p className="text-xs text-muted-foreground">
                             {format(new Date(submission.submitted_at), "HH:mm")}
                           </p>
@@ -384,7 +409,7 @@ function AdminSubmissionsContent() {
                               onClick={() => window.open(submission.video_link, "_blank")}
                             >
                               <ExternalLink className="h-4 w-4 mr-2" />
-                              Ver Vídeo
+                              {t("submissions.view_video")}
                             </DropdownMenuItem>
                             {!submission.verified && (
                               <>
@@ -392,32 +417,46 @@ function AdminSubmissionsContent() {
                                 <DropdownMenuItem
                                   onClick={() =>
                                     openConfirmDialog(
-                                      "Validar Vídeo",
-                                      "Marcar este vídeo como validado?",
+                                      t("submissions.validate_video"),
+                                      t("submissions.validate_confirm"),
                                       () => handleVerify(submission.id, true)
                                     )
                                   }
                                 >
                                   <CheckCircle className="h-4 w-4 mr-2" />
-                                  Validar
+                                  {t("submissions.validate")}
                                 </DropdownMenuItem>
                               </>
                             )}
                             {submission.verified && (
                               <DropdownMenuItem
-                                className="text-destructive"
                                 onClick={() =>
                                   openConfirmDialog(
-                                    "Remover Validação",
-                                    "Remover validação deste vídeo?",
+                                    t("submissions.remove_validation"),
+                                    t("submissions.remove_validation_confirm"),
                                     () => handleVerify(submission.id, false)
                                   )
                                 }
                               >
                                 <XCircle className="h-4 w-4 mr-2" />
-                                Remover Validação
+                                {t("submissions.unvalidate")}
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() =>
+                                openConfirmDialog(
+                                  t("submissions.delete_video"),
+                                  t("submissions.delete_confirm"),
+                                  () => handleDelete(submission.id),
+                                  "destructive"
+                                )
+                              }
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {t("submissions.delete")}
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -440,14 +479,15 @@ function AdminSubmissionsContent() {
               <AlertDialogDescription>{confirmDialog.description}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
               <AlertDialogAction
+                className={confirmDialog.variant === "destructive" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
                 onClick={() => {
                   confirmDialog.action();
                   setConfirmDialog({ ...confirmDialog, open: false });
                 }}
               >
-                Confirmar
+                {t("common.confirm")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
