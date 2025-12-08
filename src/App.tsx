@@ -3,8 +3,11 @@ import DashboardAdmin from "./pages/DashboardAdmin";
 import DashboardClient from "./pages/DashboardClient";
 import DashboardClipper from "./pages/DashboardClipper";
 import FinanceiroAdmin from "./pages/FinanceiroAdmin";
+import FinanceiroClient from "./pages/FinanceiroClient";
 import AdminCampaigns from "./pages/AdminCampaigns";
 import AdminSubmissions from "./pages/AdminSubmissions";
+import ClientCampaigns from "./pages/ClientCampaigns";
+import ClientEditCampaign from "./pages/ClientEditCampaign";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -56,6 +59,10 @@ const App = () => (
               <Route path="/dashboard/admin" element={<DashboardAdmin />} />
               <Route path="/dashboard/client" element={<DashboardClient />} />
               <Route path="/dashboard/clipper" element={<DashboardClipper />} />
+              {/* Client Routes */}
+              <Route path="/client/campaigns" element={<ClientCampaigns />} />
+              <Route path="/client/edit-campaign/:id" element={<ClientEditCampaign />} />
+              <Route path="/client/financial" element={<FinanceiroClient />} />
               {/* Admin Routes */}
               <Route path="/admin" element={<DashboardAdmin />} />
               <Route path="/admin/dashboard" element={<DashboardAdmin />} />

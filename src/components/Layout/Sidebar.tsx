@@ -16,8 +16,6 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
-  Eye,
-  Settings,
   UserCircle,
   DollarSign,
 } from "lucide-react";
@@ -39,31 +37,32 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: t("nav.dashboard"), href: "/", icon: LayoutDashboard },
     { name: t("nav.campaigns"), href: "/campaigns", icon: Trophy },
     { name: t("nav.submit"), href: "/submit", icon: Upload },
-    { name: "Ranking Mensal", href: "/ranking/monthly", icon: Medal },
-    { name: "Ranking Diário", href: "/ranking/daily", icon: TrendingUp },
+    { name: t("nav.ranking_monthly"), href: "/ranking/monthly", icon: Medal },
+    { name: t("nav.ranking_daily"), href: "/ranking/daily", icon: TrendingUp },
     { name: t("nav.wallet"), href: "/wallet", icon: Wallet },
   ];
 
   const clientNavigation = [
-    { name: "Dashboard", href: "/dashboard/client", icon: LayoutDashboard },
-    { name: "Minhas Campanhas", href: "/campaigns", icon: Trophy },
-    { name: "Pagamentos", href: "/payments", icon: DollarSign },
-    { name: "Clipadores", href: "/dashboard/client", icon: Users },
-    { name: "Ranking", href: "/ranking/monthly", icon: Medal },
+    { name: t("nav.dashboard"), href: "/dashboard/client", icon: LayoutDashboard },
+    { name: t("nav.my_campaigns"), href: "/client/campaigns", icon: Trophy },
+    { name: t("nav.payments"), href: "/payments", icon: DollarSign },
+    { name: t("nav.financial"), href: "/client/financial", icon: Wallet },
+    { name: t("nav.clippers"), href: "/dashboard/client", icon: Users },
+    { name: t("nav.ranking"), href: "/ranking/monthly", icon: Medal },
   ];
 
   const adminNavigation = [
-    { name: "Painel Admin", href: "/admin", icon: Shield },
-    { name: "Campanhas", href: "/admin/campaigns", icon: Trophy },
-    { name: "Submissões", href: "/admin/submissions", icon: Video },
-    { name: "Pagamentos", href: "/payments", icon: DollarSign },
-    { name: "Financeiro", href: "/admin/payouts", icon: Wallet },
-    { name: "Usuários", href: "/admin/users", icon: Users },
-    { name: "Estatísticas", href: "/admin/stats", icon: BarChart3 },
+    { name: t("nav.admin_panel"), href: "/admin", icon: Shield },
+    { name: t("nav.campaigns"), href: "/admin/campaigns", icon: Trophy },
+    { name: t("nav.submissions"), href: "/admin/submissions", icon: Video },
+    { name: t("nav.payments"), href: "/payments", icon: DollarSign },
+    { name: t("nav.financial"), href: "/admin/payouts", icon: Wallet },
+    { name: t("nav.users"), href: "/admin/users", icon: Users },
+    { name: t("nav.statistics"), href: "/admin/stats", icon: BarChart3 },
   ];
 
   const accountNavigation = [
-    { name: "Meu Perfil", href: "/profile", icon: UserCircle },
+    { name: t("nav.profile"), href: "/profile", icon: UserCircle },
   ];
 
   const isActive = (path: string) => {
@@ -160,7 +159,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <div className="space-y-1">
               {!collapsed && (
                 <p className="px-3 text-xs font-semibold text-primary/70 uppercase tracking-wider mb-3">
-                  {isClient && !isAdmin ? "Cliente" : "Menu"}
+                  {isClient && !isAdmin ? t("nav.client") : t("nav.menu")}
                 </p>
               )}
               {getUserNavigation().map((item) => (
@@ -173,7 +172,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <div className="space-y-1">
                 {!collapsed && (
                   <p className="px-3 text-xs font-semibold text-primary/70 uppercase tracking-wider mb-3">
-                    Administração
+                    {t("nav.administration")}
                   </p>
                 )}
                 {adminNavigation.map((item) => (
@@ -186,9 +185,12 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <div className="space-y-1">
               {!collapsed && (
                 <p className="px-3 text-xs font-semibold text-primary/70 uppercase tracking-wider mb-3">
-                  Conta
+                  {t("nav.account")}
                 </p>
               )}
+              {accountNavigation.map((item) => (
+                <NavItem key={item.href} item={item} />
+              ))}
               {accountNavigation.map((item) => (
                 <NavItem key={item.href} item={item} />
               ))}
