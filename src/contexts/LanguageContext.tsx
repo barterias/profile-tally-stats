@@ -255,6 +255,51 @@ const translations: Translations = {
   "users.approved_users": { pt: "Usuários Aprovados", en: "Approved Users" },
   "users.role": { pt: "Função", en: "Role" },
   "users.change_role": { pt: "Alterar Função", en: "Change Role" },
+  "users.manage_users": { pt: "Gerenciar Usuários", en: "Manage Users" },
+  "users.users_count": { pt: "usuários", en: "users" },
+  "users.pending_count": { pt: "pendentes", en: "pending" },
+  "users.search_placeholder": { pt: "Buscar por email ou username...", en: "Search by email or username..." },
+  "users.pending_tab": { pt: "Pendentes", en: "Pending" },
+  "users.active_tab": { pt: "Ativos", en: "Active" },
+  "users.awaiting_approval": { pt: "Usuários Aguardando Aprovação", en: "Users Awaiting Approval" },
+  "users.new_registrations": { pt: "Novos registros que precisam ser aprovados", en: "New registrations that need approval" },
+  "users.no_pending_users": { pt: "Nenhum usuário pendente", en: "No pending users" },
+  "users.user": { pt: "Usuário", en: "User" },
+  "users.email": { pt: "Email", en: "Email" },
+  "users.date": { pt: "Data", en: "Date" },
+  "users.approve": { pt: "Aprovar", en: "Approve" },
+  "users.reject": { pt: "Rejeitar", en: "Reject" },
+  "users.active_users": { pt: "Usuários Ativos", en: "Active Users" },
+  "users.manage_approved": { pt: "Gerenciamento de usuários aprovados", en: "Management of approved users" },
+  "users.warning_col": { pt: "Advertência", en: "Warning" },
+  "users.member_since": { pt: "Membro desde", en: "Member since" },
+  "users.make_client": { pt: "Tornar Cliente", en: "Make Client" },
+  "users.edit_campaigns": { pt: "Editar Campanhas", en: "Edit Campaigns" },
+  "users.make_admin": { pt: "Tornar Admin", en: "Make Admin" },
+  "users.remove_admin": { pt: "Remover Admin", en: "Remove Admin" },
+  "users.add_warning": { pt: "Adicionar Advertência", en: "Add Warning" },
+  "users.increase_warning": { pt: "Aumentar Advertência", en: "Increase Warning" },
+  "users.remove_warning": { pt: "Remover Advertência", en: "Remove Warning" },
+  "users.ban_user": { pt: "Banir Usuário", en: "Ban User" },
+  "users.approve_user_question": { pt: "Aprovar usuário?", en: "Approve user?" },
+  "users.approve_user_desc": { pt: "será aprovado e poderá acessar o sistema.", en: "will be approved and can access the system." },
+  "users.reject_user_question": { pt: "Rejeitar usuário?", en: "Reject user?" },
+  "users.reject_user_desc": { pt: "O registro será excluído permanentemente.", en: "The registration will be permanently deleted." },
+  "users.promote_admin_question": { pt: "Promover a Admin?", en: "Promote to Admin?" },
+  "users.promote_admin_desc": { pt: "terá acesso total ao sistema.", en: "will have full system access." },
+  "users.remove_admin_question": { pt: "Remover Admin?", en: "Remove Admin?" },
+  "users.remove_admin_desc": { pt: "perderá privilégios de administrador.", en: "will lose administrator privileges." },
+  "users.ban_user_question": { pt: "Banir usuário?", en: "Ban user?" },
+  "users.ban_user_desc": { pt: "não poderá mais acessar o sistema.", en: "will no longer be able to access the system." },
+  "users.user_approved": { pt: "Usuário aprovado com sucesso!", en: "User approved successfully!" },
+  "users.user_rejected": { pt: "Usuário rejeitado", en: "User rejected" },
+  "users.role_updated": { pt: "Role atualizada para", en: "Role updated to" },
+  "users.warning_updated": { pt: "Advertência atualizada", en: "Warning updated" },
+  "users.error_loading": { pt: "Erro ao carregar usuários", en: "Error loading users" },
+  "users.error_approving": { pt: "Erro ao aprovar usuário", en: "Error approving user" },
+  "users.error_rejecting": { pt: "Erro ao rejeitar usuário", en: "Error rejecting user" },
+  "users.error_updating_role": { pt: "Erro ao atualizar role", en: "Error updating role" },
+  "users.error_updating_warning": { pt: "Erro ao atualizar advertência", en: "Error updating warning" },
 
   // Statistics
   "stats.title": { pt: "Estatísticas", en: "Statistics" },
@@ -291,6 +336,65 @@ const translations: Translations = {
   "msg.no_data": { pt: "Nenhum dado encontrado", en: "No data found" },
   "msg.loading_campaigns": { pt: "Carregando campanhas...", en: "Loading campaigns..." },
   "msg.select_campaign_first": { pt: "Selecione uma campanha para ver os detalhes", en: "Select a campaign to see details" },
+
+  // Client Dashboard specific
+  "loadingDashboard": { pt: "Carregando dashboard...", en: "Loading dashboard..." },
+  "noCampaignsLinked": { pt: "Nenhuma campanha vinculada", en: "No linked campaigns" },
+  "noCampaignsDescription": { pt: "Você ainda não possui campanhas vinculadas. Entre em contato com o administrador.", en: "You don't have any linked campaigns yet. Contact the administrator." },
+  "viewAvailableCampaigns": { pt: "Ver campanhas disponíveis", en: "View available campaigns" },
+  "clientDashboard": { pt: "Dashboard do Cliente", en: "Client Dashboard" },
+  "trackPerformance": { pt: "Acompanhe o desempenho das suas campanhas", en: "Track your campaigns performance" },
+  "selectCampaign": { pt: "Selecionar campanha", en: "Select campaign" },
+  "details": { pt: "Detalhes", en: "Details" },
+  "export": { pt: "Exportar", en: "Export" },
+  "exportCSV": { pt: "Exportar CSV", en: "Export CSV" },
+  "exportPDF": { pt: "Exportar PDF", en: "Export PDF" },
+  "success": { pt: "Sucesso!", en: "Success!" },
+  "error": { pt: "Erro", en: "Error" },
+  "active": { pt: "Ativo", en: "Active" },
+  "inactive": { pt: "Inativo", en: "Inactive" },
+  "totalViews": { pt: "Total de Views", en: "Total Views" },
+  "totalVideos": { pt: "Total de Vídeos", en: "Total Videos" },
+  "clippers": { pt: "Clipadores", en: "Clippers" },
+  "estimatedEarnings": { pt: "Ganhos Estimados", en: "Estimated Earnings" },
+  "viewsEvolution": { pt: "Evolução de Views", en: "Views Evolution" },
+  "last7Days": { pt: "Últimos 7 dias", en: "Last 7 days" },
+  "platformDistribution": { pt: "Distribuição por Plataforma", en: "Platform Distribution" },
+  "noData": { pt: "Sem dados", en: "No data" },
+  "ranking": { pt: "Ranking", en: "Ranking" },
+  "videos": { pt: "Vídeos", en: "Videos" },
+  "statistics": { pt: "Estatísticas", en: "Statistics" },
+  "payments": { pt: "Pagamentos", en: "Payments" },
+  "pending": { pt: "Pendente", en: "Pending" },
+  "allRankings": { pt: "Todos", en: "All" },
+  "perViewRanking": { pt: "Por View", en: "Per View" },
+  "dailyRanking": { pt: "Diário", en: "Daily" },
+  "monthlyRanking": { pt: "Mensal", en: "Monthly" },
+  "rankingWithPayments": { pt: "Ranking com Pagamentos", en: "Ranking with Payments" },
+  "campaignVideos": { pt: "Vídeos da Campanha", en: "Campaign Videos" },
+  "pendingApproval": { pt: "Aguardando Aprovação", en: "Pending Approval" },
+  "approvedClippers": { pt: "Clipadores Aprovados", en: "Approved Clippers" },
+  "noApprovedClippers": { pt: "Nenhum clipador aprovado ainda", en: "No approved clippers yet" },
+  "engagement": { pt: "Engajamento", en: "Engagement" },
+  "engagementRate": { pt: "Taxa de Engajamento", en: "Engagement Rate" },
+  "totalLikes": { pt: "Total de Likes", en: "Total Likes" },
+  "totalComments": { pt: "Total de Comentários", en: "Total Comments" },
+  "totalShares": { pt: "Total de Compartilhamentos", en: "Total Shares" },
+  "financialSummary": { pt: "Resumo Financeiro", en: "Financial Summary" },
+  "clipperEstimatedEarnings": { pt: "Ganhos Estimados dos Clippers", en: "Clipper Estimated Earnings" },
+  "averagePerVideo": { pt: "Média por Vídeo", en: "Average per Video" },
+  "averagePerClipper": { pt: "Média por Clipador", en: "Average per Clipper" },
+  "ratePer1kViews": { pt: "Taxa por 1K Views", en: "Rate per 1K Views" },
+  "paymentsThisMonth": { pt: "Pagamentos este mês", en: "Payments this month" },
+
+  // Status Badges
+  "status.admin": { pt: "Admin", en: "Admin" },
+  "status.client": { pt: "Cliente", en: "Client" },
+  "status.banned": { pt: "Banido", en: "Banned" },
+  "status.pending": { pt: "Pendente", en: "Pending" },
+  "status.active": { pt: "Ativo", en: "Active" },
+  "status.warning": { pt: "Advertência", en: "Warning" },
+  "status.severe_warning": { pt: "Advertência Grave", en: "Severe Warning" },
 };
 
 interface LanguageContextType {
@@ -303,13 +407,18 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>(() => {
-    const saved = localStorage.getItem("language");
-    return (saved as Language) || "en";
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('language') as Language;
+      return saved || 'en';
+    }
+    return 'en';
   });
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem("language", lang);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('language', lang);
+    }
   };
 
   const t = (key: string): string => {
@@ -328,10 +437,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export const useLanguage = () => {
+export function useLanguage() {
   const context = useContext(LanguageContext);
-  if (!context) {
-    throw new Error("useLanguage must be used within LanguageProvider");
+  if (context === undefined) {
+    throw new Error('useLanguage must be used within a LanguageProvider');
   }
   return context;
-};
+}
