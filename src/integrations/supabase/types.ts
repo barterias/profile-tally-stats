@@ -1376,6 +1376,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_campaign_owner: {
+        Args: { _campaign_id: string; _user_id: string }
+        Returns: boolean
+      }
       reject_participant: {
         Args: { p_participant_id: string }
         Returns: undefined

@@ -406,20 +406,12 @@ function AdminUsersContent() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              {user.role !== "admin" && user.role !== "client" && (
+                              {user.role !== "admin" && (
                                 <DropdownMenuItem
                                   onClick={() => openClientModal(user.id, user.username)}
                                 >
                                   <Building2 className="h-4 w-4 mr-2" />
-                                  {t("users.make_client")}
-                                </DropdownMenuItem>
-                              )}
-                              {user.role === "client" && (
-                                <DropdownMenuItem
-                                  onClick={() => openClientModal(user.id, user.username)}
-                                >
-                                  <Building2 className="h-4 w-4 mr-2" />
-                                  {t("users.edit_campaigns")}
+                                  {user.role === "client" ? t("users.edit_campaigns") : t("users.make_client")}
                                 </DropdownMenuItem>
                               )}
                               {user.role !== "admin" && (
