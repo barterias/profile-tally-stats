@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { externalSupabase } from "@/lib/externalSupabase";
 import MainLayout from "@/components/Layout/MainLayout";
@@ -27,6 +28,7 @@ import {
 
 export default function Profile() {
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({
     username: "",
@@ -86,7 +88,7 @@ export default function Profile() {
             return tiktokData?.views || 0;
           }
         } catch (error) {
-          console.error("Erro ao buscar métricas do vídeo:", error);
+          console.error("Error fetching video metrics:", error);
         }
         return video.views || 0;
       });
@@ -129,14 +131,13 @@ export default function Profile() {
   const handleAvatarUpload = async (url: string) => {
     setProfile({ ...profile, avatar_url: url });
     
-    // Update in database
     const { error } = await supabase
       .from("profiles")
       .update({ avatar_url: url })
       .eq("id", user?.id);
 
     if (error) {
-      toast.error("Erro ao salvar avatar");
+      toast.error(t('error'));
     }
   };
 
@@ -153,9 +154,9 @@ export default function Profile() {
 
       if (error) throw error;
 
-      toast.success("Perfil atualizado com sucesso!");
+      toast.success(t('profileUpdated'));
     } catch (error: any) {
-      toast.error("Erro ao atualizar perfil: " + error.message);
+      toast.error(t('error') + ": " + error.message);
     } finally {
       setLoading(false);
     }
@@ -173,10 +174,10 @@ export default function Profile() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent mb-2">
-            Meu Perfil
+            {t('myProfile')}
           </h1>
           <p className="text-muted-foreground">
-            Gerencie suas informações e acompanhe seu desempenho
+            {t('manageProfile')}
           </p>
         </div>
 
@@ -193,7 +194,7 @@ export default function Profile() {
                 type="avatar"
               />
               <span className="text-xs text-muted-foreground">
-                Clique para alterar
+                {t('clickToChange')}
               </span>
             </div>
 
@@ -203,11 +204,11 @@ export default function Profile() {
                 <div className="space-y-2">
                   <Label htmlFor="username" className="text-sm font-medium flex items-center gap-2">
                     <User className="h-4 w-4 text-primary" />
-                    Nome de usuário
+                    {t('username')}
                   </Label>
                   <Input
                     id="username"
-                    placeholder="Seu nome de usuário"
+                    placeholder={t('username')}
                     value={profile.username}
                     onChange={(e) =>
                       setProfile({ ...profile, username: e.target.value })
@@ -219,7 +220,7 @@ export default function Profile() {
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-sm font-medium flex items-center gap-2">
                     <Mail className="h-4 w-4 text-primary" />
-                    Email
+                    {t('email')}
                   </Label>
                   <Input 
                     id="email" 
@@ -236,7 +237,7 @@ export default function Profile() {
                 className="w-full md:w-auto bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
               >
                 <Save className="h-4 w-4 mr-2" />
-                {loading ? "Salvando..." : "Salvar Alterações"}
+                {loading ? t('saving') : t('saveChanges')}
               </Button>
             </div>
           </div>
@@ -246,29 +247,29 @@ export default function Profile() {
         <div>
           <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
-            Estatísticas Gerais
+            {t('generalStats')}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCardGlow
-              title="Total de Views"
+              title={t('totalViews')}
               value={formatNumber(stats.totalViews)}
               icon={Eye}
               glowColor="green"
             />
             <MetricCardGlow
-              title="Vídeos Enviados"
+              title={t('videosSubmitted')}
               value={stats.totalVideos}
               icon={Video}
               glowColor="blue"
             />
             <MetricCardGlow
-              title="Competições"
+              title={t('competitions')}
               value={stats.campaigns}
               icon={Trophy}
               glowColor="purple"
             />
             <MetricCardGlow
-              title="Ranking Médio"
+              title={t('averageRanking')}
               value={stats.avgRank > 0 ? `#${stats.avgRank}` : "-"}
               icon={TrendingUp}
               glowColor="orange"
@@ -280,21 +281,21 @@ export default function Profile() {
         <GlowCard className="p-6">
           <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
-            Configurações da Conta
+            {t('accountSettings')}
           </h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-muted/20 hover:bg-muted/30 transition-colors">
               <div className="flex items-center gap-3">
                 <Bell className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="font-medium">Notificações por Email</p>
+                  <p className="font-medium">{t('emailNotifications')}</p>
                   <p className="text-sm text-muted-foreground">
-                    Receba atualizações sobre suas competições
+                    {t('emailNotificationsDesc')}
                   </p>
                 </div>
               </div>
               <Button variant="outline" size="sm" className="border-border/50">
-                Configurar
+                {t('configure')}
               </Button>
             </div>
             
@@ -304,14 +305,14 @@ export default function Profile() {
               <div className="flex items-center gap-3">
                 <Lock className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="font-medium">Privacidade</p>
+                  <p className="font-medium">{t('privacy')}</p>
                   <p className="text-sm text-muted-foreground">
-                    Controle quem pode ver seu perfil
+                    {t('privacyDesc')}
                   </p>
                 </div>
               </div>
               <Button variant="outline" size="sm" className="border-border/50">
-                Gerenciar
+                {t('manage')}
               </Button>
             </div>
             
@@ -321,14 +322,14 @@ export default function Profile() {
               <div className="flex items-center gap-3">
                 <Trash2 className="h-5 w-5 text-destructive" />
                 <div>
-                  <p className="font-medium text-destructive">Excluir Conta</p>
+                  <p className="font-medium text-destructive">{t('deleteAccount')}</p>
                   <p className="text-sm text-muted-foreground">
-                    Remover permanentemente sua conta
+                    {t('deleteAccountDesc')}
                   </p>
                 </div>
               </div>
               <Button variant="destructive" size="sm">
-                Excluir
+                {t('delete')}
               </Button>
             </div>
           </div>

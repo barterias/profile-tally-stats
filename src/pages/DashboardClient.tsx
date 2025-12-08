@@ -14,11 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useCampaignData } from "@/hooks/useCampaignData";
 import { useVideoMetricsHistory } from "@/hooks/useVideoMetricsHistory";
 import { useCompetitionPrizes } from "@/hooks/useCompetitionPrizes";
 import { useCampaignPayments } from "@/hooks/useCampaignPayments";
-import { SyncMetricsButton } from "@/components/Admin/SyncMetricsButton";
 import { PaymentTable } from "@/components/Payments/PaymentTable";
 import { PaymentSummaryCard } from "@/components/Payments/PaymentSummaryCard";
 import { CampaignType } from "@/types/campaign";
@@ -75,10 +75,12 @@ interface CampaignBasic {
 function DashboardClientContent() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<CampaignBasic[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
   const [earningsModalOpen, setEarningsModalOpen] = useState(false);
+  const [rankingTab, setRankingTab] = useState<'all' | 'daily' | 'monthly' | 'perView'>('all');
 
   const { 
     loading: campaignLoading, 
@@ -94,7 +96,6 @@ function DashboardClientContent() {
 
   const { prizes } = useCompetitionPrizes(selectedCampaignId);
 
-  // Payment management hook
   const { 
     clippers: paymentClippers, 
     loading: paymentsLoading, 
@@ -123,8 +124,8 @@ function DashboardClientContent() {
         .eq('user_id', user.id);
 
       if (ownerError) {
-        console.error('Erro ao buscar campaign_owners:', ownerError);
-        toast.error('Erro ao verificar suas campanhas');
+        console.error('Error fetching campaign_owners:', ownerError);
+        toast.error(t('error'));
         setLoading(false);
         return;
       }
@@ -156,8 +157,8 @@ function DashboardClientContent() {
         }
       }
     } catch (error) {
-      console.error('Erro ao carregar campanhas:', error);
-      toast.error('Erro ao carregar suas campanhas');
+      console.error('Error loading campaigns:', error);
+      toast.error(t('error'));
     } finally {
       setLoading(false);
     }
@@ -170,7 +171,10 @@ function DashboardClientContent() {
   };
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    return new Intl.NumberFormat(language === 'pt' ? 'pt-BR' : 'en-US', { 
+      style: 'currency', 
+      currency: language === 'pt' ? 'BRL' : 'USD' 
+    }).format(value);
   };
 
   const calculateTotalEarnings = () => {
@@ -181,11 +185,10 @@ function DashboardClientContent() {
     return campaign.prize_pool || 0;
   };
 
-  // Using real metrics from hook
   const { data: metricsHistory } = useVideoMetricsHistory(selectedCampaignId, 7);
   
   const viewsData = metricsHistory.map(item => ({
-    date: new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+    date: new Date(item.date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US', { day: '2-digit', month: '2-digit' }),
     views: item.views
   }));
 
@@ -198,7 +201,7 @@ function DashboardClientContent() {
               <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto" />
               <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-primary animate-pulse" />
             </div>
-            <p className="text-muted-foreground">Carregando dashboard...</p>
+            <p className="text-muted-foreground">{t('loadingDashboard')}</p>
           </div>
         </div>
       </MainLayout>
@@ -213,14 +216,14 @@ function DashboardClientContent() {
             <Trophy className="h-16 w-16 text-primary" />
           </div>
           <h2 className="text-3xl font-bold mb-3 text-glow">
-            Nenhuma campanha vinculada
+            {t('noCampaignsLinked')}
           </h2>
           <p className="text-muted-foreground mb-6 max-w-md">
-            Você ainda não é dono de nenhuma campanha. Entre em contato com um administrador para vincular campanhas à sua conta.
+            {t('noCampaignsDescription')}
           </p>
           <Button onClick={() => navigate('/campaigns')} className="premium-gradient">
             <Target className="h-4 w-4 mr-2" />
-            Ver Campanhas Disponíveis
+            {t('viewAvailableCampaigns')}
           </Button>
         </div>
       </MainLayout>
@@ -236,17 +239,17 @@ function DashboardClientContent() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-glow">
-              Dashboard Cliente
+              {t('clientDashboard')}
             </h1>
             <p className="text-muted-foreground mt-1">
-              Acompanhe o desempenho das suas campanhas em tempo real
+              {t('trackPerformance')}
             </p>
           </div>
           
           <div className="flex items-center gap-3">
             <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId}>
               <SelectTrigger className="w-[280px] glass-card border-border/50">
-                <SelectValue placeholder="Selecione uma campanha" />
+                <SelectValue placeholder={t('selectCampaign')} />
               </SelectTrigger>
               <SelectContent>
                 {campaigns.map((c) => (
@@ -277,14 +280,14 @@ function DashboardClientContent() {
               disabled={!selectedCampaign}
             >
               <Calculator className="h-4 w-4 mr-2" />
-              Detalhes
+              {t('details')}
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="hover-glow" disabled={!selectedCampaign || !summary}>
                   <Download className="h-4 w-4 mr-2" />
-                  Exportar
+                  {t('export')}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -304,12 +307,12 @@ function DashboardClientContent() {
                         summary,
                         ranking,
                       }, selectedCampaign.name.toLowerCase().replace(/\s+/g, '-'));
-                      toast.success('Relatório CSV exportado com sucesso!');
+                      toast.success(t('success'));
                     }
                   }}
                 >
                   <FileSpreadsheet className="h-4 w-4 mr-2" />
-                  Exportar CSV
+                  {t('exportCSV')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
@@ -327,12 +330,12 @@ function DashboardClientContent() {
                         summary,
                         ranking,
                       }, selectedCampaign.name.toLowerCase().replace(/\s+/g, '-'));
-                      toast.success('Relatório PDF gerado com sucesso!');
+                      toast.success(t('success'));
                     }
                   }}
                 >
                   <FileText className="h-4 w-4 mr-2" />
-                  Exportar PDF
+                  {t('exportPDF')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -358,19 +361,19 @@ function DashboardClientContent() {
                 <div className="flex flex-wrap items-center gap-3">
                   <h2 className="text-2xl font-bold">{selectedCampaign.name}</h2>
                   <Badge className={selectedCampaign.is_active ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-gray-500/20 text-gray-400'}>
-                    {selectedCampaign.is_active ? 'Ativa' : 'Inativa'}
+                    {selectedCampaign.is_active ? t('active') : t('inactive')}
                   </Badge>
                   <CampaignTypeBadge type={selectedCampaign.campaign_type} />
                 </div>
                 <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
-                    {new Date(selectedCampaign.start_date).toLocaleDateString('pt-BR')} - {new Date(selectedCampaign.end_date).toLocaleDateString('pt-BR')}
+                    {new Date(selectedCampaign.start_date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US')} - {new Date(selectedCampaign.end_date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US')}
                   </span>
                   {selectedCampaign.campaign_type === 'pay_per_view' && (
                     <span className="flex items-center gap-1 text-green-400">
                       <DollarSign className="h-4 w-4" />
-                      R$ {selectedCampaign.payment_rate.toFixed(2)}/1K views
+                      {formatCurrency(selectedCampaign.payment_rate)}/1K views
                     </span>
                   )}
                 </div>
@@ -389,25 +392,25 @@ function DashboardClientContent() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCardGlow
-            title="Total de Views"
+            title={t('totalViews')}
             value={formatNumber(summary?.total_views || 0)}
             icon={Eye}
             glowColor="blue"
           />
           <MetricCardGlow
-            title="Total de Vídeos"
+            title={t('totalVideos')}
             value={summary?.total_posts || 0}
             icon={Video}
             glowColor="purple"
           />
           <MetricCardGlow
-            title="Clipadores"
+            title={t('clippers')}
             value={summary?.total_clippers || 0}
             icon={Users}
             glowColor="orange"
           />
           <MetricCardGlow
-            title="Ganhos Estimados"
+            title={t('estimatedEarnings')}
             value={formatCurrency(calculateTotalEarnings())}
             icon={DollarSign}
             glowColor="green"
@@ -418,11 +421,11 @@ function DashboardClientContent() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ChartLineViews 
             data={viewsData} 
-            title="Evolução de Views (7 dias)" 
+            title={`${t('viewsEvolution')} (${t('last7Days')})`}
           />
           <ChartPiePlatforms 
-            data={platformData.length > 0 ? platformData : [{ platform: 'Sem dados', value: 1 }]} 
-            title="Distribuição por Plataforma" 
+            data={platformData.length > 0 ? platformData : [{ platform: t('noData'), value: 1 }]} 
+            title={t('platformDistribution')}
           />
         </div>
 
@@ -431,15 +434,15 @@ function DashboardClientContent() {
           <TabsList className="glass-card p-1 border border-border/30">
             <TabsTrigger value="ranking" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <Crown className="h-4 w-4 mr-2" />
-              Ranking
+              {t('ranking')}
             </TabsTrigger>
             <TabsTrigger value="videos" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <Film className="h-4 w-4 mr-2" />
-              Vídeos
+              {t('videos')}
             </TabsTrigger>
             <TabsTrigger value="clippers" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <Users className="h-4 w-4 mr-2" />
-              Clipadores
+              {t('clippers')}
               {pendingClippers.length > 0 && (
                 <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                   {pendingClippers.length}
@@ -448,14 +451,14 @@ function DashboardClientContent() {
             </TabsTrigger>
             <TabsTrigger value="stats" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <BarChart3 className="h-4 w-4 mr-2" />
-              Estatísticas
+              {t('statistics')}
             </TabsTrigger>
             <TabsTrigger value="payments" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <Wallet className="h-4 w-4 mr-2" />
-              Pagamentos
+              {t('payments')}
               {totalPending > 0 && (
                 <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-                  Pendente
+                  {t('pending')}
                 </span>
               )}
             </TabsTrigger>
@@ -463,6 +466,18 @@ function DashboardClientContent() {
 
           <TabsContent value="ranking">
             <GlowCard className="p-6">
+              {/* Ranking Sub-tabs */}
+              <div className="mb-6">
+                <Tabs value={rankingTab} onValueChange={(v) => setRankingTab(v as any)}>
+                  <TabsList className="bg-muted/30">
+                    <TabsTrigger value="all">{t('allRankings')}</TabsTrigger>
+                    <TabsTrigger value="perView">{t('perViewRanking')}</TabsTrigger>
+                    <TabsTrigger value="daily">{t('dailyRanking')}</TabsTrigger>
+                    <TabsTrigger value="monthly">{t('monthlyRanking')}</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+              
               {selectedCampaign && (
                 <RankingWithPayment
                   ranking={ranking}
@@ -473,7 +488,7 @@ function DashboardClientContent() {
                   maxPaidViews={campaign?.max_paid_views || Infinity}
                   prizes={prizes}
                   onPaymentComplete={refresh}
-                  title="Ranking com Pagamentos"
+                  title={t('rankingWithPayments')}
                   showPaymentActions={true}
                 />
               )}
@@ -484,7 +499,7 @@ function DashboardClientContent() {
             <GlowCard className="p-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Film className="h-5 w-5 text-primary" />
-                Vídeos da Campanha
+                {t('campaignVideos')}
               </h3>
               {selectedCampaignId && (
                 <CampaignVideosTab campaignId={selectedCampaignId} />
@@ -498,7 +513,7 @@ function DashboardClientContent() {
                 <GlowCard className="p-6" glowColor="orange">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <Users className="h-5 w-5 text-yellow-400" />
-                    Aguardando Aprovação
+                    {t('pendingApproval')}
                     <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
                       {pendingClippers.length}
                     </Badge>
@@ -513,7 +528,7 @@ function DashboardClientContent() {
               <GlowCard className="p-6" glowColor="green">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <Users className="h-5 w-5 text-green-400" />
-                  Clipadores Aprovados
+                  {t('approvedClippers')}
                   <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
                     {approvedClippers.length}
                   </Badge>
@@ -526,7 +541,7 @@ function DashboardClientContent() {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>Nenhum clipador aprovado ainda.</p>
+                    <p>{t('noApprovedClippers')}</p>
                   </div>
                 )}
               </GlowCard>
@@ -538,23 +553,23 @@ function DashboardClientContent() {
               <GlowCard className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-primary" />
-                  Engajamento
+                  {t('engagement')}
                 </h3>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center p-4 rounded-xl bg-muted/20 border border-border/30">
-                    <span className="text-muted-foreground">Taxa de Engajamento</span>
+                    <span className="text-muted-foreground">{t('engagementRate')}</span>
                     <span className="font-bold text-primary">{summary?.engagement_rate || 0}%</span>
                   </div>
                   <div className="flex justify-between items-center p-4 rounded-xl bg-muted/20 border border-border/30">
-                    <span className="text-muted-foreground">Total de Likes</span>
+                    <span className="text-muted-foreground">{t('totalLikes')}</span>
                     <span className="font-semibold">{formatNumber(summary?.total_likes || 0)}</span>
                   </div>
                   <div className="flex justify-between items-center p-4 rounded-xl bg-muted/20 border border-border/30">
-                    <span className="text-muted-foreground">Total de Comentários</span>
+                    <span className="text-muted-foreground">{t('totalComments')}</span>
                     <span className="font-semibold">{formatNumber(summary?.total_comments || 0)}</span>
                   </div>
                   <div className="flex justify-between items-center p-4 rounded-xl bg-muted/20 border border-border/30">
-                    <span className="text-muted-foreground">Total de Compartilhamentos</span>
+                    <span className="text-muted-foreground">{t('totalShares')}</span>
                     <span className="font-semibold">{formatNumber(summary?.total_shares || 0)}</span>
                   </div>
                 </div>
@@ -563,29 +578,29 @@ function DashboardClientContent() {
               <GlowCard className="p-6" glowColor="green">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <DollarSign className="h-5 w-5 text-green-400" />
-                  Resumo Financeiro
+                  {t('financialSummary')}
                 </h3>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
-                    <span className="text-muted-foreground">Ganhos estimados dos clipadores</span>
+                    <span className="text-muted-foreground">{t('clipperEstimatedEarnings')}</span>
                     <span className="font-bold text-green-400">{formatCurrency(calculateTotalEarnings())}</span>
                   </div>
                   <div className="flex justify-between items-center p-4 rounded-xl bg-muted/20 border border-border/30">
-                    <span className="text-muted-foreground">Média por vídeo</span>
+                    <span className="text-muted-foreground">{t('averagePerVideo')}</span>
                     <span className="font-semibold">
                       {formatCurrency(summary?.total_posts ? calculateTotalEarnings() / summary.total_posts : 0)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center p-4 rounded-xl bg-muted/20 border border-border/30">
-                    <span className="text-muted-foreground">Média por clipador</span>
+                    <span className="text-muted-foreground">{t('averagePerClipper')}</span>
                     <span className="font-semibold">
                       {formatCurrency(summary?.total_clippers ? calculateTotalEarnings() / summary.total_clippers : 0)}
                     </span>
                   </div>
                   {selectedCampaign?.campaign_type === 'pay_per_view' && (
                     <div className="flex justify-between items-center p-4 rounded-xl bg-primary/10 border border-primary/20">
-                      <span className="text-muted-foreground">Taxa por 1K views</span>
-                      <span className="font-bold text-primary">R$ {selectedCampaign.payment_rate.toFixed(2)}</span>
+                      <span className="text-muted-foreground">{t('ratePer1kViews')}</span>
+                      <span className="font-bold text-primary">{formatCurrency(selectedCampaign.payment_rate)}</span>
                     </div>
                   )}
                 </div>
@@ -605,7 +620,7 @@ function DashboardClientContent() {
               <GlowCard className="p-6" glowColor="green">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <Wallet className="h-5 w-5 text-green-400" />
-                  Pagamentos do Mês
+                  {t('paymentsThisMonth')}
                 </h3>
                 <PaymentTable
                   clippers={paymentClippers}

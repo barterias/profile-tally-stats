@@ -3,13 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { 
   Crown, 
   Medal, 
   Award, 
   DollarSign, 
   CheckCircle2, 
-  Clock, 
   Eye, 
   Video,
   Wallet
@@ -42,19 +42,19 @@ export function RankingWithPayment({
   prizes = [],
   paidUsers = [],
   onPaymentComplete,
-  title = "Ranking",
+  title,
   showPaymentActions = true,
 }: RankingWithPaymentProps) {
+  const { t, language } = useLanguage();
   const [selectedUser, setSelectedUser] = useState<RankingItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [paidUsersList, setPaidUsersList] = useState<string[]>(paidUsers);
 
-  // Fetch paid users from campaign_payment_records
   useEffect(() => {
     const fetchPaidUsers = async () => {
       if (!campaignId) return;
       
-      const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+      const currentMonth = new Date().toISOString().slice(0, 7);
       const { data } = await supabase
         .from('campaign_payment_records')
         .select('user_id')
@@ -77,7 +77,10 @@ export function RankingWithPayment({
   };
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    return new Intl.NumberFormat(language === 'pt' ? 'pt-BR' : 'en-US', { 
+      style: 'currency', 
+      currency: language === 'pt' ? 'BRL' : 'USD' 
+    }).format(value);
   };
 
   const calculateEarnings = (item: RankingItem): number => {
@@ -119,7 +122,7 @@ export function RankingWithPayment({
     return (
       <div className="text-center py-8 text-muted-foreground">
         <Award className="h-12 w-12 mx-auto mb-3 opacity-50" />
-        <p>Nenhum participante no ranking ainda.</p>
+        <p>{t('noParticipants')}</p>
       </div>
     );
   }
@@ -128,7 +131,7 @@ export function RankingWithPayment({
     <div className="space-y-4">
       <h3 className="text-lg font-semibold flex items-center gap-2">
         <Crown className="h-5 w-5 text-primary" />
-        {title}
+        {title || t('ranking')}
       </h3>
 
       <div className="space-y-3">
@@ -173,7 +176,7 @@ export function RankingWithPayment({
                   {formatCurrency(earnings)}
                 </p>
                 {campaignType === 'pay_per_view' && item.total_views < minViews && (
-                  <span className="text-xs text-yellow-400">Abaixo do mínimo</span>
+                  <span className="text-xs text-yellow-400">{t('belowMinimum')}</span>
                 )}
               </div>
 
@@ -183,7 +186,7 @@ export function RankingWithPayment({
                   {userPaid ? (
                     <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Pago
+                      {t('paid')}
                     </Badge>
                   ) : (
                     <Button
@@ -193,7 +196,7 @@ export function RankingWithPayment({
                       className="border-green-500/30 text-green-400 hover:bg-green-500/10"
                     >
                       <Wallet className="h-4 w-4 mr-1" />
-                      Pagar
+                      {t('pay')}
                     </Button>
                   )}
                 </div>

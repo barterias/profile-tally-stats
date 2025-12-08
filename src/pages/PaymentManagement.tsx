@@ -20,12 +20,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCampaignPayments } from "@/hooks/useCampaignPayments";
 import { PaymentTable } from "@/components/Payments/PaymentTable";
 import { PaymentSummaryCard } from "@/components/Payments/PaymentSummaryCard";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { ptBR, enUS } from "date-fns/locale";
 import { 
   CalendarIcon, 
   DollarSign, 
@@ -43,12 +44,15 @@ interface Campaign {
 
 function PaymentManagementContent() {
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const { role } = useUserRole();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [periodType, setPeriodType] = useState<'daily' | 'monthly'>('monthly');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [loadingCampaigns, setLoadingCampaigns] = useState(true);
+
+  const locale = language === 'pt' ? ptBR : enUS;
 
   const { 
     clippers, 
@@ -61,7 +65,6 @@ function PaymentManagementContent() {
     refetch
   } = useCampaignPayments(selectedCampaignId, periodType, selectedDate);
 
-  // Fetch campaigns based on role
   useEffect(() => {
     const fetchCampaigns = async () => {
       setLoadingCampaigns(true);
@@ -69,7 +72,6 @@ function PaymentManagementContent() {
         let query = supabase.from('campaigns').select('id, name, campaign_type');
         
         if (role === 'client' && user) {
-          // Get only campaigns owned by this client
           const { data: ownedCampaigns } = await supabase
             .from('campaign_owners')
             .select('campaign_id')
@@ -95,7 +97,7 @@ function PaymentManagementContent() {
         }
       } catch (error) {
         console.error('Error fetching campaigns:', error);
-        toast.error('Erro ao carregar campanhas');
+        toast.error(t('error'));
       } finally {
         setLoadingCampaigns(false);
       }
@@ -104,43 +106,52 @@ function PaymentManagementContent() {
     if (user && role) {
       fetchCampaigns();
     }
-  }, [user, role]);
+  }, [user, role, t]);
 
   const handlePayAllPending = async () => {
     const unpaidCount = clippers.filter(c => c.payment_status !== 'paid' && c.calculated_amount > 0).length;
     if (unpaidCount === 0) {
-      toast.info('Não há pagamentos pendentes');
+      toast.info(t('noData'));
       return;
     }
 
-    if (!confirm(`Confirma o pagamento de ${unpaidCount} clipadores?`)) return;
+    if (!confirm(`${t('confirm')} ${unpaidCount} ${t('clippers')}?`)) return;
 
-    await processAllPayments(`Pagamento em lote - ${format(selectedDate, 'MMMM yyyy', { locale: ptBR })}`);
-    toast.success(`${unpaidCount} pagamentos processados com sucesso!`);
+    await processAllPayments(`${t('payAll')} - ${format(selectedDate, 'MMMM yyyy', { locale })}`);
+    toast.success(t('paymentConfirmed'));
   };
 
   const handleExportCSV = () => {
-    const headers = ['Posição', 'Clipador', 'Views', 'Vídeos', 'Valor', 'Status'];
+    const headers = [t('position'), t('participant'), t('views'), t('videosCount'), t('amount'), t('status')];
     const rows = clippers.map(c => [
       c.position,
       c.username,
       c.total_views,
       c.total_videos,
       c.calculated_amount.toFixed(2),
-      c.payment_status === 'paid' ? 'Pago' : 'Pendente'
+      c.payment_status === 'paid' ? t('paid') : t('pending')
     ]);
 
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `pagamentos_${format(selectedDate, 'yyyy-MM')}.csv`;
+    link.download = `${t('payments')}_${format(selectedDate, 'yyyy-MM')}.csv`;
     link.click();
 
-    toast.success('Relatório exportado com sucesso!');
+    toast.success(t('success'));
   };
 
   const paidClippers = clippers.filter(c => c.payment_status === 'paid').length;
+
+  const getCampaignTypeLabel = (type: string) => {
+    switch(type) {
+      case 'pay_per_view': return t('payPerView');
+      case 'competition_daily': return t('competitionDaily');
+      case 'competition_monthly': return t('competitionMonthly');
+      default: return t('fixedMonthly');
+    }
+  };
 
   if (loadingCampaigns) {
     return (
@@ -160,21 +171,21 @@ function PaymentManagementContent() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <DollarSign className="h-6 w-6 text-primary" />
-              Gestão de Pagamentos
+              {t('paymentManagement')}
             </h1>
             <p className="text-muted-foreground">
-              Gerencie pagamentos para clipadores das suas campanhas
+              {t('managePayments')}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCcw className="h-4 w-4 mr-1" />
-              Atualizar
+              {t('refresh')}
             </Button>
             <Button variant="outline" size="sm" onClick={handleExportCSV}>
               <Download className="h-4 w-4 mr-1" />
-              Exportar
+              {t('export')}
             </Button>
           </div>
         </div>
@@ -185,13 +196,13 @@ function PaymentManagementContent() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {/* Campaign Selector */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Campanha</label>
+                <label className="text-sm font-medium">{t('campaign')}</label>
                 <Select 
                   value={selectedCampaignId || ''} 
                   onValueChange={setSelectedCampaignId}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma campanha" />
+                    <SelectValue placeholder={t('selectCampaign')} />
                   </SelectTrigger>
                   <SelectContent>
                     {campaigns.map(campaign => (
@@ -205,11 +216,11 @@ function PaymentManagementContent() {
 
               {/* Period Type */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Tipo de Período</label>
+                <label className="text-sm font-medium">{t('periodType')}</label>
                 <Tabs value={periodType} onValueChange={(v) => setPeriodType(v as 'daily' | 'monthly')}>
                   <TabsList className="w-full">
-                    <TabsTrigger value="daily" className="flex-1">Diário</TabsTrigger>
-                    <TabsTrigger value="monthly" className="flex-1">Mensal</TabsTrigger>
+                    <TabsTrigger value="daily" className="flex-1">{t('daily')}</TabsTrigger>
+                    <TabsTrigger value="monthly" className="flex-1">{t('monthly')}</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
@@ -217,15 +228,15 @@ function PaymentManagementContent() {
               {/* Date Selector */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">
-                  {periodType === 'monthly' ? 'Mês' : 'Data'}
+                  {periodType === 'monthly' ? t('month') : t('date')}
                 </label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start">
                       <CalendarIcon className="h-4 w-4 mr-2" />
                       {periodType === 'monthly' 
-                        ? format(selectedDate, 'MMMM yyyy', { locale: ptBR })
-                        : format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })
+                        ? format(selectedDate, 'MMMM yyyy', { locale })
+                        : format(selectedDate, 'dd/MM/yyyy', { locale })
                       }
                     </Button>
                   </PopoverTrigger>
@@ -234,7 +245,7 @@ function PaymentManagementContent() {
                       mode="single"
                       selected={selectedDate}
                       onSelect={(date) => date && setSelectedDate(date)}
-                      locale={ptBR}
+                      locale={locale}
                     />
                   </PopoverContent>
                 </Popover>
@@ -249,7 +260,7 @@ function PaymentManagementContent() {
                   disabled={loading || totalPending === 0}
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Pagar Todos Pendentes
+                  {t('payAllPending')}
                 </Button>
               </div>
             </div>
@@ -269,26 +280,23 @@ function PaymentManagementContent() {
           <Card className="bg-muted/20">
             <CardContent className="p-4">
               <div className="flex items-center gap-4 text-sm">
-                <span className="text-muted-foreground">Tipo:</span>
-                <span className="font-medium capitalize">
-                  {campaignInfo.campaign_type === 'pay_per_view' ? 'Pay Per View' : 
-                   campaignInfo.campaign_type === 'competition_daily' ? 'Competição Diária' :
-                   campaignInfo.campaign_type === 'competition_monthly' ? 'Competição Mensal' :
-                   'Fixo'}
+                <span className="text-muted-foreground">{t('type')}:</span>
+                <span className="font-medium">
+                  {getCampaignTypeLabel(campaignInfo.campaign_type)}
                 </span>
                 
                 {campaignInfo.campaign_type === 'pay_per_view' && (
                   <>
-                    <span className="text-muted-foreground ml-4">Taxa:</span>
+                    <span className="text-muted-foreground ml-4">{t('rate')}:</span>
                     <span className="font-medium">R$ {campaignInfo.payment_rate}/1K views</span>
-                    <span className="text-muted-foreground ml-4">Mín. Views:</span>
+                    <span className="text-muted-foreground ml-4">{t('minViews')}:</span>
                     <span className="font-medium">{campaignInfo.min_views.toLocaleString()}</span>
                   </>
                 )}
                 
                 {(campaignInfo.campaign_type === 'competition_daily' || campaignInfo.campaign_type === 'competition_monthly') && (
                   <>
-                    <span className="text-muted-foreground ml-4">Premiação:</span>
+                    <span className="text-muted-foreground ml-4">{t('prizePool')}:</span>
                     <span className="font-medium">R$ {campaignInfo.prize_pool.toLocaleString()}</span>
                   </>
                 )}
@@ -300,7 +308,7 @@ function PaymentManagementContent() {
         {/* Payment Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Ranking e Pagamentos</CardTitle>
+            <CardTitle>{t('rankingWithPayments')}</CardTitle>
           </CardHeader>
           <CardContent>
             <PaymentTable
