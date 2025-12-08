@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import MainLayout from "@/components/Layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,7 @@ import {
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { enUS } from "date-fns/locale";
 import { ClientCampaignModal } from "@/components/Admin/ClientCampaignModal";
 
 interface AdminUser {
@@ -64,6 +65,7 @@ interface AdminUser {
 
 function AdminUsersContent() {
   const { isAdmin } = useAuth();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -100,8 +102,8 @@ function AdminUsersContent() {
 
       setUsers(uniqueUsers);
     } catch (error) {
-      console.error("Erro ao carregar usuários:", error);
-      toast.error("Erro ao carregar usuários");
+      console.error("Error loading users:", error);
+      toast.error(t("users.error_loading"));
     } finally {
       setLoading(false);
     }
@@ -116,10 +118,10 @@ function AdminUsersContent() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast.success("Usuário aprovado com sucesso!");
+      toast.success(t("users.user_approved"));
       fetchUsers();
     } catch (error: any) {
-      toast.error(error.message || "Erro ao aprovar usuário");
+      toast.error(error.message || t("users.error_approving"));
     }
   };
 
@@ -128,10 +130,10 @@ function AdminUsersContent() {
       const { error } = await supabase.rpc("reject_user", { pending_id: userId });
       if (error) throw error;
 
-      toast.success("Usuário rejeitado");
+      toast.success(t("users.user_rejected"));
       fetchUsers();
     } catch (error: any) {
-      toast.error(error.message || "Erro ao rejeitar usuário");
+      toast.error(error.message || t("users.error_rejecting"));
     }
   };
 
@@ -143,10 +145,10 @@ function AdminUsersContent() {
       } as any);
       if (error) throw error;
 
-      toast.success(`Role atualizada para ${newRole}`);
+      toast.success(`${t("users.role_updated")} ${newRole}`);
       fetchUsers();
     } catch (error: any) {
-      toast.error(error.message || "Erro ao atualizar role");
+      toast.error(error.message || t("users.error_updating_role"));
     }
   };
 
@@ -158,10 +160,10 @@ function AdminUsersContent() {
       });
       if (error) throw error;
 
-      toast.success("Advertência atualizada");
+      toast.success(t("users.warning_updated"));
       fetchUsers();
     } catch (error: any) {
-      toast.error(error.message || "Erro ao atualizar advertência");
+      toast.error(error.message || t("users.error_updating_warning"));
     }
   };
 
@@ -186,18 +188,18 @@ function AdminUsersContent() {
 
   const getStatusBadge = (status: string, role: string) => {
     if (role === "admin") {
-      return <Badge className="bg-primary">Admin</Badge>;
+      return <Badge className="bg-primary">{t("status.admin")}</Badge>;
     }
     if (role === "client") {
-      return <Badge className="bg-blue-500">Cliente</Badge>;
+      return <Badge className="bg-blue-500">{t("status.client")}</Badge>;
     }
     if (status === "banned") {
-      return <Badge variant="destructive">Banido</Badge>;
+      return <Badge variant="destructive">{t("status.banned")}</Badge>;
     }
     if (status === "pending") {
-      return <Badge variant="secondary">Pendente</Badge>;
+      return <Badge variant="secondary">{t("status.pending")}</Badge>;
     }
-    return <Badge className="bg-success">Ativo</Badge>;
+    return <Badge className="bg-success">{t("status.active")}</Badge>;
   };
 
   const openClientModal = (userId: string, username: string) => {
@@ -210,7 +212,7 @@ function AdminUsersContent() {
       return (
         <Badge variant="outline" className="border-warning text-warning">
           <AlertTriangle className="h-3 w-3 mr-1" />
-          Advertência
+          {t("status.warning")}
         </Badge>
       );
     }
@@ -218,11 +220,15 @@ function AdminUsersContent() {
       return (
         <Badge variant="outline" className="border-destructive text-destructive">
           <Ban className="h-3 w-3 mr-1" />
-          Advertência Grave
+          {t("status.severe_warning")}
         </Badge>
       );
     }
     return null;
+  };
+
+  const formatDate = (dateString: string, formatStr: string = "MM/dd/yyyy HH:mm") => {
+    return format(new Date(dateString), formatStr, { locale: enUS });
   };
 
   if (loading) {
@@ -243,9 +249,9 @@ function AdminUsersContent() {
           <div className="flex items-center gap-3">
             <Users className="h-8 w-8 text-primary" />
             <div>
-              <h1 className="text-2xl font-bold text-glow">Gerenciar Usuários</h1>
+              <h1 className="text-2xl font-bold text-glow">{t("users.manage_users")}</h1>
               <p className="text-muted-foreground">
-                {users.length} usuários • {pendingUsers.length} pendentes
+                {users.length} {t("users.users_count")} • {pendingUsers.length} {t("users.pending_count")}
               </p>
             </div>
           </div>
@@ -255,7 +261,7 @@ function AdminUsersContent() {
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por email ou username..."
+            placeholder={t("users.search_placeholder")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -266,7 +272,7 @@ function AdminUsersContent() {
           <TabsList>
             <TabsTrigger value="pending" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Pendentes
+              {t("users.pending_tab")}
               {pendingUsers.length > 0 && (
                 <Badge variant="destructive" className="ml-1">
                   {pendingUsers.length}
@@ -275,7 +281,7 @@ function AdminUsersContent() {
             </TabsTrigger>
             <TabsTrigger value="active" className="flex items-center gap-2">
               <UserCheck className="h-4 w-4" />
-              Ativos ({activeUsers.length})
+              {t("users.active_tab")} ({activeUsers.length})
             </TabsTrigger>
           </TabsList>
 
@@ -283,9 +289,9 @@ function AdminUsersContent() {
           <TabsContent value="pending">
             <Card className="glass-card">
               <CardHeader>
-                <CardTitle>Usuários Aguardando Aprovação</CardTitle>
+                <CardTitle>{t("users.awaiting_approval")}</CardTitle>
                 <CardDescription>
-                  Novos registros que precisam ser aprovados
+                  {t("users.new_registrations")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -293,17 +299,17 @@ function AdminUsersContent() {
                   <div className="text-center py-12">
                     <CheckCircle className="h-12 w-12 mx-auto text-success mb-4" />
                     <p className="text-muted-foreground">
-                      Nenhum usuário pendente
+                      {t("users.no_pending_users")}
                     </p>
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Usuário</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Data</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
+                        <TableHead>{t("users.user")}</TableHead>
+                        <TableHead>{t("users.email")}</TableHead>
+                        <TableHead>{t("users.date")}</TableHead>
+                        <TableHead className="text-right">{t("common.actions")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -314,9 +320,7 @@ function AdminUsersContent() {
                           </TableCell>
                           <TableCell>{user.email}</TableCell>
                           <TableCell>
-                            {format(new Date(user.date), "dd/MM/yyyy HH:mm", {
-                              locale: ptBR,
-                            })}
+                            {formatDate(user.date)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
@@ -325,28 +329,28 @@ function AdminUsersContent() {
                                 className="bg-success hover:bg-success/90"
                                 onClick={() =>
                                   openConfirmDialog(
-                                    "Aprovar usuário?",
-                                    `O usuário ${user.username} será aprovado e poderá acessar o sistema.`,
+                                    t("users.approve_user_question"),
+                                    `${user.username} ${t("users.approve_user_desc")}`,
                                     () => handleApprove(user.id)
                                   )
                                 }
                               >
                                 <CheckCircle className="h-4 w-4 mr-1" />
-                                Aprovar
+                                {t("users.approve")}
                               </Button>
                               <Button
                                 size="sm"
                                 variant="destructive"
                                 onClick={() =>
                                   openConfirmDialog(
-                                    "Rejeitar usuário?",
-                                    `O registro de ${user.username} será excluído permanentemente.`,
+                                    t("users.reject_user_question"),
+                                    `${t("users.reject_user_desc")} ${user.username}`,
                                     () => handleReject(user.id)
                                   )
                                 }
                               >
                                 <XCircle className="h-4 w-4 mr-1" />
-                                Rejeitar
+                                {t("users.reject")}
                               </Button>
                             </div>
                           </TableCell>
@@ -363,21 +367,21 @@ function AdminUsersContent() {
           <TabsContent value="active">
             <Card className="glass-card">
               <CardHeader>
-                <CardTitle>Usuários Ativos</CardTitle>
+                <CardTitle>{t("users.active_users")}</CardTitle>
                 <CardDescription>
-                  Gerenciamento de usuários aprovados
+                  {t("users.manage_approved")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Usuário</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Advertência</TableHead>
-                      <TableHead>Membro desde</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead>{t("users.user")}</TableHead>
+                      <TableHead>{t("users.email")}</TableHead>
+                      <TableHead>{t("common.status")}</TableHead>
+                      <TableHead>{t("users.warning_col")}</TableHead>
+                      <TableHead>{t("users.member_since")}</TableHead>
+                      <TableHead className="text-right">{t("common.actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -392,9 +396,7 @@ function AdminUsersContent() {
                         </TableCell>
                         <TableCell>{getWarningBadge(user.warning)}</TableCell>
                         <TableCell>
-                          {format(new Date(user.date), "dd/MM/yyyy", {
-                            locale: ptBR,
-                          })}
+                          {formatDate(user.date, "MM/dd/yyyy")}
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
@@ -409,7 +411,7 @@ function AdminUsersContent() {
                                   onClick={() => openClientModal(user.id, user.username)}
                                 >
                                   <Building2 className="h-4 w-4 mr-2" />
-                                  Tornar Cliente
+                                  {t("users.make_client")}
                                 </DropdownMenuItem>
                               )}
                               {user.role === "client" && (
@@ -417,35 +419,35 @@ function AdminUsersContent() {
                                   onClick={() => openClientModal(user.id, user.username)}
                                 >
                                   <Building2 className="h-4 w-4 mr-2" />
-                                  Editar Campanhas
+                                  {t("users.edit_campaigns")}
                                 </DropdownMenuItem>
                               )}
                               {user.role !== "admin" && (
                                 <DropdownMenuItem
                                   onClick={() =>
                                     openConfirmDialog(
-                                      "Promover a Admin?",
-                                      `${user.username} terá acesso total ao sistema.`,
+                                      t("users.promote_admin_question"),
+                                      `${user.username} ${t("users.promote_admin_desc")}`,
                                       () => handleUpdateRole(user.id, "admin")
                                     )
                                   }
                                 >
                                   <Shield className="h-4 w-4 mr-2" />
-                                  Tornar Admin
+                                  {t("users.make_admin")}
                                 </DropdownMenuItem>
                               )}
                               {user.role === "admin" && (
                                 <DropdownMenuItem
                                   onClick={() =>
                                     openConfirmDialog(
-                                      "Remover Admin?",
-                                      `${user.username} perderá privilégios de administrador.`,
+                                      t("users.remove_admin_question"),
+                                      `${user.username} ${t("users.remove_admin_desc")}`,
                                       () => handleUpdateRole(user.id, "user")
                                     )
                                   }
                                 >
                                   <UserX className="h-4 w-4 mr-2" />
-                                  Remover Admin
+                                  {t("users.remove_admin")}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
@@ -458,29 +460,29 @@ function AdminUsersContent() {
                               >
                                 <AlertTriangle className="h-4 w-4 mr-2" />
                                 {user.warning === "none"
-                                  ? "Adicionar Advertência"
-                                  : "Aumentar Advertência"}
+                                  ? t("users.add_warning")
+                                  : t("users.increase_warning")}
                               </DropdownMenuItem>
                               {user.warning !== "none" && (
                                 <DropdownMenuItem
                                   onClick={() => handleUpdateWarning(user.id, "none")}
                                 >
                                   <CheckCircle className="h-4 w-4 mr-2" />
-                                  Remover Advertência
+                                  {t("users.remove_warning")}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() =>
                                   openConfirmDialog(
-                                    "Banir usuário?",
-                                    `${user.username} não poderá mais acessar o sistema.`,
+                                    t("users.ban_user_question"),
+                                    `${user.username} ${t("users.ban_user_desc")}`,
                                     () => handleUpdateRole(user.id, "banned")
                                   )
                                 }
                               >
                                 <Ban className="h-4 w-4 mr-2" />
-                                Banir Usuário
+                                {t("users.ban_user")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -507,14 +509,14 @@ function AdminUsersContent() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
                   confirmDialog.action();
                   setConfirmDialog({ ...confirmDialog, open: false });
                 }}
               >
-                Confirmar
+                {t("common.confirm")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
