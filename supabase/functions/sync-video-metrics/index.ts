@@ -13,6 +13,7 @@ interface ExternalVideo {
   id: number;
   platform: string;
   video_id?: string;
+  youtube_id?: string;
   video_url?: string;
   link?: string;
   views: number;
@@ -26,6 +27,25 @@ interface ExternalVideo {
   creator_username?: string;
   creator_nickname?: string;
   creator_avatar?: string;
+}
+
+// Extract YouTube video ID from various URL formats
+function extractYoutubeId(link: string): string | null {
+  if (!link) return null;
+  
+  // youtube.com/watch?v=VIDEO_ID
+  const watchMatch = link.match(/[?&]v=([A-Za-z0-9_-]{11})/i);
+  if (watchMatch) return watchMatch[1];
+  
+  // youtube.com/shorts/VIDEO_ID
+  const shortsMatch = link.match(/\/shorts\/([A-Za-z0-9_-]+)/i);
+  if (shortsMatch) return shortsMatch[1];
+  
+  // youtu.be/VIDEO_ID
+  const shortMatch = link.match(/youtu\.be\/([A-Za-z0-9_-]+)/i);
+  if (shortMatch) return shortMatch[1];
+  
+  return null;
 }
 
 // Normalize video link for matching
@@ -142,6 +162,7 @@ async function fetchExternalVideos(): Promise<ExternalVideo[]> {
         id: v.id,
         platform: "youtube",
         video_id: v.youtube_id,
+        youtube_id: v.youtube_id, // Keep the raw youtube_id for matching
         video_url: v.video_download_url,
         link: `https://youtube.com/shorts/${v.youtube_id}`,
         views: v.views || 0,
@@ -202,14 +223,23 @@ Deno.serve(async (req) => {
     const externalVideos = await fetchExternalVideos();
     console.log(`Fetched ${externalVideos.length} external videos`);
 
-    // Create a map for quick lookup
+    // Create maps for quick lookup
     const externalMap = new Map<string, ExternalVideo>();
+    const youtubeIdMap = new Map<string, ExternalVideo>(); // Separate map for YouTube IDs
+    
     for (const video of externalVideos) {
       const key = normalizeLink(video.link || video.video_url || "");
       if (key) {
         externalMap.set(key, video);
       }
+      // Also add to YouTube ID map if it's a YouTube video
+      if (video.platform === "youtube" && video.youtube_id) {
+        youtubeIdMap.set(video.youtube_id.toLowerCase(), video);
+        console.log(`Added YouTube ID to map: ${video.youtube_id}`);
+      }
     }
+
+    console.log(`YouTube ID map has ${youtubeIdMap.size} entries`);
 
     // 3. Match and update campaign videos
     let syncedCount = 0;
@@ -218,7 +248,16 @@ Deno.serve(async (req) => {
 
     for (const campaignVideo of campaignVideos) {
       const normalizedLink = normalizeLink(campaignVideo.video_link);
-      const externalVideo = externalMap.get(normalizedLink);
+      let externalVideo = externalMap.get(normalizedLink);
+      
+      // If not found and it's a YouTube video, try matching by extracted YouTube ID
+      if (!externalVideo && campaignVideo.platform === "youtube") {
+        const youtubeId = extractYoutubeId(campaignVideo.video_link);
+        if (youtubeId) {
+          externalVideo = youtubeIdMap.get(youtubeId.toLowerCase());
+          console.log(`YouTube ID lookup: ${youtubeId} -> ${externalVideo ? 'FOUND' : 'NOT FOUND'}`);
+        }
+      }
 
       if (externalVideo) {
         const newViews = externalVideo.views || 0;
