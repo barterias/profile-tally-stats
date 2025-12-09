@@ -61,6 +61,25 @@ function normalizeLink(link: string): string {
     }
   }
   
+  // Handle YouTube links
+  if (normalized.includes("youtube.com") || normalized.includes("youtu.be")) {
+    // youtube.com/watch?v=VIDEO_ID
+    const watchMatch = link.match(/[?&]v=([A-Za-z0-9_-]{11})/i);
+    if (watchMatch) {
+      return `youtube:${watchMatch[1]}`;
+    }
+    // youtube.com/shorts/VIDEO_ID
+    const shortsMatch = normalized.match(/\/shorts\/([A-Za-z0-9_-]{11})/i);
+    if (shortsMatch) {
+      return `youtube:${shortsMatch[1]}`;
+    }
+    // youtu.be/VIDEO_ID
+    const shortMatch = normalized.match(/youtu\.be\/([A-Za-z0-9_-]{11})/i);
+    if (shortMatch) {
+      return `youtube:${shortMatch[1]}`;
+    }
+  }
+  
   return normalized;
 }
 
@@ -87,6 +106,7 @@ async function fetchExternalVideos(): Promise<ExternalVideo[]> {
         platform: "instagram",
         link: v.link || v.video_url,
       })));
+      console.log(`Fetched ${data.length} Instagram videos from 'videos' table`);
     }
   } catch (error) {
     console.error("Error fetching Instagram videos:", error);
@@ -104,9 +124,39 @@ async function fetchExternalVideos(): Promise<ExternalVideo[]> {
         ...v,
         link: v.link || v.video_url,
       })));
+      console.log(`Fetched ${data.length} TikTok videos from 'social_videos' table`);
     }
   } catch (error) {
     console.error("Error fetching social videos:", error);
+  }
+
+  // Fetch from 'youtube_videos' table (YouTube)
+  try {
+    const response = await fetch(
+      `${EXTERNAL_SUPABASE_URL}/rest/v1/youtube_videos?select=*`,
+      { headers }
+    );
+    if (response.ok) {
+      const data = await response.json();
+      allVideos.push(...data.map((v: any) => ({
+        id: v.id,
+        platform: "youtube",
+        video_id: v.youtube_id,
+        video_url: v.video_download_url,
+        link: `https://youtube.com/shorts/${v.youtube_id}`,
+        views: v.views || 0,
+        likes: v.likes || 0,
+        comments: v.comments || 0,
+        shares: 0,
+        thumbnail: v.thumbnail_url,
+        title: v.title,
+        creator_username: v.channel_name,
+        creator_nickname: v.channel_name,
+      })));
+      console.log(`Fetched ${data.length} YouTube videos from 'youtube_videos' table`);
+    }
+  } catch (error) {
+    console.error("Error fetching YouTube videos:", error);
   }
 
   return allVideos;

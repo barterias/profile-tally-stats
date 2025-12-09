@@ -37,6 +37,12 @@ export interface Video {
   link?: string;
   post_image?: string;
   collected_at?: string;
+  // Campos da tabela 'youtube_videos' (YouTube)
+  youtube_id?: string;
+  channel_name?: string;
+  channel_id?: string;
+  duration_seconds?: number;
+  video_download_url?: string;
 }
 
 export interface VideoHistory {
@@ -144,6 +150,38 @@ export const externalSupabase = {
     if (!response.ok) throw new Error("Erro ao buscar vídeos sociais");
     
     return response.json();
+  },
+
+  async getYoutubeVideos(): Promise<Video[]> {
+    const response = await fetch(
+      `${EXTERNAL_SUPABASE_URL}/rest/v1/youtube_videos?select=*&order=views.desc`,
+      { headers }
+    );
+    
+    if (!response.ok) throw new Error("Erro ao buscar vídeos do YouTube");
+    
+    const data = await response.json();
+    // Map YouTube fields to Video interface
+    return data.map((v: any) => ({
+      id: v.id,
+      platform: "youtube",
+      video_id: v.youtube_id,
+      video_url: v.video_download_url || "",
+      link: `https://youtube.com/shorts/${v.youtube_id}`,
+      title: v.title,
+      thumbnail: v.thumbnail_url,
+      duration: v.duration_seconds,
+      views: v.views || 0,
+      likes: v.likes || 0,
+      comments: v.comments || 0,
+      shares: 0,
+      creator_username: v.channel_name,
+      creator_nickname: v.channel_name,
+      inserted_at: v.created_at,
+      youtube_id: v.youtube_id,
+      channel_name: v.channel_name,
+      channel_id: v.channel_id,
+    }));
   },
 
   // ========== Views ==========
