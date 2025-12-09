@@ -158,22 +158,26 @@ async function fetchExternalVideos(): Promise<ExternalVideo[]> {
     );
     if (response.ok) {
       const data = await response.json();
-      allVideos.push(...data.map((v: any) => ({
-        id: v.id,
-        platform: "youtube",
-        video_id: v.youtube_id,
-        youtube_id: v.youtube_id, // Keep the raw youtube_id for matching
-        video_url: v.video_download_url,
-        link: `https://youtube.com/shorts/${v.youtube_id}`,
-        views: v.views || 0,
-        likes: v.likes || 0,
-        comments: v.comments || 0,
-        shares: 0,
-        thumbnail: v.thumbnail_url,
-        title: v.title,
-        creator_username: v.channel_name,
-        creator_nickname: v.channel_name,
-      })));
+      allVideos.push(...data.map((v: any) => {
+        // Clean youtube_id - remove leading '=' if present
+        const cleanYoutubeId = v.youtube_id?.replace(/^=/, '') || '';
+        return {
+          id: v.id,
+          platform: "youtube",
+          video_id: cleanYoutubeId,
+          youtube_id: cleanYoutubeId, // Keep the cleaned youtube_id for matching
+          video_url: v.video_download_url,
+          link: `https://youtube.com/shorts/${cleanYoutubeId}`,
+          views: v.views || 0,
+          likes: v.likes || 0,
+          comments: v.comments || 0,
+          shares: 0,
+          thumbnail: v.thumbnail_url,
+          title: v.title,
+          creator_username: v.channel_name,
+          creator_nickname: v.channel_name,
+        };
+      }));
       console.log(`Fetched ${data.length} YouTube videos from 'youtube_videos' table`);
     }
   } catch (error) {
