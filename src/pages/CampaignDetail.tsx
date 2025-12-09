@@ -164,9 +164,10 @@ function CampaignDetailContent() {
       }
 
       if (videosData && videosData.length > 0) {
-        const [allInstagramVideos, allTikTokVideos] = await Promise.all([
+        const [allInstagramVideos, allTikTokVideos, allYoutubeVideos] = await Promise.all([
           externalSupabase.getAllVideos(),
           externalSupabase.getSocialVideos(),
+          externalSupabase.getYoutubeVideos(),
         ]);
 
         const normalizeLink = (link: string): string => {
@@ -185,6 +186,21 @@ function CampaignDetailContent() {
           if (instaMatch) return instaMatch[2];
           const tiktokMatch = link.match(/\/video\/(\d+)/);
           if (tiktokMatch) return tiktokMatch[1];
+          return null;
+        };
+
+        // Extract YouTube video ID from various URL formats
+        const extractYoutubeId = (link: string): string | null => {
+          if (!link) return null;
+          // youtube.com/watch?v=VIDEO_ID
+          const watchMatch = link.match(/[?&]v=([A-Za-z0-9_-]{11})/i);
+          if (watchMatch) return watchMatch[1];
+          // youtube.com/shorts/VIDEO_ID
+          const shortsMatch = link.match(/\/shorts\/([A-Za-z0-9_-]+)/i);
+          if (shortsMatch) return shortsMatch[1].split('?')[0]; // Remove query params
+          // youtu.be/VIDEO_ID
+          const shortMatch = link.match(/youtu\.be\/([A-Za-z0-9_-]+)/i);
+          if (shortMatch) return shortMatch[1].split('?')[0];
           return null;
         };
 
@@ -256,6 +272,26 @@ function CampaignDetailContent() {
                       likes: match.likes || 0,
                       comments: match.comments || 0,
                       shares: match.shares || 0,
+                    };
+                  }
+                }
+              } else if (video.platform === "youtube") {
+                // Extract YouTube ID from campaign video link
+                const youtubeId = extractYoutubeId(video.video_link);
+                
+                if (youtubeId && allYoutubeVideos) {
+                  // Match by youtube_id (external table stores without leading =)
+                  const matchById = allYoutubeVideos.find(v => {
+                    const externalId = (v.youtube_id || v.video_id || '').replace(/^=/, '');
+                    return externalId.toLowerCase() === youtubeId.toLowerCase();
+                  });
+                  
+                  if (matchById) {
+                    metrics = {
+                      views: matchById.views || 0,
+                      likes: matchById.likes || 0,
+                      comments: matchById.comments || 0,
+                      shares: matchById.shares || 0,
                     };
                   }
                 }
