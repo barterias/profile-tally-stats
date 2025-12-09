@@ -30,10 +30,11 @@ export async function syncCampaignVideoMetrics(campaignId?: string): Promise<Syn
       return result;
     }
 
-    // Buscar todos os vídeos do banco externo
-    const [externalVideos, externalSocialVideos] = await Promise.all([
+    // Buscar todos os vídeos do banco externo (Instagram, TikTok e YouTube)
+    const [externalVideos, externalSocialVideos, externalYoutubeVideos] = await Promise.all([
       externalSupabase.getAllVideos(),
       externalSupabase.getSocialVideos(),
+      externalSupabase.getYoutubeVideos(),
     ]);
 
     // Criar mapa de vídeos externos por link normalizado
@@ -53,6 +54,18 @@ export async function syncCampaignVideoMetrics(campaignId?: string): Promise<Syn
 
     for (const video of externalSocialVideos) {
       const link = normalizeLink(video.video_url || video.link);
+      if (link) {
+        externalVideoMap.set(link, {
+          views: video.views || 0,
+          likes: video.likes || 0,
+          comments: video.comments || 0,
+          shares: video.shares || 0,
+        });
+      }
+    }
+
+    for (const video of externalYoutubeVideos) {
+      const link = normalizeLink(video.link || video.video_url);
       if (link) {
         externalVideoMap.set(link, {
           views: video.views || 0,
@@ -137,14 +150,52 @@ export async function syncCampaignVideoMetrics(campaignId?: string): Promise<Syn
 function normalizeLink(link: string | undefined | null): string {
   if (!link) return "";
   
-  // Remove parâmetros de query
-  let normalized = link.split("?")[0];
+  let normalized = link.trim().toLowerCase();
   
-  // Remove trailing slash
-  normalized = normalized.replace(/\/$/, "");
+  // Remove trailing slashes
+  normalized = normalized.replace(/\/+$/, "");
   
-  // Converte para minúsculas
-  normalized = normalized.toLowerCase();
+  // Remove query params and fragments
+  normalized = normalized.split("?")[0].split("#")[0];
+  
+  // Handle Instagram links
+  if (normalized.includes("instagram.com")) {
+    const match = normalized.match(/\/(?:p|reel|reels)\/([A-Za-z0-9_-]+)/i);
+    if (match) {
+      return `instagram:${match[1]}`;
+    }
+  }
+  
+  // Handle TikTok links
+  if (normalized.includes("tiktok.com")) {
+    const match = normalized.match(/\/video\/(\d+)/i);
+    if (match) {
+      return `tiktok:${match[1]}`;
+    }
+    const vmMatch = normalized.match(/vm\.tiktok\.com\/([A-Za-z0-9]+)/i);
+    if (vmMatch) {
+      return `tiktok:${vmMatch[1]}`;
+    }
+  }
+  
+  // Handle YouTube links
+  if (normalized.includes("youtube.com") || normalized.includes("youtu.be")) {
+    // youtube.com/watch?v=VIDEO_ID
+    const watchMatch = link.match(/[?&]v=([A-Za-z0-9_-]{11})/i);
+    if (watchMatch) {
+      return `youtube:${watchMatch[1]}`;
+    }
+    // youtube.com/shorts/VIDEO_ID
+    const shortsMatch = normalized.match(/\/shorts\/([A-Za-z0-9_-]{11})/i);
+    if (shortsMatch) {
+      return `youtube:${shortsMatch[1]}`;
+    }
+    // youtu.be/VIDEO_ID
+    const shortMatch = normalized.match(/youtu\.be\/([A-Za-z0-9_-]{11})/i);
+    if (shortMatch) {
+      return `youtube:${shortMatch[1]}`;
+    }
+  }
   
   return normalized;
 }
@@ -163,16 +214,17 @@ export async function getAggregatedMetrics(campaignId: string) {
     return { total_views: 0, total_likes: 0, total_comments: 0, total_shares: 0 };
   }
 
-  // Buscar dados externos
-  const [externalVideos, externalSocialVideos] = await Promise.all([
+  // Buscar dados externos (Instagram, TikTok e YouTube)
+  const [externalVideos, externalSocialVideos, externalYoutubeVideos] = await Promise.all([
     externalSupabase.getAllVideos(),
     externalSupabase.getSocialVideos(),
+    externalSupabase.getYoutubeVideos(),
   ]);
 
   // Criar mapa de métricas
   const metricsMap = new Map<string, { views: number; likes: number; comments: number; shares: number }>();
   
-  for (const video of [...externalVideos, ...externalSocialVideos]) {
+  for (const video of [...externalVideos, ...externalSocialVideos, ...externalYoutubeVideos]) {
     const link = normalizeLink(video.link || video.video_url);
     if (link) {
       metricsMap.set(link, {
