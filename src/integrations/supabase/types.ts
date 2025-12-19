@@ -1847,6 +1847,15 @@ export type Database = {
       }
       approve_user: { Args: { pending_id: string }; Returns: undefined }
       ban_user: { Args: { p_user_id: string }; Returns: undefined }
+      check_pending_user_status: {
+        Args: { p_email: string }
+        Returns: {
+          created_at: string
+          email: string
+          id: string
+          username: string
+        }[]
+      }
       get_admin_users_view: {
         Args: never
         Returns: {
