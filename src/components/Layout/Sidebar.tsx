@@ -12,13 +12,10 @@ import {
   Video,
   Users,
   BarChart3,
-  Medal,
   Zap,
   ChevronLeft,
   ChevronRight,
   UserCircle,
-  DollarSign,
-  Instagram,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -39,13 +36,13 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: t("nav.campaigns"), href: "/campaigns", icon: Trophy },
     { name: t("nav.submit"), href: "/submit", icon: Upload },
     { name: t("nav.wallet"), href: "/wallet", icon: Wallet },
-    { name: "Instagram", href: "/instagram", icon: Instagram },
+    { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
   ];
 
   const clientNavigation = [
     { name: t("nav.dashboard"), href: "/dashboard/client", icon: LayoutDashboard },
     { name: t("nav.clippers"), href: "/dashboard/client", icon: Users },
-    { name: "Instagram", href: "/instagram", icon: Instagram },
+    { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
   ];
 
   const adminNavigation = [
@@ -53,8 +50,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: t("nav.campaigns"), href: "/admin/campaigns", icon: Trophy },
     { name: t("nav.submissions"), href: "/admin/submissions", icon: Video },
     { name: t("nav.users"), href: "/admin/users", icon: Users },
-    { name: t("nav.statistics"), href: "/admin/stats", icon: BarChart3 },
-    { name: "Instagram", href: "/instagram", icon: Instagram },
+    { name: t("nav.statistics"), href: "/admin/stats", icon: TrendingUp },
+    { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
   ];
 
   const accountNavigation = [
