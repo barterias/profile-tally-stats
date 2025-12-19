@@ -284,6 +284,7 @@ export type Database = {
           created_at: string
           description: string | null
           end_date: string
+          hashtags: string[] | null
           id: string
           image_url: string | null
           is_active: boolean
@@ -305,6 +306,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_date: string
+          hashtags?: string[] | null
           id?: string
           image_url?: string | null
           is_active?: boolean
@@ -326,6 +328,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_date?: string
+          hashtags?: string[] | null
           id?: string
           image_url?: string | null
           is_active?: boolean
