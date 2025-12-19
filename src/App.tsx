@@ -33,6 +33,9 @@ import RankingGlobal from "./pages/RankingGlobal";
 import RankingDaily from "./pages/RankingDaily";
 import PaymentManagement from "./pages/PaymentManagement";
 import NotFound from "./pages/NotFound";
+import SocialDashboard from "./pages/SocialDashboard";
+import SocialAccounts from "./pages/SocialAccounts";
+import SocialSettings from "./pages/SocialSettings";
 
 const queryClient = new QueryClient();
 
