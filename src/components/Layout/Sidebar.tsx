@@ -33,7 +33,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const clipperNavigation = [
     { name: t("nav.dashboard"), href: "/", icon: LayoutDashboard },
     { name: t("nav.campaigns"), href: "/campaigns", icon: Trophy },
-    { name: t("nav.submit"), href: "/submit", icon: Upload },
     { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
   ];
 
@@ -48,7 +47,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: t("nav.submissions"), href: "/admin/submissions", icon: Video },
     { name: t("nav.users"), href: "/admin/users", icon: Users },
     { name: t("nav.statistics"), href: "/admin/stats", icon: TrendingUp },
-    { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
   ];
 
   const accountNavigation = [
@@ -70,7 +68,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         className={cn(
           "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300",
           active
-            ? "bg-gradient-to-r from-primary/20 to-accent/10 text-primary border border-primary/30 shadow-[0_0_20px_hsl(var(--primary)/0.2)]"
+            ? "bg-gradient-to-r from-primary/20 to-accent/10 text-primary border border-primary/30"
             : "text-muted-foreground hover:text-foreground hover:bg-secondary/50",
           collapsed && "justify-center px-2"
         )}

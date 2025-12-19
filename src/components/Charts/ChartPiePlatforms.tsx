@@ -52,7 +52,8 @@ export function ChartPiePlatforms({ data, title }: ChartPiePlatformsProps) {
               contentStyle={{ 
                 backgroundColor: 'hsl(var(--card))', 
                 border: '1px solid hsl(var(--border))',
-                borderRadius: '8px'
+                borderRadius: '8px',
+                color: 'hsl(var(--foreground))'
               }}
               formatter={(value: number) => {
                 if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;

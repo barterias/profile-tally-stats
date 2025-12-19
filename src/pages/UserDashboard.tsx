@@ -425,25 +425,9 @@ export default function UserDashboard() {
         )}
 
         {/* Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Card
             className="glass-card-hover p-6 cursor-pointer animate-scale-in"
-            onClick={() => navigate("/submit")}
-          >
-            <Upload className="h-8 w-8 text-primary mb-4" />
-            <h3 className="font-semibold mb-2">Enviar Post</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Participe das competições enviando seus vídeos
-            </p>
-            <Button variant="ghost" size="sm" className="w-full justify-between">
-              Enviar Agora
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Card>
-
-          <Card
-            className="glass-card-hover p-6 cursor-pointer animate-scale-in"
-            style={{ animationDelay: "0.1s" }}
             onClick={() => navigate("/campaigns")}
           >
             <Trophy className="h-8 w-8 text-primary mb-4" />
@@ -459,23 +443,23 @@ export default function UserDashboard() {
 
           <Card
             className="glass-card-hover p-6 cursor-pointer animate-scale-in"
-            style={{ animationDelay: "0.2s" }}
-            onClick={() => navigate("/wallet")}
+            style={{ animationDelay: "0.1s" }}
+            onClick={() => navigate("/account-analytics")}
           >
-            <Wallet className="h-8 w-8 text-primary mb-4" />
-            <h3 className="font-semibold mb-2">Carteira</h3>
+            <TrendingUp className="h-8 w-8 text-primary mb-4" />
+            <h3 className="font-semibold mb-2">Métricas</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Gerencie seus ganhos e solicite saques
+              Acompanhe suas contas e métricas
             </p>
             <Button variant="ghost" size="sm" className="w-full justify-between">
-              Acessar Carteira
+              Ver Métricas
               <ArrowRight className="h-4 w-4" />
             </Button>
           </Card>
 
           <Card
             className="glass-card-hover p-6 cursor-pointer animate-scale-in"
-            style={{ animationDelay: "0.3s" }}
+            style={{ animationDelay: "0.2s" }}
             onClick={() => navigate("/profile")}
           >
             <User className="h-8 w-8 text-primary mb-4" />
