@@ -38,7 +38,7 @@ import {
 } from "recharts";
 
 export default function UserDashboard() {
-  const { user } = useAuth();
+  const { user, isAdmin, isClient } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -53,9 +53,23 @@ export default function UserDashboard() {
   const [latestPosts, setLatestPosts] = useState<UnifiedPost[]>([]);
   const [mostViewedPost, setMostViewedPost] = useState<UnifiedPost | null>(null);
 
+  // Redirect admins and clients to their respective dashboards
   useEffect(() => {
-    fetchUserData();
-  }, [user]);
+    if (isAdmin) {
+      navigate('/dashboard/admin', { replace: true });
+      return;
+    }
+    if (isClient) {
+      navigate('/dashboard/client', { replace: true });
+      return;
+    }
+  }, [isAdmin, isClient, navigate]);
+
+  useEffect(() => {
+    if (!isAdmin && !isClient) {
+      fetchUserData();
+    }
+  }, [user, isAdmin, isClient]);
 
   const fetchUserData = async () => {
     try {

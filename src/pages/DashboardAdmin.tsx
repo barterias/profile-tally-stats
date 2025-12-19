@@ -13,6 +13,7 @@ import { useSocialMetrics } from "@/hooks/useSocialMetrics";
 import { useAllInstagramAccounts } from "@/hooks/useInstagramAccounts";
 import { useAllTikTokAccounts } from "@/hooks/useTikTokAccounts";
 import { useAllYouTubeAccounts } from "@/hooks/useYouTubeAccounts";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { 
   Trophy, 
   Users, 
@@ -48,6 +49,7 @@ interface PendingClipper {
 
 function DashboardAdminContent() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [pendingClippers, setPendingClippers] = useState<PendingClipper[]>([]);
@@ -119,7 +121,7 @@ function DashboardAdminContent() {
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      toast.error('Erro ao carregar dados do dashboard');
+      toast.error(t('msg.error_loading'));
     } finally {
       setLoading(false);
     }
@@ -127,7 +129,7 @@ function DashboardAdminContent() {
 
   const handleRefresh = async () => {
     await Promise.all([fetchData(), refetchMetrics()]);
-    toast.success('Dashboard atualizado!');
+    toast.success(t('common.refresh') + '!');
   };
 
   const formatNumber = (num: number) => {
@@ -145,7 +147,7 @@ function DashboardAdminContent() {
               <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto" />
               <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-primary animate-pulse" />
             </div>
-            <p className="text-muted-foreground">Carregando dashboard...</p>
+            <p className="text-muted-foreground">{t('loadingDashboard')}</p>
           </div>
         </div>
       </MainLayout>
@@ -167,26 +169,26 @@ function DashboardAdminContent() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-glow">
-              Dashboard Admin
+              {t('dashboard.title')} Admin
             </h1>
-            <p className="text-muted-foreground mt-1">Visão geral de todas as métricas</p>
+            <p className="text-muted-foreground mt-1">{t('dashboard.overview')}</p>
           </div>
           <div className="flex flex-wrap gap-3 items-center">
             <Button variant="outline" onClick={handleRefresh}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Atualizar
+              {t('common.refresh')}
             </Button>
             <Button onClick={() => navigate('/admin/campaigns')} variant="outline">
               <Trophy className="h-4 w-4 mr-2" />
-              Campanhas
+              {t('nav.campaigns')}
             </Button>
             <Button onClick={() => navigate('/account-analytics')} variant="outline">
               <TrendingUp className="h-4 w-4 mr-2" />
-              Contas Sociais
+              {t('accounts')}
             </Button>
             <Button onClick={() => navigate('/admin/create-campaign')}>
               <Plus className="h-4 w-4 mr-2" />
-              Nova Campanha
+              {t('campaigns.new_campaign')}
             </Button>
           </div>
         </div>
@@ -194,25 +196,25 @@ function DashboardAdminContent() {
         {/* Social Media Stats Grid - Real data from useSocialMetrics hook */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCardGlow
-            title="Seguidores Totais"
+            title={t('followers')}
             value={formatNumber(socialMetrics?.totalFollowers || 0)}
             icon={Users}
             glowColor="blue"
           />
           <MetricCardGlow
-            title="Visualizações Totais"
+            title={t('dashboard.total_views')}
             value={formatNumber(socialMetrics?.totalViews || 0)}
             icon={Eye}
             glowColor="green"
           />
           <MetricCardGlow
-            title="Curtidas Totais"
+            title={t('totalLikes')}
             value={formatNumber(socialMetrics?.totalLikes || 0)}
             icon={TrendingUp}
             glowColor="purple"
           />
           <MetricCardGlow
-            title="Vídeos/Posts"
+            title={t('videos')}
             value={formatNumber(socialMetrics?.totalVideos || 0)}
             icon={Video}
             glowColor="orange"
@@ -233,20 +235,20 @@ function DashboardAdminContent() {
                   {platform.platform === 'YouTube' && <Youtube className="h-6 w-6 text-red-500" />}
                   <h3 className="font-semibold">{platform.platform}</h3>
                 </div>
-                <span className="text-sm text-muted-foreground">{platform.accounts} contas</span>
+                <span className="text-sm text-muted-foreground">{platform.accounts} {t('accounts')}</span>
               </div>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
                   <p className="text-2xl font-bold">{formatNumber(platform.followers)}</p>
-                  <p className="text-xs text-muted-foreground">Seguidores</p>
+                  <p className="text-xs text-muted-foreground">{t('followers')}</p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{formatNumber(platform.views)}</p>
-                  <p className="text-xs text-muted-foreground">Views</p>
+                  <p className="text-xs text-muted-foreground">{t('views')}</p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{formatNumber(platform.likes)}</p>
-                  <p className="text-xs text-muted-foreground">Curtidas</p>
+                  <p className="text-xs text-muted-foreground">{t('likes')}</p>
                 </div>
               </div>
             </GlowCard>
@@ -256,32 +258,32 @@ function DashboardAdminContent() {
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ChartPiePlatforms 
-            data={chartPlatformData.length > 0 ? chartPlatformData : [{ platform: 'Sem dados', value: 1 }]} 
-            title="Distribuição por Plataforma" 
+            data={chartPlatformData.length > 0 ? chartPlatformData : [{ platform: t('noData'), value: 1 }]} 
+            title={t('dashboard.platform_distribution')} 
           />
           <GlowCard className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Resumo de Contas</h3>
+            <h3 className="text-lg font-semibold mb-4">{t('socialMediaOverview')}</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-pink-500/10 to-pink-500/5 border border-pink-500/20">
                 <div className="flex items-center gap-3">
                   <Instagram className="h-5 w-5 text-pink-500" />
                   <span>Instagram</span>
                 </div>
-                <span className="font-semibold">{instagramAccounts.length} contas</span>
+                <span className="font-semibold">{instagramAccounts.length} {t('accounts')}</span>
               </div>
               <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-purple-500/5 border border-purple-500/20">
                 <div className="flex items-center gap-3">
                   <Video className="h-5 w-5 text-purple-500" />
                   <span>TikTok</span>
                 </div>
-                <span className="font-semibold">{tiktokAccounts.length} contas</span>
+                <span className="font-semibold">{tiktokAccounts.length} {t('accounts')}</span>
               </div>
               <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-red-500/10 to-red-500/5 border border-red-500/20">
                 <div className="flex items-center gap-3">
                   <Youtube className="h-5 w-5 text-red-500" />
                   <span>YouTube</span>
                 </div>
-                <span className="font-semibold">{youtubeAccounts.length} canais</span>
+                <span className="font-semibold">{youtubeAccounts.length} {t('accounts')}</span>
               </div>
             </div>
           </GlowCard>
@@ -292,11 +294,11 @@ function DashboardAdminContent() {
           <TabsList className="glass-card p-1 border border-border/30">
             <TabsTrigger value="campaigns" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <Trophy className="h-4 w-4 mr-2" />
-              Campanhas
+              {t('nav.campaigns')}
             </TabsTrigger>
             <TabsTrigger value="clippers" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <Users className="h-4 w-4 mr-2" />
-              Clipadores Pendentes
+              {t('clippers.pending_clippers')}
               {pendingClippers.length > 0 && (
                 <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-yellow-500/20 text-yellow-400">
                   {pendingClippers.length}
@@ -308,14 +310,14 @@ function DashboardAdminContent() {
           <TabsContent value="campaigns">
             <GlowCard>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Lista de Campanhas</h3>
+                <h3 className="text-lg font-semibold">{t('campaigns.title')}</h3>
                 <Button variant="ghost" size="sm" onClick={() => navigate('/admin/campaigns')}>
-                  Ver todas
+                  {t('common.view')}
                 </Button>
               </div>
               <div className="space-y-3">
                 {campaigns.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">Nenhuma campanha encontrada.</p>
+                  <p className="text-center text-muted-foreground py-8">{t('campaigns.no_campaigns_found')}</p>
                 ) : (
                   campaigns.slice(0, 5).map((campaign) => (
                     <div 
@@ -328,12 +330,12 @@ function DashboardAdminContent() {
                         <div>
                           <p className="font-medium">{campaign.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {formatNumber(campaign.total_views)} views • {campaign.total_posts} posts
+                            {formatNumber(campaign.total_views)} {t('views')} • {campaign.total_posts} posts
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium text-primary">{campaign.total_clippers} clipadores</p>
+                        <p className="text-sm font-medium text-primary">{campaign.total_clippers} {t('clippers')}</p>
                       </div>
                     </div>
                   ))
@@ -345,9 +347,9 @@ function DashboardAdminContent() {
           <TabsContent value="clippers">
             <GlowCard>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Clipadores Aguardando Aprovação</h3>
+                <h3 className="text-lg font-semibold">{t('pendingApproval')}</h3>
                 <Button variant="ghost" size="sm" onClick={() => navigate('/admin/users')}>
-                  Ver todos
+                  {t('common.view')}
                 </Button>
               </div>
               <ClippersTable 
