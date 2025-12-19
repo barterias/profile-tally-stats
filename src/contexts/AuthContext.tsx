@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import bcrypt from "bcryptjs";
 
 interface AuthContextType {
   user: User | null;
@@ -100,13 +101,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, username: string) => {
     try {
+      // Hash the password before storing
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
       // Inserir na tabela pending_users em vez de criar direto no auth
       const { error } = await supabase
         .from("pending_users")
         .insert({
           email,
           username,
-          password_hash: password, // Na produção, deve ser hasheado
+          password_hash: hashedPassword,
         });
       
       if (error) throw error;

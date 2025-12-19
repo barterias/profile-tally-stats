@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import * as bcrypt from 'https://deno.land/x/bcrypt@v0.4.1/mod.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -85,10 +86,14 @@ Deno.serve(async (req) => {
       throw new Error('Usuário pendente não encontrado')
     }
 
+    // Generate a random temporary password for the new user
+    // The stored password_hash is now properly hashed and cannot be used directly
+    const tempPassword = crypto.randomUUID()
+
     // Criar usuário no auth.users usando Admin API
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: pendingUser.email,
-      password: pendingUser.password_hash,
+      password: tempPassword,
       email_confirm: true,
       user_metadata: {
         username: pendingUser.username

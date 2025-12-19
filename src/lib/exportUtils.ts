@@ -43,6 +43,17 @@ const formatNumber = (num: number): string => {
   return new Intl.NumberFormat('pt-BR').format(num);
 };
 
+// HTML escape function to prevent XSS attacks
+const escapeHtml = (unsafe: string): string => {
+  if (typeof unsafe !== 'string') return '';
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
 const getCampaignTypeLabel = (type: string): string => {
   switch (type) {
     case 'pay_per_view':
@@ -54,7 +65,7 @@ const getCampaignTypeLabel = (type: string): string => {
     case 'competition_monthly':
       return 'Competição Mensal';
     default:
-      return type;
+      return escapeHtml(type);
   }
 };
 
@@ -66,7 +77,7 @@ export function exportToCSV(data: ExportData, filename: string = 'campaign-repor
   
   // Campaign Info Header
   csvContent += 'RELATÓRIO DA CAMPANHA\n';
-  csvContent += `Nome,${campaign.name}\n`;
+  csvContent += `Nome,"${escapeHtml(campaign.name)}"\n`;
   csvContent += `Tipo,${getCampaignTypeLabel(campaign.campaign_type)}\n`;
   csvContent += `Período,${new Date(campaign.start_date).toLocaleDateString('pt-BR')} a ${new Date(campaign.end_date).toLocaleDateString('pt-BR')}\n`;
   csvContent += `Plataformas,${campaign.platforms.join(', ')}\n`;
@@ -95,7 +106,7 @@ export function exportToCSV(data: ExportData, filename: string = 'campaign-repor
   csvContent += 'Posição,Nome,Vídeos,Views,Likes,Ganhos Estimados\n';
   
   ranking.forEach((item) => {
-    csvContent += `${item.rank_position},${item.username},${item.total_videos},${formatNumber(item.total_views)},${formatNumber(item.total_likes || 0)},${formatCurrency(item.estimated_earnings || 0)}\n`;
+    csvContent += `${item.rank_position},"${escapeHtml(item.username)}",${item.total_videos},${formatNumber(item.total_views)},${formatNumber(item.total_likes || 0)},${formatCurrency(item.estimated_earnings || 0)}\n`;
   });
   
   // Download
@@ -245,8 +256,8 @@ export function exportToPDF(data: ExportData, filename: string = 'campaign-repor
     </head>
     <body>
       <div class="header">
-        <h1>${campaign.name}</h1>
-        <p>${getCampaignTypeLabel(campaign.campaign_type)} • ${campaign.platforms.join(', ')}</p>
+        <h1>${escapeHtml(campaign.name)}</h1>
+        <p>${getCampaignTypeLabel(campaign.campaign_type)} • ${campaign.platforms.map(p => escapeHtml(p)).join(', ')}</p>
         <p>${new Date(campaign.start_date).toLocaleDateString('pt-BR')} - ${new Date(campaign.end_date).toLocaleDateString('pt-BR')}</p>
       </div>
 
@@ -323,7 +334,7 @@ export function exportToPDF(data: ExportData, filename: string = 'campaign-repor
             ${ranking.map(item => `
               <tr>
                 <td class="${item.rank_position <= 3 ? `rank-${item.rank_position}` : ''}">${item.rank_position}º</td>
-                <td>${item.username}</td>
+                <td>${escapeHtml(item.username)}</td>
                 <td>${item.total_videos}</td>
                 <td>${formatNumber(item.total_views)}</td>
                 <td>${formatNumber(item.total_likes || 0)}</td>
