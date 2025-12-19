@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, Heart, MessageCircle, Share2, RefreshCw, Loader2 } from 'lucide-react';
+import { Eye, Heart, MessageCircle, Share2, RefreshCw, Loader2, ExternalLink } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useVideoDetails } from '@/hooks/useVideoDetails';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface Video {
   id: string;
@@ -94,7 +95,7 @@ export function AccountVideosModal({
         <DialogHeader>
           <DialogTitle>{platformLabels[platform]} de @{accountName}</DialogTitle>
           <DialogDescription>
-            {videos.length} {platformLabels[platform].toLowerCase()} encontrados. Clique no ícone de sincronização para atualizar visualizações individuais.
+            {videos.length} {platformLabels[platform].toLowerCase()} encontrados. Clique em qualquer vídeo para abrir no {platform === 'youtube' ? 'YouTube' : platform === 'instagram' ? 'Instagram' : 'TikTok'}.
           </DialogDescription>
         </DialogHeader>
 
@@ -124,7 +125,12 @@ export function AccountVideosModal({
                   href={video.videoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors overflow-hidden cursor-pointer block"
+                  className="group rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-primary/50 transition-all overflow-hidden cursor-pointer block"
+                  onClick={() => {
+                    if (!video.videoUrl) {
+                      toast.error('URL do vídeo não disponível');
+                    }
+                  }}
                 >
                   {/* Thumbnail */}
                   <div className="aspect-video bg-muted relative overflow-hidden">
@@ -147,6 +153,13 @@ export function AccountVideosModal({
                       <Eye className="h-3 w-3 mr-1" />
                       {formatNumber(video.viewsCount)}
                     </Badge>
+                    {/* External link indicator */}
+                    <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Badge className="bg-primary text-primary-foreground">
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        Abrir
+                      </Badge>
+                    </div>
                   </div>
 
                   {/* Content */}
