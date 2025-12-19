@@ -132,6 +132,7 @@ export function YouTubeTab() {
       <AccountVideosModal
         platform="youtube"
         accountName={selectedAccount?.username || ''}
+        accountId={selectedAccount?.id}
         videos={videos.map(v => ({ id: v.id, title: v.title, thumbnailUrl: v.thumbnail_url, viewsCount: v.views_count || 0, likesCount: v.likes_count || 0, commentsCount: v.comments_count || 0, videoUrl: v.video_url, postedAt: v.published_at }))}
         isLoading={videosLoading}
         open={videosModalOpen}

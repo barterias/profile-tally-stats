@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Instagram, RefreshCw, Trash2, ExternalLink, MoreHorizontal } from 'lucide-react';
+import { Instagram, RefreshCw, Trash2, ExternalLink, MoreHorizontal, Video } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -26,6 +26,7 @@ interface InstagramAccountsTableProps {
   isLoading: boolean;
   onSync: (accountId: string) => void;
   onDelete: (accountId: string) => void;
+  onViewPosts?: (accountId: string, username: string) => void;
   isSyncing?: boolean;
 }
 
@@ -44,6 +45,7 @@ export function InstagramAccountsTable({
   isLoading,
   onSync,
   onDelete,
+  onViewPosts,
   isSyncing,
 }: InstagramAccountsTableProps) {
   if (isLoading) {
@@ -139,6 +141,12 @@ export function InstagramAccountsTable({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {onViewPosts && (
+                    <DropdownMenuItem onClick={() => onViewPosts(account.id, account.username)}>
+                      <Video className="h-4 w-4 mr-2" />
+                      Ver Posts
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => onSync(account.id)} disabled={isSyncing}>
                     <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
                     Atualizar Métricas

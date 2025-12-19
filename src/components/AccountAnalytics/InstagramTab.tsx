@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw, Video } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InstagramMetricsCards } from '@/components/Instagram/InstagramMetricsCards';
 import { InstagramAccountsTable } from '@/components/Instagram/InstagramAccountsTable';
 import { AddInstagramAccountModal } from '@/components/Instagram/AddInstagramAccountModal';
+import { AccountVideosModal } from '@/components/AccountAnalytics/AccountVideosModal';
 import {
   useInstagramAccounts,
   useAllInstagramAccounts,
@@ -13,11 +14,14 @@ import {
   useSyncInstagramAccount,
   useDeleteInstagramAccount,
 } from '@/hooks/useInstagramAccounts';
+import { useInstagramVideos } from '@/hooks/useInstagramVideos';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function InstagramTab() {
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [videosModalOpen, setVideosModalOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<{ id: string; username: string } | null>(null);
   const { user } = useAuth();
   const { role } = useUserRole();
   const isAdmin = role === 'admin';
@@ -29,6 +33,8 @@ export function InstagramTab() {
   const { data: metrics, isLoading: metricsLoading } = useInstagramMetricsSummary(
     isAdmin ? undefined : user?.id
   );
+
+  const { data: posts = [], isLoading: postsLoading } = useInstagramVideos(selectedAccount?.id || '');
 
   const addAccount = useAddInstagramAccount();
   const syncAccount = useSyncInstagramAccount();
@@ -52,6 +58,11 @@ export function InstagramTab() {
     if (confirm('Tem certeza que deseja remover esta conta?')) {
       deleteAccount.mutate(accountId);
     }
+  };
+
+  const handleViewPosts = (accountId: string, username: string) => {
+    setSelectedAccount({ id: accountId, username });
+    setVideosModalOpen(true);
   };
 
   const handleSyncAll = () => {
@@ -102,6 +113,7 @@ export function InstagramTab() {
             isLoading={accountsLoading}
             onSync={handleSyncAccount}
             onDelete={handleDeleteAccount}
+            onViewPosts={handleViewPosts}
             isSyncing={syncAccount.isPending}
           />
         </CardContent>
@@ -113,6 +125,27 @@ export function InstagramTab() {
         onOpenChange={setAddModalOpen}
         onAdd={handleAddAccount}
         isLoading={addAccount.isPending}
+      />
+
+      {/* Posts Modal */}
+      <AccountVideosModal
+        platform="instagram"
+        accountName={selectedAccount?.username || ''}
+        accountId={selectedAccount?.id}
+        videos={posts.map(p => ({
+          id: p.id,
+          caption: p.caption,
+          thumbnailUrl: p.thumbnail_url,
+          viewsCount: p.views_count || 0,
+          likesCount: p.likes_count || 0,
+          commentsCount: p.comments_count || 0,
+          sharesCount: p.shares_count || 0,
+          videoUrl: p.post_url,
+          postedAt: p.posted_at,
+        }))}
+        isLoading={postsLoading}
+        open={videosModalOpen}
+        onOpenChange={setVideosModalOpen}
       />
     </div>
   );
