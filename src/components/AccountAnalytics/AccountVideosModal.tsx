@@ -92,7 +92,18 @@ export function AccountVideosModal({
   // Build proper video URL based on platform
   const getVideoUrl = (video: Video): string => {
     if (!video.videoUrl) return '#';
+    console.log('Video URL:', video.videoUrl);
     return video.videoUrl;
+  };
+
+  const handleVideoClick = (e: React.MouseEvent<HTMLAnchorElement>, videoUrl: string) => {
+    console.log('Clicked video, URL:', videoUrl);
+    if (!videoUrl || videoUrl === '#') {
+      e.preventDefault();
+      toast.error('Link do vídeo não disponível');
+      return;
+    }
+    // Let the native <a> tag handle the navigation
   };
 
   const renderThumbnail = (video: Video) => (
@@ -167,6 +178,7 @@ export function AccountVideosModal({
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block"
+                    onClick={(e) => handleVideoClick(e, video.videoUrl)}
                   >
                     {renderThumbnail(video)}
                   </a>
@@ -179,6 +191,7 @@ export function AccountVideosModal({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hover:text-primary transition-colors block"
+                      onClick={(e) => handleVideoClick(e, video.videoUrl)}
                     >
                       <p className="font-medium text-sm line-clamp-2 text-foreground hover:text-primary">
                         {video.title || video.caption || 'Sem título'}
