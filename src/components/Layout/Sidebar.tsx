@@ -35,6 +35,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
   ];
 
+  const adminMainNavigation = [
+    { name: t("nav.dashboard"), href: "/dashboard/admin", icon: LayoutDashboard },
+    { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
+  ];
+
   const clientNavigation = [
     { name: t("nav.dashboard"), href: "/dashboard/client", icon: LayoutDashboard },
     { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
@@ -52,8 +57,13 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   ];
 
   const isActive = (path: string) => {
-    if (path === "/") return location.pathname === "/";
-    return location.pathname.startsWith(path);
+    if (path === "/" && location.pathname === "/") return true;
+    if (path === "/dashboard/admin" && location.pathname === "/dashboard/admin") return true;
+    if (path === "/dashboard/client" && location.pathname === "/dashboard/client") return true;
+    if (path !== "/" && path !== "/dashboard/admin" && path !== "/dashboard/client") {
+      return location.pathname.startsWith(path);
+    }
+    return false;
   };
 
   const NavItem = ({ item }: { item: typeof clipperNavigation[0] }) => {
@@ -96,10 +106,20 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   // Determine which navigation to show based on role
   const getUserNavigation = () => {
-    if (isClient && !isAdmin) {
+    if (isAdmin) {
+      return adminMainNavigation;
+    }
+    if (isClient) {
       return clientNavigation;
     }
     return clipperNavigation;
+  };
+
+  const isActiveNav = (path: string) => {
+    if (path === "/" && location.pathname === "/") return true;
+    if (path === "/dashboard/admin" && location.pathname === "/dashboard/admin") return true;
+    if (path !== "/" && path !== "/dashboard/admin") return location.pathname.startsWith(path);
+    return false;
   };
 
   return (
@@ -115,7 +135,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           "flex items-center h-16 px-4 border-b border-border/30",
           collapsed ? "justify-center" : "justify-between"
         )}>
-          <Link to={isClient && !isAdmin ? "/dashboard/client" : "/"} className="flex items-center gap-2">
+          <Link to={isAdmin ? "/dashboard/admin" : (isClient ? "/dashboard/client" : "/")} className="flex items-center gap-2">
             <div className="relative">
               <div className="absolute inset-0 animate-pulse-glow rounded-lg">
                 <Zap className="h-8 w-8 text-primary opacity-50" />
