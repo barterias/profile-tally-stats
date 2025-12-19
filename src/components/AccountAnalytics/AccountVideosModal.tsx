@@ -89,9 +89,17 @@ export function AccountVideosModal({
     }
   };
 
-  const handleOpenVideo = (videoUrl: string) => {
+  const handleOpenVideo = (e: React.MouseEvent, videoUrl: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Opening video URL:', videoUrl);
+    
     if (videoUrl) {
-      window.open(videoUrl, '_blank', 'noopener,noreferrer');
+      const newWindow = window.open(videoUrl, '_blank', 'noopener,noreferrer');
+      if (!newWindow) {
+        // Fallback if popup is blocked
+        window.location.href = videoUrl;
+      }
     } else {
       toast.error('Link do vídeo não disponível');
     }
@@ -164,24 +172,30 @@ export function AccountVideosModal({
                   className="group rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-primary/50 transition-all overflow-hidden"
                 >
                   {/* Clickable Thumbnail Area */}
-                  <div 
-                    className="cursor-pointer"
-                    onClick={() => handleOpenVideo(video.videoUrl)}
+                  <a 
+                    href={video.videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="cursor-pointer block"
+                    onClick={(e) => handleOpenVideo(e, video.videoUrl)}
                   >
                     {renderThumbnail(video)}
-                  </div>
+                  </a>
 
                   {/* Content */}
                   <div className="p-3 space-y-2">
                     {/* Title or Caption - Clickable */}
-                    <div 
-                      className="cursor-pointer hover:text-primary transition-colors"
-                      onClick={() => handleOpenVideo(video.videoUrl)}
+                    <a 
+                      href={video.videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="cursor-pointer hover:text-primary transition-colors block"
+                      onClick={(e) => handleOpenVideo(e, video.videoUrl)}
                     >
                       <p className="font-medium text-sm line-clamp-2 text-foreground">
                         {video.title || video.caption || 'Sem título'}
                       </p>
-                    </div>
+                    </a>
 
                     {/* Metrics and Sync Button */}
                     <div className="flex items-center justify-between">
