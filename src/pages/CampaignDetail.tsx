@@ -87,7 +87,15 @@ function CampaignDetailContent() {
         externalSupabase.getYoutubeVideos(),
       ]);
 
-      const campaignHashtags = (campaignData.hashtags || []).map((h: string) => h.toLowerCase().replace('#', ''));
+      // Normalize campaign hashtags (remove # and lowercase)
+      const campaignHashtags = (campaignData.hashtags || []).map((h: string) => 
+        h.toLowerCase().replace('#', '').trim()
+      );
+      
+      console.log('Campaign hashtags:', campaignHashtags);
+      console.log('Sample Instagram video:', allInstagramVideos?.[0]);
+      console.log('Sample TikTok video:', allTikTokVideos?.[0]);
+      console.log('Sample YouTube video:', allYoutubeVideos?.[0]);
       
       if (campaignHashtags.length === 0) {
         // If no hashtags configured, fall back to campaign_videos table
@@ -106,9 +114,23 @@ function CampaignDetailContent() {
         // Match videos by hashtags from external API
         const matchedVideos: CampaignVideo[] = [];
 
+        // Helper function to get all text content from a video
+        const getVideoTextContent = (video: any): string => {
+          return [
+            video.title,
+            video.caption,
+            video.description,
+            video.desc,
+            video.music_title,
+          ].filter(Boolean).join(' ');
+        };
+
         // Process Instagram videos
         allInstagramVideos?.forEach((video: any) => {
-          const videoHashtags = extractHashtagsFromTitle(video.title || video.caption || '');
+          const textContent = getVideoTextContent(video);
+          const videoHashtags = extractHashtagsFromTitle(textContent);
+          console.log('Instagram video text:', textContent.substring(0, 100), 'Hashtags found:', videoHashtags);
+          
           if (hasMatchingHashtag(videoHashtags, campaignHashtags)) {
             matchedVideos.push({
               id: video.id?.toString() || `ig-${Date.now()}-${Math.random()}`,
@@ -129,7 +151,10 @@ function CampaignDetailContent() {
 
         // Process TikTok videos
         allTikTokVideos?.forEach((video: any) => {
-          const videoHashtags = extractHashtagsFromTitle(video.title || video.music_title || '');
+          const textContent = getVideoTextContent(video);
+          const videoHashtags = extractHashtagsFromTitle(textContent);
+          console.log('TikTok video text:', textContent.substring(0, 100), 'Hashtags found:', videoHashtags);
+          
           if (hasMatchingHashtag(videoHashtags, campaignHashtags)) {
             matchedVideos.push({
               id: video.id?.toString() || `tt-${Date.now()}-${Math.random()}`,
@@ -150,7 +175,10 @@ function CampaignDetailContent() {
 
         // Process YouTube videos
         allYoutubeVideos?.forEach((video: any) => {
-          const videoHashtags = extractHashtagsFromTitle(video.title || '');
+          const textContent = getVideoTextContent(video);
+          const videoHashtags = extractHashtagsFromTitle(textContent);
+          console.log('YouTube video text:', textContent.substring(0, 100), 'Hashtags found:', videoHashtags);
+          
           if (hasMatchingHashtag(videoHashtags, campaignHashtags)) {
             matchedVideos.push({
               id: video.id?.toString() || `yt-${Date.now()}-${Math.random()}`,
@@ -169,6 +197,8 @@ function CampaignDetailContent() {
           }
         });
 
+        console.log('Total matched videos:', matchedVideos.length);
+        
         // Sort by views
         matchedVideos.sort((a, b) => (b.views || 0) - (a.views || 0));
         setVideos(matchedVideos);
