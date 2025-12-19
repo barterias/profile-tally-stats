@@ -61,7 +61,7 @@ export function AccountVideosModal({
   accountId,
 }: AccountVideosModalProps) {
   const [syncingVideoId, setSyncingVideoId] = useState<string | null>(null);
-  const { mutateAsync: fetchVideoDetails, isPending } = useVideoDetails();
+  const { mutateAsync: fetchVideoDetails } = useVideoDetails();
   const queryClient = useQueryClient();
 
   // Sort videos by views (highest first)
@@ -88,6 +88,45 @@ export function AccountVideosModal({
       setSyncingVideoId(null);
     }
   };
+
+  const handleOpenVideo = (videoUrl: string) => {
+    if (videoUrl) {
+      window.open(videoUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      toast.error('Link do vídeo não disponível');
+    }
+  };
+
+  const renderThumbnail = (video: Video) => (
+    <div className="aspect-video bg-muted relative overflow-hidden">
+      {video.thumbnailUrl ? (
+        <img
+          src={video.thumbnailUrl}
+          alt={video.title || video.caption || 'Video thumbnail'}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = '/placeholder.svg';
+          }}
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+          <Eye className="h-8 w-8" />
+        </div>
+      )}
+      {/* Views badge */}
+      <Badge className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm">
+        <Eye className="h-3 w-3 mr-1" />
+        {formatNumber(video.viewsCount)}
+      </Badge>
+      {/* External link indicator */}
+      <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Badge className="bg-primary text-primary-foreground">
+          <ExternalLink className="h-3 w-3 mr-1" />
+          Abrir
+        </Badge>
+      </div>
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -125,55 +164,24 @@ export function AccountVideosModal({
                   className="group rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-primary/50 transition-all overflow-hidden"
                 >
                   {/* Clickable Thumbnail Area */}
-                  <a
-                    href={video.videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block cursor-pointer"
+                  <div 
+                    className="cursor-pointer"
+                    onClick={() => handleOpenVideo(video.videoUrl)}
                   >
-                    <div className="aspect-video bg-muted relative overflow-hidden">
-                      {video.thumbnailUrl ? (
-                        <img
-                          src={video.thumbnailUrl}
-                          alt={video.title || video.caption || 'Video thumbnail'}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/placeholder.svg';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                          <Eye className="h-8 w-8" />
-                        </div>
-                      )}
-                      {/* Views badge */}
-                      <Badge className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm">
-                        <Eye className="h-3 w-3 mr-1" />
-                        {formatNumber(video.viewsCount)}
-                      </Badge>
-                      {/* External link indicator */}
-                      <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Badge className="bg-primary text-primary-foreground">
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Abrir
-                        </Badge>
-                      </div>
-                    </div>
-                  </a>
+                    {renderThumbnail(video)}
+                  </div>
 
-                  {/* Content - Not clickable */}
+                  {/* Content */}
                   <div className="p-3 space-y-2">
                     {/* Title or Caption - Clickable */}
-                    <a
-                      href={video.videoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block hover:text-primary transition-colors"
+                    <div 
+                      className="cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => handleOpenVideo(video.videoUrl)}
                     >
                       <p className="font-medium text-sm line-clamp-2 text-foreground">
                         {video.title || video.caption || 'Sem título'}
                       </p>
-                    </a>
+                    </div>
 
                     {/* Metrics and Sync Button */}
                     <div className="flex items-center justify-between">
@@ -194,7 +202,7 @@ export function AccountVideosModal({
                         )}
                       </div>
                       
-                      {/* Sync button - Separate from link */}
+                      {/* Sync button */}
                       <Button
                         variant="ghost"
                         size="sm"
