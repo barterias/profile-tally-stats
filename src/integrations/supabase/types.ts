@@ -600,6 +600,161 @@ export type Database = {
           },
         ]
       }
+      instagram_accounts: {
+        Row: {
+          bio: string | null
+          created_at: string
+          display_name: string | null
+          followers_count: number | null
+          following_count: number | null
+          id: string
+          is_active: boolean | null
+          last_synced_at: string | null
+          posts_count: number | null
+          profile_image_url: string | null
+          profile_url: string
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          followers_count?: number | null
+          following_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          posts_count?: number | null
+          profile_image_url?: string | null
+          profile_url: string
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          followers_count?: number | null
+          following_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          posts_count?: number | null
+          profile_image_url?: string | null
+          profile_url?: string
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      instagram_metrics_history: {
+        Row: {
+          account_id: string
+          comments_count: number | null
+          followers_count: number | null
+          id: string
+          likes_count: number | null
+          post_id: string | null
+          recorded_at: string
+          views_count: number | null
+        }
+        Insert: {
+          account_id: string
+          comments_count?: number | null
+          followers_count?: number | null
+          id?: string
+          likes_count?: number | null
+          post_id?: string | null
+          recorded_at?: string
+          views_count?: number | null
+        }
+        Update: {
+          account_id?: string
+          comments_count?: number | null
+          followers_count?: number | null
+          id?: string
+          likes_count?: number | null
+          post_id?: string | null
+          recorded_at?: string
+          views_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instagram_metrics_history_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "instagram_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instagram_metrics_history_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "instagram_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instagram_posts: {
+        Row: {
+          account_id: string
+          caption: string | null
+          comments_count: number | null
+          created_at: string
+          id: string
+          likes_count: number | null
+          post_type: string | null
+          post_url: string
+          posted_at: string | null
+          shares_count: number | null
+          thumbnail_url: string | null
+          updated_at: string
+          views_count: number | null
+        }
+        Insert: {
+          account_id: string
+          caption?: string | null
+          comments_count?: number | null
+          created_at?: string
+          id?: string
+          likes_count?: number | null
+          post_type?: string | null
+          post_url: string
+          posted_at?: string | null
+          shares_count?: number | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          views_count?: number | null
+        }
+        Update: {
+          account_id?: string
+          caption?: string | null
+          comments_count?: number | null
+          created_at?: string
+          id?: string
+          likes_count?: number | null
+          post_type?: string | null
+          post_url?: string
+          posted_at?: string | null
+          shares_count?: number | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          views_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instagram_posts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "instagram_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monthly_rankings: {
         Row: {
           campaign_id: string | null
