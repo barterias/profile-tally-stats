@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.sync-video-metrics]
 verify_jwt = false
+
+[functions.instagram-scrape]
+verify_jwt = false
