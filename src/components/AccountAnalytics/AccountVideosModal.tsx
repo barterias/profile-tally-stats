@@ -119,39 +119,35 @@ export function AccountVideosModal({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {sortedVideos.map((video) => (
-                <div
+                <a
                   key={video.id}
-                  className="group rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors overflow-hidden"
+                  href={video.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors overflow-hidden cursor-pointer block"
                 >
                   {/* Thumbnail */}
-                  <a
-                    href={video.videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
-                    <div className="aspect-video bg-muted relative overflow-hidden">
-                      {video.thumbnailUrl ? (
-                        <img
-                          src={video.thumbnailUrl}
-                          alt={video.title || video.caption || 'Video thumbnail'}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/placeholder.svg';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                          <Eye className="h-8 w-8" />
-                        </div>
-                      )}
-                      {/* Views badge */}
-                      <Badge className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm">
-                        <Eye className="h-3 w-3 mr-1" />
-                        {formatNumber(video.viewsCount)}
-                      </Badge>
-                    </div>
-                  </a>
+                  <div className="aspect-video bg-muted relative overflow-hidden">
+                    {video.thumbnailUrl ? (
+                      <img
+                        src={video.thumbnailUrl}
+                        alt={video.title || video.caption || 'Video thumbnail'}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/placeholder.svg';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                        <Eye className="h-8 w-8" />
+                      </div>
+                    )}
+                    {/* Views badge */}
+                    <Badge className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm">
+                      <Eye className="h-3 w-3 mr-1" />
+                      {formatNumber(video.viewsCount)}
+                    </Badge>
+                  </div>
 
                   {/* Content */}
                   <div className="p-3 space-y-2">
@@ -196,7 +192,7 @@ export function AccountVideosModal({
                       </Button>
                     </div>
                   </div>
-                </div>
+                </a>
               ))}
             </div>
           )}

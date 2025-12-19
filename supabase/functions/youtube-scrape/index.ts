@@ -94,10 +94,10 @@ Deno.serve(async (req) => {
       videos: [],
     };
 
-    // Fetch videos if requested - use correct endpoint
+    // Fetch videos and shorts if requested
     if (fetchVideos) {
       try {
-        // Use channel-videos endpoint with handle
+        // Fetch regular videos
         const videosResponse = await fetch(
           `https://api.scrapecreators.com/v1/youtube/channel-videos?handle=${encodeURIComponent(username)}&limit=20`,
           {
@@ -125,12 +125,49 @@ Deno.serve(async (req) => {
             commentsCount: parseInt(video.comment_count || video.commentCount || video.comments || '0') || 0,
             publishedAt: video.published_at || video.publishedAt || video.upload_date || undefined,
             duration: video.duration || video.length_seconds || undefined,
+            isShort: false,
           }));
         } else {
           console.error('Videos endpoint failed:', videosResponse.status);
         }
+
+        // Fetch shorts
+        const shortsResponse = await fetch(
+          `https://api.scrapecreators.com/v1/youtube/channel-shorts?handle=${encodeURIComponent(username)}&limit=20`,
+          {
+            method: 'GET',
+            headers: {
+              'x-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (shortsResponse.ok) {
+          const shortsData = await shortsResponse.json();
+          const shortsArray = shortsData.data?.shorts || shortsData.data || shortsData.shorts || [];
+          
+          console.log(`Found ${shortsArray.length} shorts from channel-shorts endpoint`);
+          
+          const shorts = shortsArray.slice(0, 20).map((short: any) => ({
+            videoId: short.video_id || short.videoId || short.id || '',
+            title: short.title || '',
+            description: short.description?.substring(0, 500) || undefined,
+            thumbnailUrl: short.thumbnail?.url || short.thumbnails?.high?.url || short.thumbnail_url || short.thumbnail || undefined,
+            viewsCount: parseInt(short.view_count || short.viewCount || short.views || '0') || 0,
+            likesCount: parseInt(short.like_count || short.likeCount || short.likes || '0') || 0,
+            commentsCount: parseInt(short.comment_count || short.commentCount || short.comments || '0') || 0,
+            publishedAt: short.published_at || short.publishedAt || short.upload_date || undefined,
+            duration: short.duration || short.length_seconds || undefined,
+            isShort: true,
+          }));
+          
+          data.videos = [...(data.videos || []), ...shorts];
+        } else {
+          console.error('Shorts endpoint failed:', shortsResponse.status);
+        }
       } catch (videosError) {
-        console.error('Error fetching videos:', videosError);
+        console.error('Error fetching videos/shorts:', videosError);
       }
     }
 
@@ -179,7 +216,10 @@ Deno.serve(async (req) => {
       // Save videos to database
       if (data.videos && data.videos.length > 0) {
         for (const video of data.videos) {
-          const videoUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+          // Use shorts URL for shorts, regular URL for videos
+          const videoUrl = (video as any).isShort 
+            ? `https://www.youtube.com/shorts/${video.videoId}`
+            : `https://www.youtube.com/watch?v=${video.videoId}`;
           
           // Upsert video
           const { data: existingVideo } = await supabase
@@ -200,6 +240,7 @@ Deno.serve(async (req) => {
                 likes_count: video.likesCount,
                 comments_count: video.commentsCount,
                 duration: video.duration,
+                video_url: videoUrl,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', existingVideo.id);
@@ -221,7 +262,7 @@ Deno.serve(async (req) => {
               });
           }
         }
-        console.log(`Saved ${data.videos.length} videos to database`);
+        console.log(`Saved ${data.videos.length} videos/shorts to database`);
       }
     }
 
