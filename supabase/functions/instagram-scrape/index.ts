@@ -56,11 +56,10 @@ Deno.serve(async (req) => {
 
     console.log(`Fetching Instagram profile: ${username}`);
 
-    // Use RapidAPI Instagram Scraper API (junioroangel - more reliable)
-    // API: instagram-scraper-api3.p.rapidapi.com
-    const apiHost = 'instagram-scraper-api3.p.rapidapi.com';
+    // Use RapidAPI Instagram Scraper API (instagram-scraper-api2)
+    const apiHost = 'instagram-scraper-api2.p.rapidapi.com';
     
-    const profileResponse = await fetch(`https://${apiHost}/user_info_by_username?username=${encodeURIComponent(username)}`, {
+    const profileResponse = await fetch(`https://${apiHost}/v1/info?username_or_id_or_url=${encodeURIComponent(username)}`, {
       method: 'GET',
       headers: {
         'x-rapidapi-key': rapidApiKey,
@@ -96,22 +95,22 @@ Deno.serve(async (req) => {
     console.log('Profile data received:', JSON.stringify(profileData, null, 2));
 
     // Parse the profile data - handle different API response structures
-    const userData = profileData.data || profileData.user || profileData;
+    const userData = profileData.data || profileData;
     
     const data: InstagramScrapedData = {
       username: userData.username || username,
       displayName: userData.full_name || userData.fullName || null,
-      profileImageUrl: userData.profile_pic_url || userData.profile_pic_url_hd || userData.profilePicUrl || null,
+      profileImageUrl: userData.profile_pic_url || userData.profile_pic_url_hd || null,
       bio: userData.biography || userData.bio || null,
-      followersCount: userData.follower_count || userData.followers_count || userData.followers || 0,
-      followingCount: userData.following_count || userData.followings_count || userData.following || 0,
-      postsCount: userData.media_count || userData.posts_count || userData.mediaCount || 0,
+      followersCount: userData.follower_count || userData.followers_count || 0,
+      followingCount: userData.following_count || userData.followings_count || 0,
+      postsCount: userData.media_count || userData.posts_count || 0,
       posts: [],
     };
 
     // Fetch recent posts
     try {
-      const postsResponse = await fetch(`https://${apiHost}/user_posts_by_username?username=${encodeURIComponent(username)}`, {
+      const postsResponse = await fetch(`https://${apiHost}/v1.2/posts?username_or_id_or_url=${encodeURIComponent(username)}`, {
         method: 'GET',
         headers: {
           'x-rapidapi-key': rapidApiKey,
@@ -124,20 +123,18 @@ Deno.serve(async (req) => {
         console.log('Posts data received:', JSON.stringify(postsData, null, 2).substring(0, 1000));
 
         // Handle different response structures
-        const items = postsData.data?.items || postsData.items || postsData.edges || postsData.posts || [];
+        const items = postsData.data?.items || postsData.items || postsData.data || [];
         
-        if (items.length > 0) {
+        if (Array.isArray(items) && items.length > 0) {
           data.posts = items.slice(0, 12).map((post: any) => {
-            // Handle different post structures
-            const node = post.node || post;
             return {
-              postUrl: node.permalink || `https://www.instagram.com/p/${node.code || node.shortcode}/`,
-              type: node.media_type === 2 || node.is_video ? 'video' : node.media_type === 8 ? 'carousel' : 'post',
-              thumbnailUrl: node.thumbnail_url || node.display_url || node.thumbnail_src || null,
-              caption: (node.caption?.text || node.edge_media_to_caption?.edges?.[0]?.node?.text || '')?.substring(0, 200) || null,
-              likesCount: node.like_count || node.edge_liked_by?.count || node.likes_count || 0,
-              commentsCount: node.comment_count || node.edge_media_to_comment?.count || node.comments_count || 0,
-              viewsCount: node.play_count || node.view_count || node.video_view_count || 0,
+              postUrl: post.link || `https://www.instagram.com/p/${post.code}/`,
+              type: post.media_type === 2 || post.is_video ? 'video' : post.media_type === 8 ? 'carousel' : 'post',
+              thumbnailUrl: post.thumbnail_url || post.display_url || null,
+              caption: (post.caption?.text || post.caption || '')?.toString().substring(0, 200) || null,
+              likesCount: post.like_count || post.likes_count || 0,
+              commentsCount: post.comment_count || post.comments_count || 0,
+              viewsCount: post.play_count || post.view_count || 0,
             };
           });
         }
