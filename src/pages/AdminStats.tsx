@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { externalSupabase } from "@/lib/externalSupabase";
 import MainLayout from "@/components/Layout/MainLayout";
 import StatCard from "@/components/Dashboard/StatCard";
 import ChartCard from "@/components/Dashboard/ChartCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useSocialMetrics } from "@/hooks/useSocialMetrics";
+import { useAllInstagramAccounts } from "@/hooks/useInstagramAccounts";
+import { useAllTikTokAccounts } from "@/hooks/useTikTokAccounts";
+import { useAllYouTubeAccounts } from "@/hooks/useYouTubeAccounts";
 import {
   BarChart3,
   Eye,
@@ -16,14 +19,12 @@ import {
   Video,
   TrendingUp,
   Instagram,
-  Music,
+  Youtube,
   Calendar,
 } from "lucide-react";
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -32,111 +33,34 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  AreaChart,
-  Area,
 } from "recharts";
 
 function AdminStatsContent() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalVideos: 0,
-    totalUsers: 0,
-    activeCampaigns: 0,
-    totalViews: 0,
-    instagramVideos: 0,
-    tiktokVideos: 0,
-    avgViewsPerVideo: 0,
-  });
-  const [growthData, setGrowthData] = useState<any[]>([]);
-  const [platformData, setPlatformData] = useState<any[]>([]);
   const [campaignStats, setCampaignStats] = useState<any[]>([]);
+
+  // Use real data from social metrics hook
+  const { data: socialMetrics, isLoading: metricsLoading } = useSocialMetrics();
+  const { data: instagramAccounts = [] } = useAllInstagramAccounts();
+  const { data: tiktokAccounts = [] } = useAllTikTokAccounts();
+  const { data: youtubeAccounts = [] } = useAllYouTubeAccounts();
 
   useEffect(() => {
     if (!isAdmin) {
       navigate("/");
       return;
     }
-    fetchStats();
+    fetchCampaignStats();
   }, [isAdmin]);
 
-  const fetchStats = async () => {
+  const fetchCampaignStats = async () => {
     try {
-      // Buscar campanhas
+      // Fetch campaigns with stats from database
       const { data: campaigns } = await supabase.from("campaigns").select("*");
-      const activeCampaigns = campaigns?.filter((c) => c.is_active) || [];
-
-      // Buscar vídeos de campanhas
-      const { data: campaignVideos } = await supabase
-        .from("campaign_videos")
-        .select("*");
-
-      // Buscar usuários
-      const { data: profiles } = await supabase.from("profiles").select("*");
-
-      // Buscar dados externos
-      const [instagramVideos, tiktokVideos] = await Promise.all([
-        externalSupabase.getAllVideos(),
-        externalSupabase.getSocialVideos(),
-      ]);
-
-      const totalVideos =
-        (campaignVideos?.length || 0) +
-        (instagramVideos?.length || 0) +
-        (tiktokVideos?.length || 0);
-
-      const instagramViews = instagramVideos?.reduce(
-        (sum, v) => sum + (v.views || 0),
-        0
-      ) || 0;
-      const tiktokViews = tiktokVideos?.reduce(
-        (sum, v) => sum + (v.views || 0),
-        0
-      ) || 0;
-      const totalViews = instagramViews + tiktokViews;
-
-      setStats({
-        totalVideos,
-        totalUsers: profiles?.length || 0,
-        activeCampaigns: activeCampaigns.length,
-        totalViews,
-        instagramVideos: instagramVideos?.length || 0,
-        tiktokVideos: tiktokVideos?.length || 0,
-        avgViewsPerVideo: totalVideos > 0 ? Math.round(totalViews / totalVideos) : 0,
-      });
-
-      // Platform data
-      setPlatformData([
-        {
-          name: "Instagram",
-          value: instagramVideos?.length || 0,
-          views: instagramViews,
-          color: "hsl(var(--primary))",
-        },
-        {
-          name: "TikTok",
-          value: tiktokVideos?.length || 0,
-          views: tiktokViews,
-          color: "hsl(var(--accent))",
-        },
-      ]);
-
-      // Daily growth
-      const dailyGrowth = await externalSupabase.getDailyGrowth(30);
-      const formattedGrowth = dailyGrowth.map((day) => ({
-        date: new Date(day.date).toLocaleDateString("pt-BR", {
-          day: "2-digit",
-          month: "short",
-        }),
-        videos: day.total_posts,
-        views: day.total_views,
-        instagram: day.instagram_views,
-        tiktok: day.tiktok_views,
-      }));
-      setGrowthData(formattedGrowth);
-
-      // Campaign stats
+      
+      // Calculate campaign stats from campaign_videos table
       const campaignWithStats = await Promise.all(
         (campaigns || []).slice(0, 5).map(async (campaign) => {
           const { data: videos } = await supabase
@@ -158,13 +82,25 @@ function AdminStatsContent() {
       );
       setCampaignStats(campaignWithStats);
     } catch (error) {
-      console.error("Error fetching stats:", error);
+      console.error("Error fetching campaign stats:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
+  // Get counts from real data
+  const totalAccounts = instagramAccounts.length + tiktokAccounts.length + youtubeAccounts.length;
+
+  // Platform data from social metrics
+  const platformData = socialMetrics?.platformBreakdown.map(p => ({
+    name: p.platform,
+    value: p.accounts,
+    views: p.views,
+    color: p.platform === 'Instagram' ? 'hsl(var(--primary))' : 
+           p.platform === 'TikTok' ? 'hsl(var(--accent))' : 'hsl(340, 82%, 52%)',
+  })) || [];
+
+  if (loading || metricsLoading) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -188,85 +124,127 @@ function AdminStatsContent() {
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        {/* Stats Grid - Real data from API */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
           <StatCard
             title="Total de Vídeos"
-            value={stats.totalVideos.toLocaleString()}
+            value={(socialMetrics?.totalVideos || 0).toLocaleString()}
             icon={Video}
           />
           <StatCard
             title="Views Totais"
-            value={stats.totalViews.toLocaleString()}
+            value={(socialMetrics?.totalViews || 0).toLocaleString()}
             icon={Eye}
           />
           <StatCard
-            title="Usuários"
-            value={stats.totalUsers}
+            title="Seguidores"
+            value={(socialMetrics?.totalFollowers || 0).toLocaleString()}
             icon={Users}
           />
           <StatCard
-            title="Campanhas Ativas"
-            value={stats.activeCampaigns}
+            title="Curtidas"
+            value={(socialMetrics?.totalLikes || 0).toLocaleString()}
+            icon={TrendingUp}
+          />
+          <StatCard
+            title="Contas Conectadas"
+            value={totalAccounts}
             icon={Trophy}
           />
           <StatCard
-            title="Instagram"
-            value={stats.instagramVideos}
-            icon={Instagram}
-          />
-          <StatCard
-            title="TikTok"
-            value={stats.tiktokVideos}
-            icon={Music}
-          />
-          <StatCard
-            title="Média Views"
-            value={stats.avgViewsPerVideo.toLocaleString()}
-            icon={TrendingUp}
+            title="Campanhas"
+            value={campaignStats.length}
+            icon={Calendar}
           />
         </div>
 
-        {/* Charts Row 1 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ChartCard title="Crescimento de Views" subtitle="Últimos 30 dias">
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={growthData}>
-                <defs>
-                  <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="views"
-                  stroke="hsl(var(--primary))"
-                  fillOpacity={1}
-                  fill="url(#colorViews)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </ChartCard>
+        {/* Platform Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="p-4 bg-gradient-to-r from-pink-500/10 to-pink-500/5 border-pink-500/20">
+            <div className="flex items-center gap-3 mb-4">
+              <Instagram className="h-6 w-6 text-pink-500" />
+              <h3 className="font-semibold">Instagram</h3>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-xl font-bold">{instagramAccounts.length}</p>
+                <p className="text-xs text-muted-foreground">Contas</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">
+                  {socialMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.followers.toLocaleString() || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Seguidores</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">
+                  {socialMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.views.toLocaleString() || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Views</p>
+              </div>
+            </div>
+          </Card>
 
-          <ChartCard title="Distribuição por Plataforma" subtitle="Vídeos e views">
+          <Card className="p-4 bg-gradient-to-r from-purple-500/10 to-purple-500/5 border-purple-500/20">
+            <div className="flex items-center gap-3 mb-4">
+              <Video className="h-6 w-6 text-purple-500" />
+              <h3 className="font-semibold">TikTok</h3>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-xl font-bold">{tiktokAccounts.length}</p>
+                <p className="text-xs text-muted-foreground">Contas</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">
+                  {socialMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.followers.toLocaleString() || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Seguidores</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">
+                  {socialMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.views.toLocaleString() || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Views</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4 bg-gradient-to-r from-red-500/10 to-red-500/5 border-red-500/20">
+            <div className="flex items-center gap-3 mb-4">
+              <Youtube className="h-6 w-6 text-red-500" />
+              <h3 className="font-semibold">YouTube</h3>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-xl font-bold">{youtubeAccounts.length}</p>
+                <p className="text-xs text-muted-foreground">Canais</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">
+                  {socialMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.followers.toLocaleString() || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Inscritos</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">
+                  {socialMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.views.toLocaleString() || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Views</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ChartCard title="Distribuição por Plataforma" subtitle="Contas e views">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
-                      data={platformData}
+                      data={platformData.filter(p => p.value > 0)}
                       cx="50%"
                       cy="50%"
                       innerRadius={40}
@@ -282,7 +260,7 @@ function AdminStatsContent() {
                   </PieChart>
                 </ResponsiveContainer>
                 <p className="text-center text-sm text-muted-foreground">
-                  Total de Vídeos
+                  Total de Contas
                 </p>
               </div>
               <div className="flex flex-col justify-center gap-4">
@@ -295,49 +273,13 @@ function AdminStatsContent() {
                     <div>
                       <p className="font-medium">{platform.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {platform.value} vídeos • {platform.views.toLocaleString()} views
+                        {platform.value} contas • {platform.views.toLocaleString()} views
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          </ChartCard>
-        </div>
-
-        {/* Charts Row 2 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ChartCard title="Views por Plataforma" subtitle="Comparativo diário">
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={growthData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="instagram"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={false}
-                  name="Instagram"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="tiktok"
-                  stroke="hsl(var(--accent))"
-                  strokeWidth={2}
-                  dot={false}
-                  name="TikTok"
-                />
-              </LineChart>
-            </ResponsiveContainer>
           </ChartCard>
 
           <ChartCard title="Desempenho por Campanha" subtitle="Top 5 campanhas">

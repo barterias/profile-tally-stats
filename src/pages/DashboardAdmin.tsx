@@ -3,15 +3,13 @@ import { useNavigate } from "react-router-dom";
 import MainLayout from "@/components/Layout/MainLayout";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { MetricCardGlow } from "@/components/ui/MetricCardGlow";
-import { ChartLineViews } from "@/components/Charts/ChartLineViews";
 import { ChartPiePlatforms } from "@/components/Charts/ChartPiePlatforms";
 import { ClippersTable } from "@/components/Tables/ClippersTable";
-import { PayoutsTable } from "@/components/Tables/PayoutsTable";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
-import { useSocialMetrics, usePlatformDistribution } from "@/hooks/useSocialMetrics";
+import { useSocialMetrics } from "@/hooks/useSocialMetrics";
 import { useAllInstagramAccounts } from "@/hooks/useInstagramAccounts";
 import { useAllTikTokAccounts } from "@/hooks/useTikTokAccounts";
 import { useAllYouTubeAccounts } from "@/hooks/useYouTubeAccounts";
@@ -19,7 +17,6 @@ import {
   Trophy, 
   Users, 
   Eye, 
-  Wallet, 
   Plus, 
   Video,
   TrendingUp,
@@ -49,32 +46,16 @@ interface PendingClipper {
   campaign_name: string;
 }
 
-interface PayoutRequest {
-  id: string;
-  user_id: string;
-  username: string;
-  avatar_url?: string;
-  amount: number;
-  status: string;
-  pix_key?: string;
-  pix_type?: string;
-  requested_at: string;
-  available_balance?: number;
-  total_earned?: number;
-}
-
 function DashboardAdminContent() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [pendingClippers, setPendingClippers] = useState<PendingClipper[]>([]);
-  const [pendingPayouts, setPendingPayouts] = useState<PayoutRequest[]>([]);
 
-  // Use social metrics hook
+  // Use social metrics hook - real data from API
   const { data: socialMetrics, isLoading: metricsLoading, refetch: refetchMetrics } = useSocialMetrics();
-  const platformData = usePlatformDistribution();
 
-  // Get accounts for display
+  // Get accounts for display - real data from API
   const { data: instagramAccounts = [] } = useAllInstagramAccounts();
   const { data: tiktokAccounts = [] } = useAllTikTokAccounts();
   const { data: youtubeAccounts = [] } = useAllYouTubeAccounts();
@@ -86,7 +67,7 @@ function DashboardAdminContent() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch campaigns with stats
+      // Fetch campaigns with stats from database
       const { data: campaignsData } = await supabase
         .from('campaign_summary')
         .select('*');
@@ -102,7 +83,7 @@ function DashboardAdminContent() {
         })));
       }
 
-      // Fetch pending clippers
+      // Fetch pending clippers from database
       const { data: clippersData } = await supabase
         .from('pending_campaign_participants')
         .select('*')
@@ -110,17 +91,6 @@ function DashboardAdminContent() {
       
       if (clippersData) {
         setPendingClippers(clippersData);
-      }
-
-      // Fetch pending payouts
-      const { data: payoutsData } = await supabase
-        .from('payout_admin_view')
-        .select('*')
-        .eq('status', 'pending')
-        .limit(10);
-      
-      if (payoutsData) {
-        setPendingPayouts(payoutsData);
       }
 
     } catch (error) {
@@ -158,7 +128,7 @@ function DashboardAdminContent() {
     );
   }
 
-  // Prepare chart data from platform breakdown
+  // Prepare chart data from platform breakdown - real data from social accounts
   const chartPlatformData = socialMetrics?.platformBreakdown
     .filter(p => p.views > 0)
     .map(p => ({
@@ -197,7 +167,7 @@ function DashboardAdminContent() {
           </div>
         </div>
 
-        {/* Social Media Stats Grid */}
+        {/* Social Media Stats Grid - Real data from useSocialMetrics hook */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCardGlow
             title="Seguidores Totais"
@@ -225,7 +195,7 @@ function DashboardAdminContent() {
           />
         </div>
 
-        {/* Platform Cards */}
+        {/* Platform Cards - Real data from social accounts */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {socialMetrics?.platformBreakdown.map((platform) => (
             <GlowCard key={platform.platform} className="p-5" glowColor={
@@ -309,15 +279,6 @@ function DashboardAdminContent() {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="payouts" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-              <Wallet className="h-4 w-4 mr-2" />
-              Saques Pendentes
-              {pendingPayouts.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-orange-500/20 text-orange-400">
-                  {pendingPayouts.length}
-                </span>
-              )}
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="campaigns">
@@ -367,21 +328,6 @@ function DashboardAdminContent() {
               </div>
               <ClippersTable 
                 clippers={pendingClippers} 
-                onRefresh={fetchData}
-              />
-            </GlowCard>
-          </TabsContent>
-
-          <TabsContent value="payouts">
-            <GlowCard>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Solicitações de Saque</h3>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/admin/payouts')}>
-                  Ver todas
-                </Button>
-              </div>
-              <PayoutsTable 
-                payouts={pendingPayouts} 
                 onRefresh={fetchData}
               />
             </GlowCard>

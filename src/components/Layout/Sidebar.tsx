@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Trophy,
   Upload,
-  Wallet,
   TrendingUp,
   Shield,
   Video,
@@ -35,7 +34,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: t("nav.dashboard"), href: "/", icon: LayoutDashboard },
     { name: t("nav.campaigns"), href: "/campaigns", icon: Trophy },
     { name: t("nav.submit"), href: "/submit", icon: Upload },
-    { name: t("nav.wallet"), href: "/wallet", icon: Wallet },
     { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
   ];
 
