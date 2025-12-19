@@ -95,11 +95,11 @@ Deno.serve(async (req) => {
       videos: [],
     };
 
-    // Fetch videos if requested - use v3 endpoint
+    // Fetch videos if requested - use correct endpoint with hyphen
     if (fetchVideos) {
       try {
         const videosResponse = await fetch(
-          `https://api.scrapecreators.com/v3/tiktok/profile/videos?handle=${encodeURIComponent(username)}&limit=20`,
+          `https://api.scrapecreators.com/v3/tiktok/profile-videos?handle=${encodeURIComponent(username)}&limit=20`,
           {
             method: 'GET',
             headers: {
@@ -111,25 +111,47 @@ Deno.serve(async (req) => {
 
         if (videosResponse.ok) {
           const videosData = await videosResponse.json();
-          const videosArray = videosData.data?.videos || videosData.data?.itemList || videosData.data || [];
+          console.log('TikTok videos API response structure:', JSON.stringify(Object.keys(videosData)));
           
-          console.log(`Found ${videosArray.length} videos from v3 endpoint`);
+          // Handle different response structures
+          let videosArray: any[] = [];
+          if (Array.isArray(videosData)) {
+            videosArray = videosData;
+          } else if (videosData.data) {
+            if (Array.isArray(videosData.data)) {
+              videosArray = videosData.data;
+            } else if (videosData.data.videos) {
+              videosArray = videosData.data.videos;
+            } else if (videosData.data.itemList) {
+              videosArray = videosData.data.itemList;
+            }
+          } else if (videosData.videos) {
+            videosArray = videosData.videos;
+          } else if (videosData.itemList) {
+            videosArray = videosData.itemList;
+          }
           
-          data.videos = videosArray.slice(0, 20).map((video: any) => ({
-            videoId: video.id || video.video_id || video.aweme_id || '',
-            videoUrl: video.video?.playAddr || video.video_url || video.play_url || `https://www.tiktok.com/@${username}/video/${video.id || video.video_id}`,
-            caption: video.desc || video.description || video.caption || undefined,
-            thumbnailUrl: video.video?.cover || video.video?.originCover || video.cover || video.thumbnail || undefined,
-            viewsCount: video.stats?.playCount || video.play_count || video.views || 0,
-            likesCount: video.stats?.diggCount || video.digg_count || video.likes || 0,
-            commentsCount: video.stats?.commentCount || video.comment_count || video.comments || 0,
-            sharesCount: video.stats?.shareCount || video.share_count || video.shares || 0,
-            musicTitle: video.music?.title || video.music_title || undefined,
-            duration: video.video?.duration || video.duration || undefined,
-            postedAt: video.createTime ? new Date(video.createTime * 1000).toISOString() : video.create_time || undefined,
-          }));
+          console.log(`Found ${videosArray.length} videos from profile-videos endpoint`);
+          
+          data.videos = videosArray.slice(0, 20).map((video: any) => {
+            const videoId = video.aweme_id || video.id || video.video_id || '';
+            return {
+              videoId,
+              videoUrl: `https://www.tiktok.com/@${username}/video/${videoId}`,
+              caption: video.desc || video.description || video.caption || undefined,
+              thumbnailUrl: video.video?.cover || video.video?.origin_cover || video.cover || video.thumbnail || undefined,
+              viewsCount: video.statistics?.play_count || video.stats?.playCount || video.play_count || video.views || 0,
+              likesCount: video.statistics?.digg_count || video.stats?.diggCount || video.digg_count || video.likes || 0,
+              commentsCount: video.statistics?.comment_count || video.stats?.commentCount || video.comment_count || video.comments || 0,
+              sharesCount: video.statistics?.share_count || video.stats?.shareCount || video.share_count || video.shares || 0,
+              musicTitle: video.music?.title || video.music_title || undefined,
+              duration: video.video?.duration || video.duration || undefined,
+              postedAt: video.create_time ? new Date(video.create_time * 1000).toISOString() : video.createTime ? new Date(video.createTime * 1000).toISOString() : undefined,
+            };
+          });
         } else {
-          console.error('Videos endpoint failed:', videosResponse.status);
+          const errorText = await videosResponse.text();
+          console.error('Videos endpoint failed:', videosResponse.status, errorText);
         }
       } catch (videosError) {
         console.error('Error fetching videos:', videosError);
