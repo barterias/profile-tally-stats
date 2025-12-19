@@ -392,6 +392,13 @@ const translations: Translations = {
   "views": { pt: "Visualizações", en: "Views" },
   "likes": { pt: "Curtidas", en: "Likes" },
   "accounts": { pt: "Contas", en: "Accounts" },
+  "noAccountsLinked": { pt: "Nenhuma conta cadastrada", en: "No accounts registered" },
+  "noAccountsDescription": { pt: "Adicione suas contas de redes sociais para começar a monitorar suas métricas.", en: "Add your social media accounts to start monitoring your metrics." },
+  "addAccounts": { pt: "Adicionar Contas", en: "Add Accounts" },
+  "viewsByPlatform": { pt: "Visualizações por Plataforma", en: "Views by Platform" },
+  "quickActions": { pt: "Ações Rápidas", en: "Quick Actions" },
+  "manageAccounts": { pt: "Gerenciar Contas", en: "Manage Accounts" },
+  "syncData": { pt: "Sincronizar Dados", en: "Sync Data" },
 
   // Status Badges
   "status.admin": { pt: "Admin", en: "Admin" },
