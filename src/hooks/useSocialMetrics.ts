@@ -1,0 +1,201 @@
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUserRole } from '@/hooks/useUserRole';
+
+export interface SocialMetricsSummary {
+  totalFollowers: number;
+  totalViews: number;
+  totalLikes: number;
+  totalComments: number;
+  totalVideos: number;
+  accountsCount: {
+    instagram: number;
+    tiktok: number;
+    youtube: number;
+    total: number;
+  };
+  platformBreakdown: {
+    platform: string;
+    followers: number;
+    views: number;
+    likes: number;
+    accounts: number;
+  }[];
+  recentGrowth: {
+    date: string;
+    views: number;
+    followers: number;
+  }[];
+}
+
+export function useSocialMetrics() {
+  const { user } = useAuth();
+  const { role } = useUserRole();
+  const isAdmin = role === 'admin';
+
+  return useQuery({
+    queryKey: ['social-metrics-unified', user?.id, isAdmin],
+    queryFn: async (): Promise<SocialMetricsSummary> => {
+      // Fetch all accounts
+      const instagramQuery = supabase
+        .from('instagram_accounts')
+        .select('id, followers_count, posts_count')
+        .eq('is_active', true);
+      
+      const tiktokQuery = supabase
+        .from('tiktok_accounts')
+        .select('id, followers_count, likes_count, videos_count')
+        .eq('is_active', true);
+      
+      const youtubeQuery = supabase
+        .from('youtube_accounts')
+        .select('id, subscribers_count, total_views, videos_count')
+        .eq('is_active', true);
+
+      // Apply user filter if not admin
+      if (!isAdmin && user?.id) {
+        instagramQuery.eq('user_id', user.id);
+        tiktokQuery.eq('user_id', user.id);
+        youtubeQuery.eq('user_id', user.id);
+      }
+
+      const [instagramRes, tiktokRes, youtubeRes] = await Promise.all([
+        instagramQuery,
+        tiktokQuery,
+        youtubeQuery,
+      ]);
+
+      const instagramAccounts = instagramRes.data || [];
+      const tiktokAccounts = tiktokRes.data || [];
+      const youtubeAccounts = youtubeRes.data || [];
+
+      // Calculate Instagram totals
+      const instagramFollowers = instagramAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
+      
+      // Calculate TikTok totals
+      const tiktokFollowers = tiktokAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
+      const tiktokLikes = tiktokAccounts.reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0);
+      const tiktokVideos = tiktokAccounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
+
+      // Calculate YouTube totals
+      const youtubeSubscribers = youtubeAccounts.reduce((sum, acc) => sum + (acc.subscribers_count || 0), 0);
+      const youtubeViews = youtubeAccounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
+      const youtubeVideos = youtubeAccounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
+
+      // Fetch video/post metrics for views
+      const instagramPostsQuery = supabase
+        .from('instagram_posts')
+        .select('views_count, likes_count, comments_count, account_id');
+      
+      const tiktokVideosQuery = supabase
+        .from('tiktok_videos')
+        .select('views_count, likes_count, comments_count, account_id');
+      
+      const youtubeVideosQuery = supabase
+        .from('youtube_videos')
+        .select('views_count, likes_count, comments_count, account_id');
+
+      // Filter by user's accounts if not admin
+      if (!isAdmin && user?.id) {
+        const instagramAccountIds = instagramAccounts.map(a => a.id);
+        const tiktokAccountIds = tiktokAccounts.map(a => a.id);
+        const youtubeAccountIds = youtubeAccounts.map(a => a.id);
+        
+        if (instagramAccountIds.length > 0) {
+          instagramPostsQuery.in('account_id', instagramAccountIds);
+        } else {
+          instagramPostsQuery.eq('account_id', '00000000-0000-0000-0000-000000000000');
+        }
+        
+        if (tiktokAccountIds.length > 0) {
+          tiktokVideosQuery.in('account_id', tiktokAccountIds);
+        } else {
+          tiktokVideosQuery.eq('account_id', '00000000-0000-0000-0000-000000000000');
+        }
+        
+        if (youtubeAccountIds.length > 0) {
+          youtubeVideosQuery.in('account_id', youtubeAccountIds);
+        } else {
+          youtubeVideosQuery.eq('account_id', '00000000-0000-0000-0000-000000000000');
+        }
+      }
+
+      const [instagramPosts, tiktokVids, youtubeVids] = await Promise.all([
+        instagramPostsQuery,
+        tiktokVideosQuery,
+        youtubeVideosQuery,
+      ]);
+
+      const igViews = (instagramPosts.data || []).reduce((sum, p) => sum + (p.views_count || 0), 0);
+      const igLikes = (instagramPosts.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
+      const igComments = (instagramPosts.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
+
+      const ttViews = (tiktokVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
+      const ttLikes = (tiktokVids.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
+      const ttComments = (tiktokVids.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
+
+      const ytViews = (youtubeVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
+      const ytLikes = (youtubeVids.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
+      const ytComments = (youtubeVids.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
+
+      const totalFollowers = instagramFollowers + tiktokFollowers + youtubeSubscribers;
+      const totalViews = igViews + ttViews + ytViews + youtubeViews;
+      const totalLikes = igLikes + ttLikes + tiktokLikes + ytLikes;
+      const totalComments = igComments + ttComments + ytComments;
+      const totalVideos = (instagramPosts.data?.length || 0) + (tiktokVids.data?.length || 0) + (youtubeVids.data?.length || 0);
+
+      const platformBreakdown = [
+        {
+          platform: 'Instagram',
+          followers: instagramFollowers,
+          views: igViews,
+          likes: igLikes,
+          accounts: instagramAccounts.length,
+        },
+        {
+          platform: 'TikTok',
+          followers: tiktokFollowers,
+          views: ttViews,
+          likes: tiktokLikes + ttLikes,
+          accounts: tiktokAccounts.length,
+        },
+        {
+          platform: 'YouTube',
+          followers: youtubeSubscribers,
+          views: ytViews + youtubeViews,
+          likes: ytLikes,
+          accounts: youtubeAccounts.length,
+        },
+      ];
+
+      return {
+        totalFollowers,
+        totalViews,
+        totalLikes,
+        totalComments,
+        totalVideos,
+        accountsCount: {
+          instagram: instagramAccounts.length,
+          tiktok: tiktokAccounts.length,
+          youtube: youtubeAccounts.length,
+          total: instagramAccounts.length + tiktokAccounts.length + youtubeAccounts.length,
+        },
+        platformBreakdown,
+        recentGrowth: [],
+      };
+    },
+    enabled: !!user?.id || isAdmin,
+  });
+}
+
+export function usePlatformDistribution() {
+  const { data: metrics } = useSocialMetrics();
+
+  return (metrics?.platformBreakdown || [])
+    .filter(p => p.views > 0 || p.followers > 0)
+    .map(p => ({
+      platform: p.platform,
+      value: p.views,
+    }));
+}

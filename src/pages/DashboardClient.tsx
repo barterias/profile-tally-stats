@@ -19,6 +19,7 @@ import { useCampaignData } from "@/hooks/useCampaignData";
 import { useVideoMetricsHistory } from "@/hooks/useVideoMetricsHistory";
 import { useCompetitionPrizes } from "@/hooks/useCompetitionPrizes";
 import { useCampaignPayments } from "@/hooks/useCampaignPayments";
+import { useSocialMetrics } from "@/hooks/useSocialMetrics";
 import { PaymentTable } from "@/components/Payments/PaymentTable";
 import { PaymentSummaryCard } from "@/components/Payments/PaymentSummaryCard";
 import { CampaignType } from "@/types/campaign";
@@ -95,6 +96,7 @@ function DashboardClientContent() {
   } = useCampaignData(selectedCampaignId);
 
   const { prizes } = useCompetitionPrizes(selectedCampaignId);
+  const { data: socialMetrics } = useSocialMetrics();
 
   const { 
     clippers: paymentClippers, 
@@ -428,6 +430,36 @@ function DashboardClientContent() {
             title={t('platformDistribution')}
           />
         </div>
+
+        {/* Social Media Overview - Only show if has accounts */}
+        {socialMetrics && socialMetrics.accountsCount.total > 0 && (
+          <GlowCard className="p-6" glowColor="blue">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">{t('socialMediaOverview')}</h3>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/account-analytics')}>
+                {t('viewDetails')}
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 rounded-lg bg-muted/20">
+                <p className="text-2xl font-bold">{formatNumber(socialMetrics.totalFollowers)}</p>
+                <p className="text-xs text-muted-foreground">{t('followers')}</p>
+              </div>
+              <div className="text-center p-4 rounded-lg bg-muted/20">
+                <p className="text-2xl font-bold">{formatNumber(socialMetrics.totalViews)}</p>
+                <p className="text-xs text-muted-foreground">{t('views')}</p>
+              </div>
+              <div className="text-center p-4 rounded-lg bg-muted/20">
+                <p className="text-2xl font-bold">{formatNumber(socialMetrics.totalLikes)}</p>
+                <p className="text-xs text-muted-foreground">{t('likes')}</p>
+              </div>
+              <div className="text-center p-4 rounded-lg bg-muted/20">
+                <p className="text-2xl font-bold">{socialMetrics.accountsCount.total}</p>
+                <p className="text-xs text-muted-foreground">{t('accounts')}</p>
+              </div>
+            </div>
+          </GlowCard>
+        )}
 
         {/* Tabs */}
         <Tabs defaultValue="ranking" className="space-y-6">

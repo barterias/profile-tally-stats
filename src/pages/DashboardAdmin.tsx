@@ -11,7 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
-import { externalSupabase } from "@/lib/externalSupabase";
+import { useSocialMetrics, usePlatformDistribution } from "@/hooks/useSocialMetrics";
+import { useAllInstagramAccounts } from "@/hooks/useInstagramAccounts";
+import { useAllTikTokAccounts } from "@/hooks/useTikTokAccounts";
+import { useAllYouTubeAccounts } from "@/hooks/useYouTubeAccounts";
 import { 
   Trophy, 
   Users, 
@@ -20,17 +23,12 @@ import {
   Plus, 
   Video,
   TrendingUp,
-  UserCheck,
-  Filter
+  RefreshCw,
+  Instagram,
+  Youtube,
+  Sparkles
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface CampaignSummary {
   id: string;
@@ -39,7 +37,6 @@ interface CampaignSummary {
   total_views: number;
   total_posts: number;
   total_clippers: number;
-  engagement_rate: number;
 }
 
 interface PendingClipper {
@@ -69,126 +66,41 @@ interface PayoutRequest {
 function DashboardAdminContent() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
-  const [allCampaigns, setAllCampaigns] = useState<CampaignSummary[]>([]);
-  const [stats, setStats] = useState({
-    totalCampaigns: 0,
-    totalClippers: 0,
-    totalViews: 0,
-    pendingPayouts: 0
-  });
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [pendingClippers, setPendingClippers] = useState<PendingClipper[]>([]);
   const [pendingPayouts, setPendingPayouts] = useState<PayoutRequest[]>([]);
-  const [viewsData, setViewsData] = useState<{ date: string; views: number }[]>([]);
-  const [platformData, setPlatformData] = useState<{ platform: string; value: number }[]>([]);
+
+  // Use social metrics hook
+  const { data: socialMetrics, isLoading: metricsLoading, refetch: refetchMetrics } = useSocialMetrics();
+  const platformData = usePlatformDistribution();
+
+  // Get accounts for display
+  const { data: instagramAccounts = [] } = useAllInstagramAccounts();
+  const { data: tiktokAccounts = [] } = useAllTikTokAccounts();
+  const { data: youtubeAccounts = [] } = useAllYouTubeAccounts();
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    if (allCampaigns.length > 0) {
-      updateFilteredStats();
-    }
-  }, [selectedCampaign, allCampaigns]);
-
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch all external videos for metrics
-      const [externalVideos, socialVideos] = await Promise.all([
-        externalSupabase.getAllVideos(),
-        externalSupabase.getSocialVideos(),
-      ]);
-
-      const allExternalVideos = [...externalVideos, ...socialVideos];
-      const totalExternalViews = allExternalVideos.reduce((sum, v) => sum + (v.views || 0), 0);
-
-      // Fetch campaigns
+      // Fetch campaigns with stats
       const { data: campaignsData } = await supabase
-        .from('campaigns')
+        .from('campaign_summary')
         .select('*');
 
-      // Fetch campaign videos to match with external
-      const { data: campaignVideosData } = await supabase
-        .from('campaign_videos')
-        .select('*');
-
-      // Fetch participants count
-      const { data: participantsData } = await supabase
-        .from('campaign_participants')
-        .select('campaign_id, user_id')
-        .eq('status', 'approved');
-
-      // Create metrics map from external videos
-      const normalizeLink = (link: string | undefined | null): string => {
-        if (!link) return "";
-        let normalized = link.split("?")[0];
-        normalized = normalized.replace(/\/$/, "");
-        normalized = normalized.toLowerCase();
-        return normalized;
-      };
-
-      const metricsMap = new Map<string, { views: number; likes: number; platform: string }>();
-      for (const video of allExternalVideos) {
-        const link = normalizeLink(video.link || video.video_url);
-        if (link) {
-          metricsMap.set(link, {
-            views: video.views || 0,
-            likes: video.likes || 0,
-            platform: video.platform || 'instagram',
-          });
-        }
+      if (campaignsData) {
+        setCampaigns(campaignsData.map(c => ({
+          id: c.id || '',
+          name: c.name || '',
+          is_active: c.is_active || false,
+          total_views: Number(c.total_views || 0),
+          total_posts: Number(c.total_posts || 0),
+          total_clippers: Number(c.total_clippers || 0),
+        })));
       }
-
-      // Calculate stats per campaign using external metrics
-      const campaignStats: CampaignSummary[] = (campaignsData || []).map(campaign => {
-        const campaignVids = campaignVideosData?.filter(v => v.campaign_id === campaign.id) || [];
-        const campaignParticipants = new Set(participantsData?.filter(p => p.campaign_id === campaign.id).map(p => p.user_id)).size;
-        
-        let totalViews = 0;
-        let totalLikes = 0;
-        let instagramViews = 0;
-        let tiktokViews = 0;
-
-        for (const vid of campaignVids) {
-          const normalized = normalizeLink(vid.video_link);
-          const metrics = metricsMap.get(normalized);
-          if (metrics) {
-            totalViews += metrics.views;
-            totalLikes += metrics.likes;
-            if (metrics.platform === 'instagram') {
-              instagramViews += metrics.views;
-            } else if (metrics.platform === 'tiktok') {
-              tiktokViews += metrics.views;
-            }
-          }
-        }
-
-        return {
-          id: campaign.id,
-          name: campaign.name,
-          is_active: campaign.is_active,
-          total_views: totalViews,
-          total_posts: campaignVids.length,
-          total_clippers: campaignParticipants,
-          engagement_rate: totalViews > 0 ? Math.round((totalLikes / totalViews) * 100) : 0,
-        };
-      });
-      
-      setAllCampaigns(campaignStats);
-      setCampaigns(campaignStats);
-      
-      const grandTotalViews = campaignStats.reduce((acc, c) => acc + c.total_views, 0);
-      const grandTotalClippers = campaignStats.reduce((acc, c) => acc + c.total_clippers, 0);
-      
-      setStats({
-        totalCampaigns: campaignStats.length,
-        totalViews: grandTotalViews,
-        totalClippers: grandTotalClippers,
-        pendingPayouts: 0
-      });
 
       // Fetch pending clippers
       const { data: clippersData } = await supabase
@@ -209,27 +121,7 @@ function DashboardAdminContent() {
       
       if (payoutsData) {
         setPendingPayouts(payoutsData);
-        setStats(prev => ({ ...prev, pendingPayouts: payoutsData.length }));
       }
-
-      // Calculate platform distribution from campaign videos with real metrics
-      const platformTotals: Record<string, number> = { instagram: 0, tiktok: 0 };
-      for (const vid of (campaignVideosData || [])) {
-        const normalized = normalizeLink(vid.video_link);
-        const metrics = metricsMap.get(normalized);
-        if (metrics) {
-          platformTotals[vid.platform] = (platformTotals[vid.platform] || 0) + metrics.views;
-        }
-      }
-      setPlatformData(Object.entries(platformTotals).map(([platform, value]) => ({ platform, value })));
-
-      // Fetch daily growth from external
-      const dailyGrowth = await externalSupabase.getDailyGrowth(7);
-      const formattedGrowth = dailyGrowth.map((day) => ({
-        date: new Date(day.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-        views: day.total_views,
-      }));
-      setViewsData(formattedGrowth);
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -239,25 +131,9 @@ function DashboardAdminContent() {
     }
   };
 
-  const updateFilteredStats = () => {
-    if (selectedCampaign === 'all') {
-      setStats({
-        totalCampaigns: allCampaigns.length,
-        totalViews: allCampaigns.reduce((acc, c) => acc + c.total_views, 0),
-        totalClippers: allCampaigns.reduce((acc, c) => acc + c.total_clippers, 0),
-        pendingPayouts: pendingPayouts.length
-      });
-      setCampaigns(allCampaigns);
-    } else {
-      const filtered = allCampaigns.filter(c => c.id === selectedCampaign);
-      setStats({
-        totalCampaigns: 1,
-        totalViews: filtered.reduce((acc, c) => acc + c.total_views, 0),
-        totalClippers: filtered.reduce((acc, c) => acc + c.total_clippers, 0),
-        pendingPayouts: pendingPayouts.length
-      });
-      setCampaigns(filtered);
-    }
+  const handleRefresh = async () => {
+    await Promise.all([fetchData(), refetchMetrics()]);
+    toast.success('Dashboard atualizado!');
   };
 
   const formatNumber = (num: number) => {
@@ -266,50 +142,53 @@ function DashboardAdminContent() {
     return num.toString();
   };
 
-  if (loading) {
+  if (loading || metricsLoading) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-[60vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+          <div className="text-center space-y-4">
+            <div className="relative">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto" />
+              <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-primary animate-pulse" />
+            </div>
+            <p className="text-muted-foreground">Carregando dashboard...</p>
+          </div>
         </div>
       </MainLayout>
     );
   }
 
+  // Prepare chart data from platform breakdown
+  const chartPlatformData = socialMetrics?.platformBreakdown
+    .filter(p => p.views > 0)
+    .map(p => ({
+      platform: p.platform,
+      value: p.views,
+    })) || [];
+
   return (
     <MainLayout>
-      <div className="space-y-8">
+      <div className="space-y-8 animate-fade-in">
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl lg:text-4xl font-bold text-glow">
               Dashboard Admin
             </h1>
-            <p className="text-muted-foreground mt-1">Visão geral do sistema</p>
+            <p className="text-muted-foreground mt-1">Visão geral de todas as métricas</p>
           </div>
           <div className="flex flex-wrap gap-3 items-center">
-            <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
-              <SelectTrigger className="w-[250px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filtrar campanha" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  <span className="font-medium">Todas as Campanhas</span>
-                </SelectItem>
-                {allCampaigns.map((campaign) => (
-                  <SelectItem key={campaign.id} value={campaign.id}>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${campaign.is_active ? 'bg-green-500' : 'bg-gray-500'}`} />
-                      {campaign.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Button variant="outline" onClick={handleRefresh}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Atualizar
+            </Button>
             <Button onClick={() => navigate('/admin/campaigns')} variant="outline">
               <Trophy className="h-4 w-4 mr-2" />
               Campanhas
+            </Button>
+            <Button onClick={() => navigate('/account-analytics')} variant="outline">
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Contas Sociais
             </Button>
             <Button onClick={() => navigate('/admin/create-campaign')}>
               <Plus className="h-4 w-4 mr-2" />
@@ -318,52 +197,111 @@ function DashboardAdminContent() {
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Social Media Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCardGlow
-            title="Total de Campanhas"
-            value={stats.totalCampaigns}
-            icon={Trophy}
-            glowColor="purple"
-          />
-          <MetricCardGlow
-            title="Total de Clipadores"
-            value={formatNumber(stats.totalClippers)}
+            title="Seguidores Totais"
+            value={formatNumber(socialMetrics?.totalFollowers || 0)}
             icon={Users}
             glowColor="blue"
           />
           <MetricCardGlow
-            title="Total de Views"
-            value={formatNumber(stats.totalViews)}
+            title="Visualizações Totais"
+            value={formatNumber(socialMetrics?.totalViews || 0)}
             icon={Eye}
             glowColor="green"
           />
           <MetricCardGlow
-            title="Saques Pendentes"
-            value={stats.pendingPayouts}
-            icon={Wallet}
-            glowColor="orange"
-            subtitle={stats.pendingPayouts > 0 ? "Requer atenção" : undefined}
+            title="Curtidas Totais"
+            value={formatNumber(socialMetrics?.totalLikes || 0)}
+            icon={TrendingUp}
+            glowColor="purple"
           />
+          <MetricCardGlow
+            title="Vídeos/Posts"
+            value={formatNumber(socialMetrics?.totalVideos || 0)}
+            icon={Video}
+            glowColor="orange"
+          />
+        </div>
+
+        {/* Platform Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {socialMetrics?.platformBreakdown.map((platform) => (
+            <GlowCard key={platform.platform} className="p-5" glowColor={
+              platform.platform === 'Instagram' ? 'purple' :
+              platform.platform === 'TikTok' ? 'blue' : 'orange'
+            }>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  {platform.platform === 'Instagram' && <Instagram className="h-6 w-6 text-pink-500" />}
+                  {platform.platform === 'TikTok' && <Video className="h-6 w-6 text-purple-500" />}
+                  {platform.platform === 'YouTube' && <Youtube className="h-6 w-6 text-red-500" />}
+                  <h3 className="font-semibold">{platform.platform}</h3>
+                </div>
+                <span className="text-sm text-muted-foreground">{platform.accounts} contas</span>
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-bold">{formatNumber(platform.followers)}</p>
+                  <p className="text-xs text-muted-foreground">Seguidores</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{formatNumber(platform.views)}</p>
+                  <p className="text-xs text-muted-foreground">Views</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{formatNumber(platform.likes)}</p>
+                  <p className="text-xs text-muted-foreground">Curtidas</p>
+                </div>
+              </div>
+            </GlowCard>
+          ))}
         </div>
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ChartLineViews 
-            data={viewsData} 
-            title="Evolução de Views (7 dias)" 
-          />
           <ChartPiePlatforms 
-            data={platformData} 
+            data={chartPlatformData.length > 0 ? chartPlatformData : [{ platform: 'Sem dados', value: 1 }]} 
             title="Distribuição por Plataforma" 
           />
+          <GlowCard className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Resumo de Contas</h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-pink-500/10 to-pink-500/5 border border-pink-500/20">
+                <div className="flex items-center gap-3">
+                  <Instagram className="h-5 w-5 text-pink-500" />
+                  <span>Instagram</span>
+                </div>
+                <span className="font-semibold">{instagramAccounts.length} contas</span>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-purple-500/5 border border-purple-500/20">
+                <div className="flex items-center gap-3">
+                  <Video className="h-5 w-5 text-purple-500" />
+                  <span>TikTok</span>
+                </div>
+                <span className="font-semibold">{tiktokAccounts.length} contas</span>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-red-500/10 to-red-500/5 border border-red-500/20">
+                <div className="flex items-center gap-3">
+                  <Youtube className="h-5 w-5 text-red-500" />
+                  <span>YouTube</span>
+                </div>
+                <span className="font-semibold">{youtubeAccounts.length} canais</span>
+              </div>
+            </div>
+          </GlowCard>
         </div>
 
         {/* Tabs for Lists */}
         <Tabs defaultValue="campaigns" className="space-y-4">
-          <TabsList className="bg-muted/30">
-            <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
-            <TabsTrigger value="clippers">
+          <TabsList className="glass-card p-1 border border-border/30">
+            <TabsTrigger value="campaigns" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+              <Trophy className="h-4 w-4 mr-2" />
+              Campanhas
+            </TabsTrigger>
+            <TabsTrigger value="clippers" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+              <Users className="h-4 w-4 mr-2" />
               Clipadores Pendentes
               {pendingClippers.length > 0 && (
                 <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-yellow-500/20 text-yellow-400">
@@ -371,7 +309,8 @@ function DashboardAdminContent() {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="payouts">
+            <TabsTrigger value="payouts" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+              <Wallet className="h-4 w-4 mr-2" />
               Saques Pendentes
               {pendingPayouts.length > 0 && (
                 <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-orange-500/20 text-orange-400">
@@ -404,13 +343,12 @@ function DashboardAdminContent() {
                         <div>
                           <p className="font-medium">{campaign.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {formatNumber(Number(campaign.total_views))} views • {campaign.total_posts} posts
+                            {formatNumber(campaign.total_views)} views • {campaign.total_posts} posts
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium text-primary">{campaign.total_clippers} clipadores</p>
-                        <p className="text-xs text-muted-foreground">{campaign.engagement_rate}% engajamento</p>
                       </div>
                     </div>
                   ))
