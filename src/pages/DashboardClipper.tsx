@@ -17,35 +17,16 @@ import {
   Trophy, 
   Eye, 
   Video,
-  Wallet,
   Medal,
   Plus,
-  Send,
   Loader2,
   TrendingUp,
   Crown,
   Flame,
-  DollarSign,
-  Target
+  Target,
+  BarChart3
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface Campaign {
   id: string;
@@ -78,13 +59,6 @@ interface VideoSubmission {
   submitted_at: string;
 }
 
-interface WalletData {
-  available_balance: number;
-  pending_balance: number;
-  total_earned: number;
-  total_withdrawn: number;
-}
-
 function DashboardClipperContent() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -92,16 +66,8 @@ function DashboardClipperContent() {
   const [availableCampaigns, setAvailableCampaigns] = useState<Campaign[]>([]);
   const [participations, setParticipations] = useState<Participation[]>([]);
   const [submissions, setSubmissions] = useState<VideoSubmission[]>([]);
-  const [wallet, setWallet] = useState<WalletData | null>(null);
   const [stats, setStats] = useState({ totalViews: 0, totalVideos: 0, ranking: 0, estimatedEarnings: 0 });
   const [userRanking, setUserRanking] = useState<RankingItem[]>([]);
-  
-  // Dialogs
-  const [payoutDialog, setPayoutDialog] = useState(false);
-  const [payoutAmount, setPayoutAmount] = useState('');
-  const [pixKey, setPixKey] = useState('');
-  const [pixType, setPixType] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -191,29 +157,6 @@ function DashboardClipperContent() {
         })));
       }
 
-      // Fetch wallet
-      const { data: walletData } = await supabase
-        .from('user_wallets')
-        .select('*')
-        .eq('user_id', user?.id)
-        .maybeSingle();
-
-      if (walletData) {
-        setWallet({
-          available_balance: Number(walletData.available_balance || 0),
-          pending_balance: Number(walletData.pending_balance || 0),
-          total_earned: Number(walletData.total_earned || 0),
-          total_withdrawn: Number(walletData.total_withdrawn || 0)
-        });
-      } else {
-        setWallet({
-          available_balance: 0,
-          pending_balance: 0,
-          total_earned: 0,
-          total_withdrawn: 0
-        });
-      }
-
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       toast.error('Erro ao carregar dados');
@@ -235,42 +178,6 @@ function DashboardClipperContent() {
     }
   };
 
-  const handleRequestPayout = async () => {
-    if (!payoutAmount || !pixKey || !pixType) {
-      toast.error('Preencha todos os campos');
-      return;
-    }
-
-    const amount = parseFloat(payoutAmount);
-    if (amount <= 0 || amount > (wallet?.available_balance || 0)) {
-      toast.error('Valor inválido');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const { error } = await supabase.rpc('request_payout', {
-        p_amount: amount,
-        p_pix_key: pixKey,
-        p_pix_type: pixType
-      });
-      if (error) throw error;
-      toast.success('Saque solicitado com sucesso!');
-      setPayoutDialog(false);
-      setPayoutAmount('');
-      setPixKey('');
-      setPixType('');
-      fetchData();
-    } catch (error: any) {
-      toast.error('Erro ao solicitar saque: ' + error.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  };
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -297,28 +204,22 @@ function DashboardClipperContent() {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
               Dashboard Clipador
             </h1>
-            <p className="text-muted-foreground mt-1">Acompanhe seu progresso e ganhos</p>
+            <p className="text-muted-foreground mt-1">Acompanhe seu progresso</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => navigate('/submit')}>
-              <Video className="h-4 w-4 mr-2" />
-              Enviar Vídeo
+            <Button variant="outline" onClick={() => navigate('/account-analytics')}>
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Métricas
             </Button>
-            <Button onClick={() => setPayoutDialog(true)} disabled={!wallet || wallet.available_balance <= 0}>
-              <Wallet className="h-4 w-4 mr-2" />
-              Solicitar Saque
+            <Button onClick={() => navigate('/campaigns')}>
+              <Trophy className="h-4 w-4 mr-2" />
+              Campanhas
             </Button>
           </div>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCardGlow
-            title="Saldo Disponível"
-            value={formatCurrency(wallet?.available_balance || 0)}
-            icon={Wallet}
-            glowColor="green"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <MetricCardGlow
             title="Total de Views"
             value={formatNumber(stats.totalViews)}
@@ -332,34 +233,12 @@ function DashboardClipperContent() {
             glowColor="purple"
           />
           <MetricCardGlow
-            title="Ganhos Totais"
-            value={formatCurrency(wallet?.total_earned || 0)}
-            icon={TrendingUp}
+            title="Campanhas Ativas"
+            value={participations.filter(p => p.status === 'approved').length}
+            icon={Trophy}
             glowColor="orange"
           />
         </div>
-
-        {/* Wallet Card */}
-        <GlowCard glowColor="green">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold mb-1">Minha Carteira</h3>
-              <p className="text-3xl font-bold text-green-400">{formatCurrency(wallet?.available_balance || 0)}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Pendente: {formatCurrency(wallet?.pending_balance || 0)} • 
-                Sacado: {formatCurrency(wallet?.total_withdrawn || 0)}
-              </p>
-            </div>
-            <Button 
-              size="lg" 
-              onClick={() => setPayoutDialog(true)}
-              disabled={!wallet || wallet.available_balance <= 0}
-            >
-              <Send className="h-4 w-4 mr-2" />
-              Solicitar Saque
-            </Button>
-          </div>
-        </GlowCard>
 
         {/* Tabs */}
         <Tabs defaultValue="campaigns" className="space-y-4">
@@ -491,61 +370,6 @@ function DashboardClipperContent() {
         </Tabs>
       </div>
 
-      {/* Payout Dialog */}
-      <Dialog open={payoutDialog} onOpenChange={setPayoutDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Solicitar Saque</DialogTitle>
-            <DialogDescription>
-              Saldo disponível: {formatCurrency(wallet?.available_balance || 0)}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Valor do saque</Label>
-              <Input
-                type="number"
-                placeholder="0.00"
-                value={payoutAmount}
-                onChange={(e) => setPayoutAmount(e.target.value)}
-                max={wallet?.available_balance || 0}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo de chave PIX</Label>
-              <Select value={pixType} onValueChange={setPixType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cpf">CPF</SelectItem>
-                  <SelectItem value="cnpj">CNPJ</SelectItem>
-                  <SelectItem value="email">E-mail</SelectItem>
-                  <SelectItem value="phone">Telefone</SelectItem>
-                  <SelectItem value="random">Chave aleatória</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Chave PIX</Label>
-              <Input
-                placeholder="Digite sua chave PIX"
-                value={pixKey}
-                onChange={(e) => setPixKey(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setPayoutDialog(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleRequestPayout} disabled={submitting}>
-              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Solicitar Saque
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </MainLayout>
   );
 }

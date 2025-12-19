@@ -152,6 +152,20 @@ function AdminUsersContent() {
     }
   };
 
+  const handleBanUser = async (userId: string) => {
+    try {
+      const { error } = await supabase.rpc("ban_user", {
+        p_user_id: userId,
+      } as any);
+      if (error) throw error;
+
+      toast.success(t("users.user_banned"));
+      fetchUsers();
+    } catch (error: any) {
+      toast.error(error.message || t("users.error_banning"));
+    }
+  };
+
   const handleUpdateWarning = async (userId: string, newWarning: string) => {
     try {
       const { error } = await supabase.rpc("update_warning", {
@@ -469,7 +483,7 @@ function AdminUsersContent() {
                                   openConfirmDialog(
                                     t("users.ban_user_question"),
                                     `${user.username} ${t("users.ban_user_desc")}`,
-                                    () => handleUpdateRole(user.id, "banned")
+                                    () => handleBanUser(user.id)
                                   )
                                 }
                               >

@@ -1843,6 +1843,7 @@ export type Database = {
         Returns: undefined
       }
       approve_user: { Args: { pending_id: string }; Returns: undefined }
+      ban_user: { Args: { p_user_id: string }; Returns: undefined }
       get_admin_users_view: {
         Args: never
         Returns: {
