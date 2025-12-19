@@ -37,11 +37,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const rapidApiKey = Deno.env.get('RAPIDAPI_KEY');
-    if (!rapidApiKey) {
-      console.error('RAPIDAPI_KEY not configured');
+    const scrapCreatorsApiKey = Deno.env.get('SCRAPECREATORS_API_KEY');
+    if (!scrapCreatorsApiKey) {
+      console.error('SCRAPECREATORS_API_KEY not configured');
       return new Response(
-        JSON.stringify({ success: false, error: 'RapidAPI key not configured. Please add your RAPIDAPI_KEY.' }),
+        JSON.stringify({ success: false, error: 'ScrapeCreators API key not configured. Please add your SCRAPECREATORS_API_KEY.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -56,20 +56,20 @@ Deno.serve(async (req) => {
 
     console.log(`Fetching Instagram profile: ${username}`);
 
-    // Use RapidAPI Instagram API (instagram28 - has free tier)
-    const apiHost = 'instagram28.p.rapidapi.com';
+    // Use ScrapeCreators API
+    const apiUrl = `https://api.scrapecreators.com/v1/instagram/profile?handle=${encodeURIComponent(username)}`;
     
-    const profileResponse = await fetch(`https://${apiHost}/user_info?user_name=${encodeURIComponent(username)}`, {
+    const profileResponse = await fetch(apiUrl, {
       method: 'GET',
       headers: {
-        'x-rapidapi-key': rapidApiKey,
-        'x-rapidapi-host': apiHost,
+        'x-api-key': scrapCreatorsApiKey,
+        'Content-Type': 'application/json',
       },
     });
 
     if (!profileResponse.ok) {
       const errorText = await profileResponse.text();
-      console.error('RapidAPI error:', profileResponse.status, errorText);
+      console.error('ScrapeCreators API error:', profileResponse.status, errorText);
       
       if (profileResponse.status === 429) {
         return new Response(
@@ -78,9 +78,9 @@ Deno.serve(async (req) => {
         );
       }
       
-      if (profileResponse.status === 403) {
+      if (profileResponse.status === 401 || profileResponse.status === 403) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Invalid API key or subscription required. Please subscribe to the Instagram API on RapidAPI.' }),
+          JSON.stringify({ success: false, error: 'Invalid API key. Please check your SCRAPECREATORS_API_KEY.' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -94,35 +94,35 @@ Deno.serve(async (req) => {
     const profileData = await profileResponse.json();
     console.log('Profile data received:', JSON.stringify(profileData, null, 2));
 
-    // Parse the profile data from instagram28 API
-    const userData = profileData.data?.user || profileData.user || profileData.data || profileData;
+    // Parse the profile data from ScrapeCreators API
+    const userData = profileData.data || profileData;
     
     const data: InstagramScrapedData = {
       username: userData.username || username,
-      displayName: userData.full_name || undefined,
-      profileImageUrl: userData.profile_pic_url_hd || userData.profile_pic_url || undefined,
-      bio: userData.biography || undefined,
-      followersCount: userData.edge_followed_by?.count || userData.follower_count || 0,
-      followingCount: userData.edge_follow?.count || userData.following_count || 0,
-      postsCount: userData.edge_owner_to_timeline_media?.count || userData.media_count || 0,
+      displayName: userData.full_name || userData.fullName || undefined,
+      profileImageUrl: userData.profile_pic_url_hd || userData.profile_pic_url || userData.profilePicUrl || undefined,
+      bio: userData.biography || userData.bio || undefined,
+      followersCount: userData.follower_count || userData.followersCount || userData.edge_followed_by?.count || 0,
+      followingCount: userData.following_count || userData.followingCount || userData.edge_follow?.count || 0,
+      postsCount: userData.media_count || userData.postsCount || userData.edge_owner_to_timeline_media?.count || 0,
       posts: [],
     };
 
     // Extract posts from profile data if available
     try {
-      const edges = userData.edge_owner_to_timeline_media?.edges || [];
+      const posts = userData.posts || userData.recent_posts || userData.edge_owner_to_timeline_media?.edges || [];
       
-      if (Array.isArray(edges) && edges.length > 0) {
-        data.posts = edges.slice(0, 12).map((edge: any) => {
-          const node = edge.node || edge;
+      if (Array.isArray(posts) && posts.length > 0) {
+        data.posts = posts.slice(0, 12).map((post: any) => {
+          const node = post.node || post;
           return {
-            postUrl: `https://www.instagram.com/p/${node.shortcode}/`,
-            type: node.is_video ? 'video' : node.__typename === 'GraphSidecar' ? 'carousel' : 'post',
-            thumbnailUrl: node.thumbnail_src || node.display_url || undefined,
-            caption: node.edge_media_to_caption?.edges?.[0]?.node?.text?.substring(0, 200) || undefined,
-            likesCount: node.edge_liked_by?.count || node.like_count || 0,
-            commentsCount: node.edge_media_to_comment?.count || node.comment_count || 0,
-            viewsCount: node.video_view_count || 0,
+            postUrl: node.url || node.postUrl || (node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : ''),
+            type: node.is_video || node.isVideo ? 'video' : node.__typename === 'GraphSidecar' ? 'carousel' : 'post',
+            thumbnailUrl: node.thumbnail_url || node.thumbnailUrl || node.thumbnail_src || node.display_url || undefined,
+            caption: (node.caption || node.edge_media_to_caption?.edges?.[0]?.node?.text || '')?.substring(0, 200) || undefined,
+            likesCount: node.like_count || node.likesCount || node.edge_liked_by?.count || 0,
+            commentsCount: node.comment_count || node.commentsCount || node.edge_media_to_comment?.count || 0,
+            viewsCount: node.video_view_count || node.viewsCount || node.play_count || 0,
           };
         });
       }
