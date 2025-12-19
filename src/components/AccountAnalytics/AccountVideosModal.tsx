@@ -89,20 +89,10 @@ export function AccountVideosModal({
     }
   };
 
-  const handleOpenVideo = (e: React.MouseEvent, videoUrl: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('Opening video URL:', videoUrl);
-    
-    if (videoUrl) {
-      const newWindow = window.open(videoUrl, '_blank', 'noopener,noreferrer');
-      if (!newWindow) {
-        // Fallback if popup is blocked
-        window.location.href = videoUrl;
-      }
-    } else {
-      toast.error('Link do vídeo não disponível');
-    }
+  // Build proper video URL based on platform
+  const getVideoUrl = (video: Video): string => {
+    if (!video.videoUrl) return '#';
+    return video.videoUrl;
   };
 
   const renderThumbnail = (video: Video) => (
@@ -171,28 +161,26 @@ export function AccountVideosModal({
                   key={video.id}
                   className="group rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-primary/50 transition-all overflow-hidden"
                 >
-                  {/* Clickable Thumbnail Area */}
+                  {/* Clickable Thumbnail Area - Simple native link */}
                   <a 
-                    href={video.videoUrl}
+                    href={getVideoUrl(video)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="cursor-pointer block"
-                    onClick={(e) => handleOpenVideo(e, video.videoUrl)}
+                    className="block"
                   >
                     {renderThumbnail(video)}
                   </a>
 
                   {/* Content */}
                   <div className="p-3 space-y-2">
-                    {/* Title or Caption - Clickable */}
+                    {/* Title or Caption - Simple native link */}
                     <a 
-                      href={video.videoUrl}
+                      href={getVideoUrl(video)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="cursor-pointer hover:text-primary transition-colors block"
-                      onClick={(e) => handleOpenVideo(e, video.videoUrl)}
+                      className="hover:text-primary transition-colors block"
                     >
-                      <p className="font-medium text-sm line-clamp-2 text-foreground">
+                      <p className="font-medium text-sm line-clamp-2 text-foreground hover:text-primary">
                         {video.title || video.caption || 'Sem título'}
                       </p>
                     </a>
