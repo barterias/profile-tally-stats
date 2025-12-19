@@ -94,35 +94,43 @@ Deno.serve(async (req) => {
     const profileData = await profileResponse.json();
     console.log('Profile data received:', JSON.stringify(profileData, null, 2));
 
-    // Parse the profile data from ScrapeCreators API
-    const userData = profileData.data || profileData;
+    // Parse the profile data from ScrapeCreators API - data is nested in data.user
+    const userData = profileData.data?.user || profileData.data || profileData;
     
     const data: InstagramScrapedData = {
       username: userData.username || username,
       displayName: userData.full_name || userData.fullName || undefined,
       profileImageUrl: userData.profile_pic_url_hd || userData.profile_pic_url || userData.profilePicUrl || undefined,
       bio: userData.biography || userData.bio || undefined,
-      followersCount: userData.follower_count || userData.followersCount || userData.edge_followed_by?.count || 0,
-      followingCount: userData.following_count || userData.followingCount || userData.edge_follow?.count || 0,
-      postsCount: userData.media_count || userData.postsCount || userData.edge_owner_to_timeline_media?.count || 0,
+      followersCount: userData.edge_followed_by?.count || userData.follower_count || userData.followersCount || 0,
+      followingCount: userData.edge_follow?.count || userData.following_count || userData.followingCount || 0,
+      postsCount: userData.edge_owner_to_timeline_media?.count || userData.media_count || userData.postsCount || 0,
       posts: [],
     };
 
     // Extract posts from profile data if available
     try {
-      const posts = userData.posts || userData.recent_posts || userData.edge_owner_to_timeline_media?.edges || [];
+      const postsEdges = userData.edge_owner_to_timeline_media?.edges || userData.posts || userData.recent_posts || [];
       
-      if (Array.isArray(posts) && posts.length > 0) {
-        data.posts = posts.slice(0, 12).map((post: any) => {
-          const node = post.node || post;
+      console.log(`Found ${postsEdges.length} posts in response`);
+      
+      if (Array.isArray(postsEdges) && postsEdges.length > 0) {
+        data.posts = postsEdges.slice(0, 12).map((edge: any) => {
+          const node = edge.node || edge;
+          const likesCount = node.edge_liked_by?.count || node.edge_media_preview_like?.count || node.like_count || node.likesCount || 0;
+          const commentsCount = node.edge_media_to_comment?.count || node.comment_count || node.commentsCount || 0;
+          const viewsCount = node.video_view_count || node.play_count || node.viewsCount || 0;
+          
+          console.log(`Post ${node.shortcode}: likes=${likesCount}, comments=${commentsCount}, views=${viewsCount}`);
+          
           return {
             postUrl: node.url || node.postUrl || (node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : ''),
             type: node.is_video || node.isVideo ? 'video' : node.__typename === 'GraphSidecar' ? 'carousel' : 'post',
             thumbnailUrl: node.thumbnail_url || node.thumbnailUrl || node.thumbnail_src || node.display_url || undefined,
-            caption: (node.caption || node.edge_media_to_caption?.edges?.[0]?.node?.text || '')?.substring(0, 200) || undefined,
-            likesCount: node.like_count || node.likesCount || node.edge_liked_by?.count || 0,
-            commentsCount: node.comment_count || node.commentsCount || node.edge_media_to_comment?.count || 0,
-            viewsCount: node.video_view_count || node.viewsCount || node.play_count || 0,
+            caption: (node.edge_media_to_caption?.edges?.[0]?.node?.text || node.caption || '')?.substring(0, 200) || undefined,
+            likesCount,
+            commentsCount,
+            viewsCount,
           };
         });
       }
