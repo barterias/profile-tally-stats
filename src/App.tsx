@@ -60,6 +60,7 @@ const App = () => (
               <Route path="/ranking/monthly" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
               <Route path="/ranking/daily" element={<ProtectedRoute><RankingDaily /></ProtectedRoute>} />
               {/* Dashboard Routes by Role */}
+              <Route path="/dashboard/admin" element={<ProtectedRoute requireAdmin><DashboardAdmin /></ProtectedRoute>} />
               <Route path="/dashboard/client" element={<ProtectedRoute><DashboardClient /></ProtectedRoute>} />
               <Route path="/dashboard/clipper" element={<ProtectedRoute><DashboardClipper /></ProtectedRoute>} />
               {/* Client Routes */}

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, Zap, Eye, TrendingUp, Lock, Mail, User, ArrowRight } from "lucide-react";
+import { Trophy, Zap, Eye, Lock, Mail, User, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { LanguageSelector } from "@/components/LanguageSelector";
 
@@ -147,18 +147,6 @@ export default function Auth() {
                   <h3 className="font-semibold mb-1">{t("brand.epic_competitions")}</h3>
                   <p className="text-sm text-muted-foreground">
                     {t("brand.epic_competitions_desc")}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4 p-4 rounded-lg bg-card/50 backdrop-blur-sm border border-border/50">
-                <div className="p-3 rounded-full bg-primary/10">
-                  <TrendingUp className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-1">{t("brand.realtime_ranking")}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {t("brand.realtime_ranking_desc")}
                   </p>
                 </div>
               </div>
