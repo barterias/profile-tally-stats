@@ -120,54 +120,60 @@ export function AccountVideosModal({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {sortedVideos.map((video) => (
-                <a
+                <div
                   key={video.id}
-                  href={video.videoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-primary/50 transition-all overflow-hidden cursor-pointer block"
-                  onClick={() => {
-                    if (!video.videoUrl) {
-                      toast.error('URL do vídeo não disponível');
-                    }
-                  }}
+                  className="group rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-primary/50 transition-all overflow-hidden"
                 >
-                  {/* Thumbnail */}
-                  <div className="aspect-video bg-muted relative overflow-hidden">
-                    {video.thumbnailUrl ? (
-                      <img
-                        src={video.thumbnailUrl}
-                        alt={video.title || video.caption || 'Video thumbnail'}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/placeholder.svg';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                        <Eye className="h-8 w-8" />
-                      </div>
-                    )}
-                    {/* Views badge */}
-                    <Badge className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm">
-                      <Eye className="h-3 w-3 mr-1" />
-                      {formatNumber(video.viewsCount)}
-                    </Badge>
-                    {/* External link indicator */}
-                    <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Badge className="bg-primary text-primary-foreground">
-                        <ExternalLink className="h-3 w-3 mr-1" />
-                        Abrir
+                  {/* Clickable Thumbnail Area */}
+                  <a
+                    href={video.videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block cursor-pointer"
+                  >
+                    <div className="aspect-video bg-muted relative overflow-hidden">
+                      {video.thumbnailUrl ? (
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title || video.caption || 'Video thumbnail'}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/placeholder.svg';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                          <Eye className="h-8 w-8" />
+                        </div>
+                      )}
+                      {/* Views badge */}
+                      <Badge className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm">
+                        <Eye className="h-3 w-3 mr-1" />
+                        {formatNumber(video.viewsCount)}
                       </Badge>
+                      {/* External link indicator */}
+                      <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Badge className="bg-primary text-primary-foreground">
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Abrir
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
+                  </a>
 
-                  {/* Content */}
+                  {/* Content - Not clickable */}
                   <div className="p-3 space-y-2">
-                    {/* Title or Caption */}
-                    <p className="font-medium text-sm line-clamp-2 text-foreground">
-                      {video.title || video.caption || 'Sem título'}
-                    </p>
+                    {/* Title or Caption - Clickable */}
+                    <a
+                      href={video.videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block hover:text-primary transition-colors"
+                    >
+                      <p className="font-medium text-sm line-clamp-2 text-foreground">
+                        {video.title || video.caption || 'Sem título'}
+                      </p>
+                    </a>
 
                     {/* Metrics and Sync Button */}
                     <div className="flex items-center justify-between">
@@ -188,7 +194,7 @@ export function AccountVideosModal({
                         )}
                       </div>
                       
-                      {/* Sync button */}
+                      {/* Sync button - Separate from link */}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -205,7 +211,7 @@ export function AccountVideosModal({
                       </Button>
                     </div>
                   </div>
-                </a>
+                </div>
               ))}
             </div>
           )}
