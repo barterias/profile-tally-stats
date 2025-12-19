@@ -94,11 +94,12 @@ Deno.serve(async (req) => {
       videos: [],
     };
 
-    // Fetch videos if requested
-    if (fetchVideos && data.channelId) {
+    // Fetch videos if requested - use correct endpoint
+    if (fetchVideos) {
       try {
+        // Use channel-videos endpoint with handle
         const videosResponse = await fetch(
-          `https://api.scrapecreators.com/v1/youtube/channel/videos?channel_id=${encodeURIComponent(data.channelId)}&limit=20`,
+          `https://api.scrapecreators.com/v1/youtube/channel-videos?handle=${encodeURIComponent(username)}&limit=20`,
           {
             method: 'GET',
             headers: {
@@ -110,21 +111,23 @@ Deno.serve(async (req) => {
 
         if (videosResponse.ok) {
           const videosData = await videosResponse.json();
-          const videosArray = videosData.data?.videos || videosData.videos || videosData.data || [];
+          const videosArray = videosData.data?.videos || videosData.data || videosData.videos || [];
           
-          console.log(`Found ${videosArray.length} videos`);
+          console.log(`Found ${videosArray.length} videos from channel-videos endpoint`);
           
           data.videos = videosArray.slice(0, 20).map((video: any) => ({
             videoId: video.video_id || video.videoId || video.id || '',
             title: video.title || '',
             description: video.description?.substring(0, 500) || undefined,
-            thumbnailUrl: video.thumbnail?.url || video.thumbnails?.high?.url || video.thumbnail_url || undefined,
-            viewsCount: video.view_count || video.viewCount || video.views || 0,
-            likesCount: video.like_count || video.likeCount || video.likes || 0,
-            commentsCount: video.comment_count || video.commentCount || video.comments || 0,
-            publishedAt: video.published_at || video.publishedAt || undefined,
+            thumbnailUrl: video.thumbnail?.url || video.thumbnails?.high?.url || video.thumbnail_url || video.thumbnail || undefined,
+            viewsCount: parseInt(video.view_count || video.viewCount || video.views || '0') || 0,
+            likesCount: parseInt(video.like_count || video.likeCount || video.likes || '0') || 0,
+            commentsCount: parseInt(video.comment_count || video.commentCount || video.comments || '0') || 0,
+            publishedAt: video.published_at || video.publishedAt || video.upload_date || undefined,
             duration: video.duration || video.length_seconds || undefined,
           }));
+        } else {
+          console.error('Videos endpoint failed:', videosResponse.status);
         }
       } catch (videosError) {
         console.error('Error fetching videos:', videosError);

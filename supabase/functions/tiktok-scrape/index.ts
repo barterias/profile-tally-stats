@@ -95,11 +95,11 @@ Deno.serve(async (req) => {
       videos: [],
     };
 
-    // Fetch videos if requested
+    // Fetch videos if requested - use v3 endpoint
     if (fetchVideos) {
       try {
         const videosResponse = await fetch(
-          `https://api.scrapecreators.com/v1/tiktok/user/posts?handle=${encodeURIComponent(username)}&limit=20`,
+          `https://api.scrapecreators.com/v3/tiktok/profile/videos?handle=${encodeURIComponent(username)}&limit=20`,
           {
             method: 'GET',
             headers: {
@@ -111,15 +111,15 @@ Deno.serve(async (req) => {
 
         if (videosResponse.ok) {
           const videosData = await videosResponse.json();
-          const videosArray = videosData.data?.posts || videosData.data?.videos || videosData.posts || videosData.videos || videosData.data || [];
+          const videosArray = videosData.data?.videos || videosData.data?.itemList || videosData.data || [];
           
-          console.log(`Found ${videosArray.length} videos`);
+          console.log(`Found ${videosArray.length} videos from v3 endpoint`);
           
           data.videos = videosArray.slice(0, 20).map((video: any) => ({
             videoId: video.id || video.video_id || video.aweme_id || '',
             videoUrl: video.video?.playAddr || video.video_url || video.play_url || `https://www.tiktok.com/@${username}/video/${video.id || video.video_id}`,
             caption: video.desc || video.description || video.caption || undefined,
-            thumbnailUrl: video.video?.cover || video.cover || video.thumbnail || video.thumbnail_url || undefined,
+            thumbnailUrl: video.video?.cover || video.video?.originCover || video.cover || video.thumbnail || undefined,
             viewsCount: video.stats?.playCount || video.play_count || video.views || 0,
             likesCount: video.stats?.diggCount || video.digg_count || video.likes || 0,
             commentsCount: video.stats?.commentCount || video.comment_count || video.comments || 0,
@@ -128,6 +128,8 @@ Deno.serve(async (req) => {
             duration: video.video?.duration || video.duration || undefined,
             postedAt: video.createTime ? new Date(video.createTime * 1000).toISOString() : video.create_time || undefined,
           }));
+        } else {
+          console.error('Videos endpoint failed:', videosResponse.status);
         }
       } catch (videosError) {
         console.error('Error fetching videos:', videosError);

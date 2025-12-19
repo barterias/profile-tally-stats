@@ -111,35 +111,60 @@ Deno.serve(async (req) => {
       posts: [],
     };
 
-    // Extract posts from profile data if available
+    // Fetch posts using dedicated posts endpoint
     if (fetchVideos) {
       try {
+        // First try from profile data
         const postsEdges = userData.edge_owner_to_timeline_media?.edges || userData.posts || userData.recent_posts || [];
         
-        console.log(`Found ${postsEdges.length} posts in response`);
-        
         if (Array.isArray(postsEdges) && postsEdges.length > 0) {
+          console.log(`Found ${postsEdges.length} posts in profile response`);
           data.posts = postsEdges.slice(0, 20).map((edge: any) => {
             const node = edge.node || edge;
-            const likesCount = node.edge_liked_by?.count || node.edge_media_preview_like?.count || node.like_count || node.likesCount || 0;
-            const commentsCount = node.edge_media_to_comment?.count || node.comment_count || node.commentsCount || 0;
-            const viewsCount = node.video_view_count || node.play_count || node.viewsCount || 0;
-            const sharesCount = node.share_count || node.sharesCount || 0;
-            
             return {
               postUrl: node.url || node.postUrl || (node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : ''),
               type: node.is_video || node.isVideo ? 'video' : node.__typename === 'GraphSidecar' ? 'carousel' : 'post',
               thumbnailUrl: node.thumbnail_url || node.thumbnailUrl || node.thumbnail_src || node.display_url || undefined,
               caption: (node.edge_media_to_caption?.edges?.[0]?.node?.text || node.caption || '')?.substring(0, 200) || undefined,
-              likesCount,
-              commentsCount,
-              viewsCount,
-              sharesCount,
+              likesCount: node.edge_liked_by?.count || node.edge_media_preview_like?.count || node.like_count || 0,
+              commentsCount: node.edge_media_to_comment?.count || node.comment_count || 0,
+              viewsCount: node.video_view_count || node.play_count || 0,
+              sharesCount: node.share_count || 0,
             };
           });
+        } else {
+          // Try dedicated posts endpoint
+          const postsResponse = await fetch(
+            `https://api.scrapecreators.com/v2/instagram/user/posts?handle=${encodeURIComponent(username)}&limit=20`,
+            {
+              method: 'GET',
+              headers: {
+                'x-api-key': scrapCreatorsApiKey,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+
+          if (postsResponse.ok) {
+            const postsData = await postsResponse.json();
+            const postsArray = postsData.data?.posts || postsData.data || [];
+            
+            console.log(`Found ${postsArray.length} posts from v2 endpoint`);
+            
+            data.posts = postsArray.slice(0, 20).map((post: any) => ({
+              postUrl: post.url || post.link || (post.shortcode ? `https://www.instagram.com/p/${post.shortcode}/` : ''),
+              type: post.is_video ? 'video' : post.type || 'post',
+              thumbnailUrl: post.thumbnail_url || post.display_url || post.image || undefined,
+              caption: post.caption?.substring(0, 200) || undefined,
+              likesCount: post.like_count || post.likes || 0,
+              commentsCount: post.comment_count || post.comments || 0,
+              viewsCount: post.video_view_count || post.views || 0,
+              sharesCount: post.share_count || 0,
+            }));
+          }
         }
       } catch (postsError) {
-        console.error('Error parsing posts:', postsError);
+        console.error('Error parsing/fetching posts:', postsError);
       }
     }
 
