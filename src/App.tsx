@@ -60,7 +60,6 @@ const App = () => (
               <Route path="/ranking/monthly" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
               <Route path="/ranking/daily" element={<ProtectedRoute><RankingDaily /></ProtectedRoute>} />
               {/* Dashboard Routes by Role */}
-              <Route path="/dashboard/admin" element={<ProtectedRoute requireAdmin><DashboardAdmin /></ProtectedRoute>} />
               <Route path="/dashboard/client" element={<ProtectedRoute><DashboardClient /></ProtectedRoute>} />
               <Route path="/dashboard/clipper" element={<ProtectedRoute><DashboardClipper /></ProtectedRoute>} />
               {/* Client Routes */}
@@ -68,8 +67,6 @@ const App = () => (
               <Route path="/client/edit-campaign/:id" element={<ClientEditCampaign />} />
               <Route path="/client/financial" element={<FinanceiroClient />} />
               {/* Admin Routes */}
-              <Route path="/admin" element={<ProtectedRoute requireAdmin><DashboardAdmin /></ProtectedRoute>} />
-              <Route path="/admin/dashboard" element={<ProtectedRoute requireAdmin><DashboardAdmin /></ProtectedRoute>} />
               <Route path="/admin/campaigns" element={<AdminCampaigns />} />
               <Route path="/admin/videos" element={<ProtectedRoute requireAdmin><ManageVideos /></ProtectedRoute>} />
               <Route path="/admin/submissions" element={<AdminSubmissions />} />
