@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, Wallet, Bell, Menu } from "lucide-react";
+import { User, LogOut, Bell, Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 import MobileNav from "./MobileNav";
 import { cn } from "@/lib/utils";
@@ -101,10 +101,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
                   <DropdownMenuItem onClick={() => navigate("/profile")}>
                     <User className="mr-2 h-4 w-4" />
                     <span>{t("nav.profile")}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate("/wallet")}>
-                    <Wallet className="mr-2 h-4 w-4" />
-                    <span>{t("nav.wallet")}</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
