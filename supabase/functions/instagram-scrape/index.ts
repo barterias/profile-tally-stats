@@ -56,10 +56,10 @@ Deno.serve(async (req) => {
 
     console.log(`Fetching Instagram profile: ${username}`);
 
-    // Use RapidAPI Instagram Scraper API (instagram-scraper-api2)
-    const apiHost = 'instagram-scraper-api2.p.rapidapi.com';
+    // Use RapidAPI Instagram API (instagram28 - has free tier)
+    const apiHost = 'instagram28.p.rapidapi.com';
     
-    const profileResponse = await fetch(`https://${apiHost}/v1/info?username_or_id_or_url=${encodeURIComponent(username)}`, {
+    const profileResponse = await fetch(`https://${apiHost}/user_info?user_name=${encodeURIComponent(username)}`, {
       method: 'GET',
       headers: {
         'x-rapidapi-key': rapidApiKey,
@@ -94,54 +94,40 @@ Deno.serve(async (req) => {
     const profileData = await profileResponse.json();
     console.log('Profile data received:', JSON.stringify(profileData, null, 2));
 
-    // Parse the profile data - handle different API response structures
-    const userData = profileData.data || profileData;
+    // Parse the profile data from instagram28 API
+    const userData = profileData.data?.user || profileData.user || profileData.data || profileData;
     
     const data: InstagramScrapedData = {
       username: userData.username || username,
-      displayName: userData.full_name || userData.fullName || null,
-      profileImageUrl: userData.profile_pic_url || userData.profile_pic_url_hd || null,
-      bio: userData.biography || userData.bio || null,
-      followersCount: userData.follower_count || userData.followers_count || 0,
-      followingCount: userData.following_count || userData.followings_count || 0,
-      postsCount: userData.media_count || userData.posts_count || 0,
+      displayName: userData.full_name || null,
+      profileImageUrl: userData.profile_pic_url_hd || userData.profile_pic_url || null,
+      bio: userData.biography || null,
+      followersCount: userData.edge_followed_by?.count || userData.follower_count || 0,
+      followingCount: userData.edge_follow?.count || userData.following_count || 0,
+      postsCount: userData.edge_owner_to_timeline_media?.count || userData.media_count || 0,
       posts: [],
     };
 
-    // Fetch recent posts
+    // Extract posts from profile data if available
     try {
-      const postsResponse = await fetch(`https://${apiHost}/v1.2/posts?username_or_id_or_url=${encodeURIComponent(username)}`, {
-        method: 'GET',
-        headers: {
-          'x-rapidapi-key': rapidApiKey,
-          'x-rapidapi-host': apiHost,
-        },
-      });
-
-      if (postsResponse.ok) {
-        const postsData = await postsResponse.json();
-        console.log('Posts data received:', JSON.stringify(postsData, null, 2).substring(0, 1000));
-
-        // Handle different response structures
-        const items = postsData.data?.items || postsData.items || postsData.data || [];
-        
-        if (Array.isArray(items) && items.length > 0) {
-          data.posts = items.slice(0, 12).map((post: any) => {
-            return {
-              postUrl: post.link || `https://www.instagram.com/p/${post.code}/`,
-              type: post.media_type === 2 || post.is_video ? 'video' : post.media_type === 8 ? 'carousel' : 'post',
-              thumbnailUrl: post.thumbnail_url || post.display_url || null,
-              caption: (post.caption?.text || post.caption || '')?.toString().substring(0, 200) || null,
-              likesCount: post.like_count || post.likes_count || 0,
-              commentsCount: post.comment_count || post.comments_count || 0,
-              viewsCount: post.play_count || post.view_count || 0,
-            };
-          });
-        }
+      const edges = userData.edge_owner_to_timeline_media?.edges || [];
+      
+      if (Array.isArray(edges) && edges.length > 0) {
+        data.posts = edges.slice(0, 12).map((edge: any) => {
+          const node = edge.node || edge;
+          return {
+            postUrl: `https://www.instagram.com/p/${node.shortcode}/`,
+            type: node.is_video ? 'video' : node.__typename === 'GraphSidecar' ? 'carousel' : 'post',
+            thumbnailUrl: node.thumbnail_src || node.display_url || null,
+            caption: node.edge_media_to_caption?.edges?.[0]?.node?.text?.substring(0, 200) || null,
+            likesCount: node.edge_liked_by?.count || node.like_count || 0,
+            commentsCount: node.edge_media_to_comment?.count || node.comment_count || 0,
+            viewsCount: node.video_view_count || 0,
+          };
+        });
       }
     } catch (postsError) {
-      console.error('Error fetching posts:', postsError);
-      // Continue without posts - profile data is still useful
+      console.error('Error parsing posts:', postsError);
     }
 
     console.log('Parsed data:', JSON.stringify(data, null, 2));
