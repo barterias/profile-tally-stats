@@ -72,17 +72,52 @@ export const instagramApi = {
 
   // Add a new Instagram account to monitor
   async addAccount(username: string, userId: string): Promise<{ success: boolean; account?: InstagramAccount; error?: string }> {
-    const profileUrl = `https://www.instagram.com/${username.replace('@', '')}/`;
+    const cleanUsername = username.replace('@', '');
+    const profileUrl = `https://www.instagram.com/${cleanUsername}/`;
     
+    // First, check if there's an existing account (even if inactive)
+    const { data: existingAccount } = await supabase
+      .from('instagram_accounts')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('username', cleanUsername)
+      .maybeSingle();
+
     // First, scrape the profile to get initial data
     const scrapeResult = await this.scrapeProfile(profileUrl);
     
-    // Insert the account
+    // If account exists, reactivate and update it
+    if (existingAccount) {
+      const { data, error } = await supabase
+        .from('instagram_accounts')
+        .update({
+          is_active: true,
+          display_name: scrapeResult.data?.displayName || existingAccount.display_name,
+          profile_image_url: scrapeResult.data?.profileImageUrl || existingAccount.profile_image_url,
+          followers_count: scrapeResult.data?.followersCount || existingAccount.followers_count,
+          following_count: scrapeResult.data?.followingCount || existingAccount.following_count,
+          posts_count: scrapeResult.data?.postsCount || existingAccount.posts_count,
+          bio: scrapeResult.data?.bio || existingAccount.bio,
+          last_synced_at: scrapeResult.success ? new Date().toISOString() : existingAccount.last_synced_at,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingAccount.id)
+        .select()
+        .single();
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, account: data as InstagramAccount };
+    }
+
+    // Insert new account
     const { data, error } = await supabase
       .from('instagram_accounts')
       .insert({
         user_id: userId,
-        username: username.replace('@', ''),
+        username: cleanUsername,
         profile_url: profileUrl,
         display_name: scrapeResult.data?.displayName || null,
         profile_image_url: scrapeResult.data?.profileImageUrl || null,
