@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.sync-all-accounts]
 verify_jwt = false
+
+[functions.video-details]
+verify_jwt = false

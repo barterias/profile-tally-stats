@@ -1,4 +1,5 @@
-import { Eye, Heart, MessageCircle, Share2 } from 'lucide-react';
+import { useState } from 'react';
+import { Eye, Heart, MessageCircle, Share2, RefreshCw, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,9 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useVideoDetails } from '@/hooks/useVideoDetails';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Video {
   id: string;
@@ -30,6 +34,7 @@ interface AccountVideosModalProps {
   isLoading: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  accountId?: string;
 }
 
 const formatNumber = (num: number | null | undefined) => {
@@ -52,9 +57,36 @@ export function AccountVideosModal({
   isLoading,
   open,
   onOpenChange,
+  accountId,
 }: AccountVideosModalProps) {
+  const [syncingVideoId, setSyncingVideoId] = useState<string | null>(null);
+  const { mutateAsync: fetchVideoDetails, isPending } = useVideoDetails();
+  const queryClient = useQueryClient();
+
   // Sort videos by views (highest first)
   const sortedVideos = [...videos].sort((a, b) => (b.viewsCount || 0) - (a.viewsCount || 0));
+
+  const handleSyncVideo = async (video: Video, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setSyncingVideoId(video.id);
+    
+    try {
+      await fetchVideoDetails({
+        videoUrl: video.videoUrl,
+        updateDatabase: true,
+        tableId: video.id,
+      });
+      
+      // Invalidate queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: [`${platform}-videos`, accountId] });
+    } catch (error) {
+      console.error('Error syncing video:', error);
+    } finally {
+      setSyncingVideoId(null);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -62,7 +94,7 @@ export function AccountVideosModal({
         <DialogHeader>
           <DialogTitle>{platformLabels[platform]} de @{accountName}</DialogTitle>
           <DialogDescription>
-            {videos.length} {platformLabels[platform].toLowerCase()} encontrados
+            {videos.length} {platformLabels[platform].toLowerCase()} encontrados. Clique no ícone de sincronização para atualizar visualizações individuais.
           </DialogDescription>
         </DialogHeader>
 
@@ -87,35 +119,39 @@ export function AccountVideosModal({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {sortedVideos.map((video) => (
-                <a
+                <div
                   key={video.id}
-                  href={video.videoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group block rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors overflow-hidden"
+                  className="group rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors overflow-hidden"
                 >
                   {/* Thumbnail */}
-                  <div className="aspect-video bg-muted relative overflow-hidden">
-                    {video.thumbnailUrl ? (
-                      <img
-                        src={video.thumbnailUrl}
-                        alt={video.title || video.caption || 'Video thumbnail'}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/placeholder.svg';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                        <Eye className="h-8 w-8" />
-                      </div>
-                    )}
-                    {/* Views badge */}
-                    <Badge className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm">
-                      <Eye className="h-3 w-3 mr-1" />
-                      {formatNumber(video.viewsCount)}
-                    </Badge>
-                  </div>
+                  <a
+                    href={video.videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    <div className="aspect-video bg-muted relative overflow-hidden">
+                      {video.thumbnailUrl ? (
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title || video.caption || 'Video thumbnail'}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/placeholder.svg';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                          <Eye className="h-8 w-8" />
+                        </div>
+                      )}
+                      {/* Views badge */}
+                      <Badge className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm">
+                        <Eye className="h-3 w-3 mr-1" />
+                        {formatNumber(video.viewsCount)}
+                      </Badge>
+                    </div>
+                  </a>
 
                   {/* Content */}
                   <div className="p-3 space-y-2">
@@ -124,25 +160,43 @@ export function AccountVideosModal({
                       {video.title || video.caption || 'Sem título'}
                     </p>
 
-                    {/* Metrics */}
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Heart className="h-3 w-3" />
-                        <span>{formatNumber(video.likesCount)}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <MessageCircle className="h-3 w-3" />
-                        <span>{formatNumber(video.commentsCount)}</span>
-                      </div>
-                      {video.sharesCount !== undefined && video.sharesCount > 0 && (
+                    {/* Metrics and Sync Button */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <div className="flex items-center gap-1">
-                          <Share2 className="h-3 w-3" />
-                          <span>{formatNumber(video.sharesCount)}</span>
+                          <Heart className="h-3 w-3" />
+                          <span>{formatNumber(video.likesCount)}</span>
                         </div>
-                      )}
+                        <div className="flex items-center gap-1">
+                          <MessageCircle className="h-3 w-3" />
+                          <span>{formatNumber(video.commentsCount)}</span>
+                        </div>
+                        {video.sharesCount !== undefined && video.sharesCount > 0 && (
+                          <div className="flex items-center gap-1">
+                            <Share2 className="h-3 w-3" />
+                            <span>{formatNumber(video.sharesCount)}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Sync button */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={(e) => handleSyncVideo(video, e)}
+                        disabled={syncingVideoId === video.id}
+                        title="Atualizar visualizações"
+                      >
+                        {syncingVideoId === video.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
                     </div>
                   </div>
-                </a>
+                </div>
               ))}
             </div>
           )}
