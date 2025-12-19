@@ -15,7 +15,7 @@ import { PrizeConfigForm } from "@/components/Ranking/PrizeConfigForm";
 import { useCompetitionPrizes, PrizeConfig } from "@/hooks/useCompetitionPrizes";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { Trophy, ArrowLeft, Save, Trash2, DollarSign, Flame, Target } from "lucide-react";
+import { Trophy, ArrowLeft, Save, Trash2, DollarSign, Flame, Target, Hash } from "lucide-react";
 import { CampaignType } from "@/types/campaign";
 import {
   AlertDialog,
@@ -53,6 +53,7 @@ function EditCampaignContent() {
     min_views: 0,
     max_paid_views: 0,
     prize_pool: 0,
+    hashtags: "",
   });
 
   const platformOptions = [
@@ -95,6 +96,7 @@ function EditCampaignContent() {
         min_views: Number(data.min_views || 0),
         max_paid_views: Number(data.max_paid_views || 0),
         prize_pool: Number(data.prize_pool || 0),
+        hashtags: (data.hashtags || []).join(', '),
       });
     } catch (error) {
       console.error("Error fetching campaign:", error);
@@ -110,6 +112,12 @@ function EditCampaignContent() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Parse hashtags from comma-separated string
+      const hashtagsArray = campaign.hashtags
+        .split(',')
+        .map(h => h.trim().replace('#', '').toLowerCase())
+        .filter(h => h.length > 0);
+
       const { error } = await supabase
         .from("campaigns")
         .update({
@@ -127,6 +135,7 @@ function EditCampaignContent() {
           min_views: campaign.min_views,
           max_paid_views: campaign.max_paid_views,
           prize_pool: campaign.prize_pool,
+          hashtags: hashtagsArray,
         })
         .eq("id", id);
 
@@ -452,6 +461,27 @@ function EditCampaignContent() {
               rows={4}
             />
           </div>
+
+          {/* Hashtags */}
+          <GlowCard className="p-4 space-y-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Hash className="h-5 w-5 text-primary" />
+              Hashtags para Reconhecimento Automático
+            </h3>
+            <div className="space-y-2">
+              <Label htmlFor="hashtags">Hashtags (separadas por vírgula)</Label>
+              <Input
+                id="hashtags"
+                placeholder="Ex: spartans, cafecomferri, cortes"
+                value={campaign.hashtags}
+                onChange={(e) => setCampaign({ ...campaign, hashtags: e.target.value })}
+                className="bg-background/50"
+              />
+              <p className="text-xs text-muted-foreground">
+                Vídeos com essas hashtags serão automaticamente reconhecidos e adicionados ao ranking.
+              </p>
+            </div>
+          </GlowCard>
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4">

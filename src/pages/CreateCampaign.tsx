@@ -9,7 +9,7 @@ import { GlowCard } from "@/components/ui/GlowCard";
 import { ImageUpload } from "@/components/ImageUpload";
 import { PrizeConfigForm } from "@/components/Ranking/PrizeConfigForm";
 import { toast } from "sonner";
-import { Trophy, ArrowLeft, Calendar, Gift, FileText, Layers, DollarSign, Flame, Target } from "lucide-react";
+import { Trophy, ArrowLeft, Calendar, Gift, FileText, Layers, DollarSign, Flame, Target, Hash } from "lucide-react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import MainLayout from "@/components/Layout/MainLayout";
 import { CampaignType, getCampaignTypeLabel, getCampaignTypeColor } from "@/types/campaign";
@@ -44,6 +44,7 @@ function CreateCampaignPage() {
     min_views: 0,
     max_paid_views: 0,
     prize_pool: 0,
+    hashtags: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,6 +52,12 @@ function CreateCampaignPage() {
     setLoading(true);
 
     try {
+      // Parse hashtags from comma-separated string
+      const hashtagsArray = formData.hashtags
+        .split(',')
+        .map(h => h.trim().replace('#', '').toLowerCase())
+        .filter(h => h.length > 0);
+
       const { data: campaignData, error } = await supabase.from("campaigns").insert([
         {
           name: formData.name,
@@ -67,6 +74,7 @@ function CreateCampaignPage() {
           min_views: formData.min_views,
           max_paid_views: formData.max_paid_views,
           prize_pool: formData.prize_pool,
+          hashtags: hashtagsArray,
           is_active: true,
         },
       ]).select().single();
@@ -203,6 +211,27 @@ function CreateCampaignPage() {
             {formData.platforms.length === 0 && (
               <p className="text-sm text-destructive mt-2">Selecione pelo menos uma plataforma</p>
             )}
+          </GlowCard>
+
+          {/* Hashtags */}
+          <GlowCard className="p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Hash className="h-5 w-5 text-primary" />
+              Hashtags para Reconhecimento Automático
+            </h3>
+            <div className="space-y-2">
+              <Label htmlFor="hashtags">Hashtags (separadas por vírgula)</Label>
+              <Input
+                id="hashtags"
+                placeholder="Ex: spartans, cafecomferri, cortes"
+                value={formData.hashtags}
+                onChange={(e) => setFormData({ ...formData, hashtags: e.target.value })}
+                className="bg-background/50 border-border/50"
+              />
+              <p className="text-xs text-muted-foreground">
+                Vídeos com essas hashtags serão automaticamente reconhecidos e adicionados ao ranking da campanha.
+              </p>
+            </div>
           </GlowCard>
 
           {/* Dates */}
