@@ -168,20 +168,6 @@ function AdminUsersContent() {
     }
   };
 
-  const handleUpdateWarning = async (userId: string, newWarning: string) => {
-    try {
-      const { error } = await supabase.rpc("update_warning", {
-        user_id: userId,
-        new_warning: newWarning,
-      });
-      if (error) throw error;
-
-      toast.success(t("users.warning_updated"));
-      fetchUsers();
-    } catch (error: any) {
-      toast.error(error.message || t("users.error_updating_warning"));
-    }
-  };
 
   const openConfirmDialog = (title: string, description: string, action: () => void) => {
     setConfirmDialog({ open: true, title, description, action });
@@ -220,27 +206,6 @@ function AdminUsersContent() {
 
   const openClientModal = (userId: string, username: string) => {
     setClientModal({ open: true, userId, username });
-  };
-
-  const getWarningBadge = (warning: string) => {
-    if (warning === "none" || !warning) return null;
-    if (warning === "yellow") {
-      return (
-        <Badge variant="outline" className="border-warning text-warning">
-          <AlertTriangle className="h-3 w-3 mr-1" />
-          {t("status.warning")}
-        </Badge>
-      );
-    }
-    if (warning === "red") {
-      return (
-        <Badge variant="outline" className="border-destructive text-destructive">
-          <Ban className="h-3 w-3 mr-1" />
-          {t("status.severe_warning")}
-        </Badge>
-      );
-    }
-    return null;
   };
 
   const formatDate = (dateString: string, formatStr: string = "MM/dd/yyyy HH:mm") => {
@@ -395,7 +360,6 @@ function AdminUsersContent() {
                       <TableHead>{t("users.user")}</TableHead>
                       <TableHead>{t("users.email")}</TableHead>
                       <TableHead>{t("common.status")}</TableHead>
-                      <TableHead>{t("users.warning_col")}</TableHead>
                       <TableHead>{t("users.member_since")}</TableHead>
                       <TableHead className="text-right">{t("common.actions")}</TableHead>
                     </TableRow>
@@ -410,7 +374,6 @@ function AdminUsersContent() {
                         <TableCell>
                           {getStatusBadge(user.status, user.role)}
                         </TableCell>
-                        <TableCell>{getWarningBadge(user.warning)}</TableCell>
                         <TableCell>
                           {formatDate(user.date, "MM/dd/yyyy")}
                         </TableCell>
@@ -456,27 +419,6 @@ function AdminUsersContent() {
                                 >
                                   <UserX className="h-4 w-4 mr-2" />
                                   {t("users.remove_admin")}
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  handleUpdateWarning(
-                                    user.id,
-                                    user.warning === "yellow" ? "red" : "yellow"
-                                  )
-                                }
-                              >
-                                <AlertTriangle className="h-4 w-4 mr-2" />
-                                {user.warning === "none"
-                                  ? t("users.add_warning")
-                                  : t("users.increase_warning")}
-                              </DropdownMenuItem>
-                              {user.warning !== "none" && (
-                                <DropdownMenuItem
-                                  onClick={() => handleUpdateWarning(user.id, "none")}
-                                >
-                                  <CheckCircle className="h-4 w-4 mr-2" />
-                                  {t("users.remove_warning")}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
