@@ -422,7 +422,7 @@ function DashboardClientContent() {
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ChartLineViews 
-            data={viewsData} 
+            data={viewsData.length > 0 ? viewsData : [{ date: new Date().toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US', { day: '2-digit', month: '2-digit' }), views: 0 }]} 
             title={`${t('viewsEvolution')} (${t('last7Days')})`}
           />
           <ChartPiePlatforms 
@@ -471,15 +471,6 @@ function DashboardClientContent() {
             <TabsTrigger value="videos" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <Film className="h-4 w-4 mr-2" />
               {t('videos')}
-            </TabsTrigger>
-            <TabsTrigger value="clippers" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-              <Users className="h-4 w-4 mr-2" />
-              {t('clippers')}
-              {pendingClippers.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-                  {pendingClippers.length}
-                </span>
-              )}
             </TabsTrigger>
             <TabsTrigger value="stats" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <BarChart3 className="h-4 w-4 mr-2" />
@@ -537,47 +528,6 @@ function DashboardClientContent() {
                 <CampaignVideosTab campaignId={selectedCampaignId} />
               )}
             </GlowCard>
-          </TabsContent>
-
-          <TabsContent value="clippers">
-            <div className="space-y-6">
-              {pendingClippers.length > 0 && (
-                <GlowCard className="p-6" glowColor="orange">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Users className="h-5 w-5 text-yellow-400" />
-                    {t('pendingApproval')}
-                    <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
-                      {pendingClippers.length}
-                    </Badge>
-                  </h3>
-                  <ClippersTable 
-                    clippers={pendingClippers}
-                    onRefresh={refresh}
-                  />
-                </GlowCard>
-              )}
-
-              <GlowCard className="p-6" glowColor="green">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Users className="h-5 w-5 text-green-400" />
-                  {t('approvedClippers')}
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                    {approvedClippers.length}
-                  </Badge>
-                </h3>
-                {approvedClippers.length > 0 ? (
-                  <ClippersTable 
-                    clippers={approvedClippers}
-                    showActions={false}
-                  />
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>{t('noApprovedClippers')}</p>
-                  </div>
-                )}
-              </GlowCard>
-            </div>
           </TabsContent>
 
           <TabsContent value="stats">

@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
-import { externalSupabase } from "@/lib/externalSupabase";
 import MainLayout from "@/components/Layout/MainLayout";
 import { ImageUpload } from "@/components/ImageUpload";
 import { Button } from "@/components/ui/button";
@@ -11,12 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { GlowCard } from "@/components/ui/GlowCard";
-import { MetricCardGlow } from "@/components/ui/MetricCardGlow";
 import { 
-  Eye, 
-  Video, 
-  Trophy, 
-  TrendingUp, 
   Save, 
   Mail,
   User,
@@ -28,23 +22,16 @@ import {
 
 export default function Profile() {
   const { user } = useAuth();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({
     username: "",
     email: user?.email || "",
     avatar_url: "",
   });
-  const [stats, setStats] = useState({
-    totalViews: 0,
-    totalVideos: 0,
-    campaigns: 0,
-    avgRank: 0,
-  });
 
   useEffect(() => {
     fetchProfile();
-    fetchStats();
   }, [user]);
 
   const fetchProfile = async () => {
@@ -63,69 +50,6 @@ export default function Profile() {
         avatar_url: data.avatar_url || "",
       });
     }
-  };
-
-  const fetchStats = async () => {
-    if (!user?.id) return;
-    
-    const { data: videos } = await supabase
-      .from("campaign_videos")
-      .select("*, campaigns(*)")
-      .eq("submitted_by", user.id);
-
-    let totalViews = 0;
-    if (videos && videos.length > 0) {
-      const viewsPromises = videos.map(async (video) => {
-        try {
-          if (video.platform === "instagram") {
-            const instagramData = await externalSupabase.getVideoByLink(video.video_link);
-            return instagramData?.views || 0;
-          } else if (video.platform === "tiktok") {
-            const allSocialVideos = await externalSupabase.getSocialVideos();
-            const tiktokData = allSocialVideos.find((v) =>
-              v.link === video.video_link || v.video_url?.includes(video.video_link)
-            );
-            return tiktokData?.views || 0;
-          }
-        } catch (error) {
-          console.error("Error fetching video metrics:", error);
-        }
-        return video.views || 0;
-      });
-
-      const viewsArray = await Promise.all(viewsPromises);
-      totalViews = viewsArray.reduce((sum, views) => sum + views, 0);
-    }
-
-    const campaigns = new Set(videos?.map((v) => v.campaign_id)).size;
-
-    let avgRank = 0;
-    if (videos && videos.length > 0) {
-      const campaignIds = [...new Set(videos.map((v) => v.campaign_id))];
-      const rankPromises = campaignIds.map(async (campaignId) => {
-        const { data: allVideos } = await supabase
-          .from("campaign_videos")
-          .select("submitted_by, views")
-          .eq("campaign_id", campaignId)
-          .order("views", { ascending: false });
-
-        const userRank = allVideos?.findIndex((v) => v.submitted_by === user?.id);
-        return userRank !== undefined && userRank >= 0 ? userRank + 1 : 0;
-      });
-
-      const ranks = await Promise.all(rankPromises);
-      const validRanks = ranks.filter((r) => r > 0);
-      avgRank = validRanks.length > 0
-        ? Math.round(validRanks.reduce((sum, r) => sum + r, 0) / validRanks.length)
-        : 0;
-    }
-
-    setStats({
-      totalViews,
-      totalVideos: videos?.length || 0,
-      campaigns,
-      avgRank,
-    });
   };
 
   const handleAvatarUpload = async (url: string) => {
@@ -242,40 +166,6 @@ export default function Profile() {
             </div>
           </div>
         </GlowCard>
-
-        {/* Stats Grid */}
-        <div>
-          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            {t('generalStats')}
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <MetricCardGlow
-              title={t('totalViews')}
-              value={formatNumber(stats.totalViews)}
-              icon={Eye}
-              glowColor="green"
-            />
-            <MetricCardGlow
-              title={t('videosSubmitted')}
-              value={stats.totalVideos}
-              icon={Video}
-              glowColor="blue"
-            />
-            <MetricCardGlow
-              title={t('competitions')}
-              value={stats.campaigns}
-              icon={Trophy}
-              glowColor="purple"
-            />
-            <MetricCardGlow
-              title={t('averageRanking')}
-              value={stats.avgRank > 0 ? `#${stats.avgRank}` : "-"}
-              icon={TrendingUp}
-              glowColor="orange"
-            />
-          </div>
-        </div>
 
         {/* Account Settings */}
         <GlowCard className="p-6">
