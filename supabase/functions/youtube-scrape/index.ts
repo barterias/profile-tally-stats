@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
       try {
         // Fetch regular videos
         const videosResponse = await fetch(
-          `https://api.scrapecreators.com/v1/youtube/channel-videos?handle=${encodeURIComponent(username)}&limit=20`,
+          `https://api.scrapecreators.com/v1/youtube/channel/videos?handle=${encodeURIComponent(username)}&limit=20`,
           {
             method: 'GET',
             headers: {
@@ -111,9 +111,10 @@ Deno.serve(async (req) => {
 
         if (videosResponse.ok) {
           const videosData = await videosResponse.json();
-          const videosArray = videosData.data?.videos || videosData.data || videosData.videos || [];
+          console.log('Videos API response:', JSON.stringify(videosData).substring(0, 500));
+          const videosArray = videosData.videos || videosData.data?.videos || videosData.data || [];
           
-          console.log(`Found ${videosArray.length} videos from channel-videos endpoint`);
+          console.log(`Found ${videosArray.length} videos from channel/videos endpoint`);
           
           data.videos = videosArray.slice(0, 20).map((video: any) => ({
             videoId: video.video_id || video.videoId || video.id || '',
@@ -128,12 +129,13 @@ Deno.serve(async (req) => {
             isShort: false,
           }));
         } else {
-          console.error('Videos endpoint failed:', videosResponse.status);
+          const errorText = await videosResponse.text();
+          console.error('Videos endpoint failed:', videosResponse.status, errorText);
         }
 
         // Fetch shorts
         const shortsResponse = await fetch(
-          `https://api.scrapecreators.com/v1/youtube/channel-shorts?handle=${encodeURIComponent(username)}&limit=20`,
+          `https://api.scrapecreators.com/v1/youtube/channel/shorts?handle=${encodeURIComponent(username)}&limit=20`,
           {
             method: 'GET',
             headers: {
@@ -145,9 +147,10 @@ Deno.serve(async (req) => {
 
         if (shortsResponse.ok) {
           const shortsData = await shortsResponse.json();
-          const shortsArray = shortsData.data?.shorts || shortsData.data || shortsData.shorts || [];
+          console.log('Shorts API response:', JSON.stringify(shortsData).substring(0, 500));
+          const shortsArray = shortsData.shorts || shortsData.data?.shorts || shortsData.data || [];
           
-          console.log(`Found ${shortsArray.length} shorts from channel-shorts endpoint`);
+          console.log(`Found ${shortsArray.length} shorts from channel/shorts endpoint`);
           
           const shorts = shortsArray.slice(0, 20).map((short: any) => ({
             videoId: short.video_id || short.videoId || short.id || '',
@@ -164,7 +167,8 @@ Deno.serve(async (req) => {
           
           data.videos = [...(data.videos || []), ...shorts];
         } else {
-          console.error('Shorts endpoint failed:', shortsResponse.status);
+          const errorText = await shortsResponse.text();
+          console.error('Shorts endpoint failed:', shortsResponse.status, errorText);
         }
       } catch (videosError) {
         console.error('Error fetching videos/shorts:', videosError);
