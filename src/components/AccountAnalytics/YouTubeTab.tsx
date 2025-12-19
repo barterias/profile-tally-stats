@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { MetricCardGlow } from '@/components/ui/MetricCardGlow';
 import { AddAccountModal } from '@/components/AccountAnalytics/AddAccountModal';
 import { PlatformAccountsTable } from '@/components/AccountAnalytics/PlatformAccountsTable';
+import { AccountVideosModal } from '@/components/AccountAnalytics/AccountVideosModal';
 import {
   useYouTubeAccounts,
   useAllYouTubeAccounts,
@@ -13,11 +14,14 @@ import {
   useSyncYouTubeAccount,
   useDeleteYouTubeAccount,
 } from '@/hooks/useYouTubeAccounts';
+import { useYouTubeVideos } from '@/hooks/useYouTubeVideos';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function YouTubeTab() {
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [videosModalOpen, setVideosModalOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<{ id: string; username: string } | null>(null);
   const { user } = useAuth();
   const { role } = useUserRole();
   const isAdmin = role === 'admin';
@@ -25,6 +29,8 @@ export function YouTubeTab() {
   const { data: accounts = [], isLoading: accountsLoading } = isAdmin
     ? useAllYouTubeAccounts()
     : useYouTubeAccounts();
+
+  const { data: videos = [], isLoading: videosLoading } = useYouTubeVideos(selectedAccount?.id || '');
 
   const addAccount = useAddYouTubeAccount();
   const syncAccount = useSyncYouTubeAccount();
@@ -50,13 +56,19 @@ export function YouTubeTab() {
     }
   };
 
+  const handleViewVideos = (accountId: string, username: string) => {
+    setSelectedAccount({ id: accountId, username });
+    setVideosModalOpen(true);
+  };
+
   const handleSyncAll = () => {
     accounts.forEach((account) => {
       syncAccount.mutate(account.id);
     });
   };
 
-  // Calculate totals
+  // Calculate totals and sort by views
+  const sortedAccounts = [...accounts].sort((a, b) => Number(b.total_views || 0) - Number(a.total_views || 0));
   const totalSubscribers = accounts.reduce((sum, acc) => sum + (acc.subscribers_count || 0), 0);
   const totalViews = accounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
   const totalVideos = accounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
@@ -69,13 +81,8 @@ export function YouTubeTab() {
 
   return (
     <div className="space-y-6">
-      {/* Actions */}
       <div className="flex justify-end gap-2">
-        <Button
-          variant="outline"
-          onClick={handleSyncAll}
-          disabled={accounts.length === 0 || syncAccount.isPending}
-        >
+        <Button variant="outline" onClick={handleSyncAll} disabled={accounts.length === 0 || syncAccount.isPending}>
           <RefreshCw className={`h-4 w-4 mr-2 ${syncAccount.isPending ? 'animate-spin' : ''}`} />
           Atualizar Todos
         </Button>
@@ -85,79 +92,50 @@ export function YouTubeTab() {
         </Button>
       </div>
 
-      {/* Metrics Cards */}
       {accountsLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
+          {[...Array(4)].map((_, i) => (<Skeleton key={i} className="h-32" />))}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <MetricCardGlow
-            title="Inscritos"
-            value={formatNumber(totalSubscribers)}
-            icon={Users}
-            trend={{ value: 0, isPositive: true }}
-          />
-          <MetricCardGlow
-            title="Visualizações Totais"
-            value={formatNumber(totalViews)}
-            icon={Eye}
-            trend={{ value: 0, isPositive: true }}
-          />
-          <MetricCardGlow
-            title="Vídeos"
-            value={formatNumber(totalVideos)}
-            icon={Video}
-            trend={{ value: 0, isPositive: true }}
-          />
-          <MetricCardGlow
-            title="Canais"
-            value={accounts.length.toString()}
-            icon={ThumbsUp}
-            trend={{ value: 0, isPositive: true }}
-          />
+          <MetricCardGlow title="Inscritos" value={formatNumber(totalSubscribers)} icon={Users} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title="Visualizações Totais" value={formatNumber(totalViews)} icon={Eye} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title="Vídeos" value={formatNumber(totalVideos)} icon={Video} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title="Canais" value={accounts.length.toString()} icon={ThumbsUp} trend={{ value: 0, isPositive: true }} />
         </div>
       )}
 
-      {/* Accounts Table */}
       <Card>
         <CardHeader>
           <CardTitle>Canais Monitorados</CardTitle>
-          <CardDescription>
-            Lista de todos os canais do YouTube sendo monitorados
-          </CardDescription>
+          <CardDescription>Ordenados por visualizações totais</CardDescription>
         </CardHeader>
         <CardContent>
           <PlatformAccountsTable
             platform="youtube"
-            accounts={accounts.map(acc => ({
-              id: acc.id,
-              username: acc.username,
-              displayName: acc.display_name,
-              profileImageUrl: acc.profile_image_url,
-              followersCount: acc.subscribers_count,
-              postsCount: acc.videos_count,
-              totalViews: acc.total_views,
-              lastSyncedAt: acc.last_synced_at,
-              isActive: acc.is_active,
+            accounts={sortedAccounts.map(acc => ({
+              id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
+              followersCount: acc.subscribers_count, postsCount: acc.videos_count, totalViews: acc.total_views,
+              lastSyncedAt: acc.last_synced_at, isActive: acc.is_active,
             }))}
             isLoading={accountsLoading}
             onSync={handleSyncAccount}
             onDelete={handleDeleteAccount}
+            onViewVideos={handleViewVideos}
             isSyncing={syncAccount.isPending}
           />
         </CardContent>
       </Card>
 
-      {/* Add Account Modal */}
-      <AddAccountModal
+      <AddAccountModal platform="youtube" open={addModalOpen} onOpenChange={setAddModalOpen} onAdd={handleAddAccount} isLoading={addAccount.isPending} />
+      
+      <AccountVideosModal
         platform="youtube"
-        open={addModalOpen}
-        onOpenChange={setAddModalOpen}
-        onAdd={handleAddAccount}
-        isLoading={addAccount.isPending}
+        accountName={selectedAccount?.username || ''}
+        videos={videos.map(v => ({ id: v.id, title: v.title, thumbnailUrl: v.thumbnail_url, viewsCount: v.views_count || 0, likesCount: v.likes_count || 0, commentsCount: v.comments_count || 0, videoUrl: v.video_url, postedAt: v.published_at }))}
+        isLoading={videosLoading}
+        open={videosModalOpen}
+        onOpenChange={setVideosModalOpen}
       />
     </div>
   );

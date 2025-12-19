@@ -8,3 +8,12 @@ verify_jwt = false
 
 [functions.instagram-scrape]
 verify_jwt = false
+
+[functions.youtube-scrape]
+verify_jwt = false
+
+[functions.tiktok-scrape]
+verify_jwt = false
+
+[functions.sync-all-accounts]
+verify_jwt = false

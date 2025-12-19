@@ -1,0 +1,153 @@
+import { Eye, Heart, MessageCircle, Share2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+
+interface Video {
+  id: string;
+  title?: string | null;
+  caption?: string | null;
+  thumbnailUrl?: string | null;
+  viewsCount: number;
+  likesCount: number;
+  commentsCount: number;
+  sharesCount?: number;
+  videoUrl: string;
+  postedAt?: string | null;
+}
+
+interface AccountVideosModalProps {
+  platform: 'instagram' | 'youtube' | 'tiktok';
+  accountName: string;
+  videos: Video[];
+  isLoading: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+const formatNumber = (num: number | null | undefined) => {
+  if (num === null || num === undefined) return '0';
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toString();
+};
+
+const platformLabels = {
+  instagram: 'Posts',
+  youtube: 'Vídeos',
+  tiktok: 'Vídeos',
+};
+
+export function AccountVideosModal({
+  platform,
+  accountName,
+  videos,
+  isLoading,
+  open,
+  onOpenChange,
+}: AccountVideosModalProps) {
+  // Sort videos by views (highest first)
+  const sortedVideos = [...videos].sort((a, b) => (b.viewsCount || 0) - (a.viewsCount || 0));
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle>{platformLabels[platform]} de @{accountName}</DialogTitle>
+          <DialogDescription>
+            {videos.length} {platformLabels[platform].toLowerCase()} encontrados
+          </DialogDescription>
+        </DialogHeader>
+
+        <ScrollArea className="h-[70vh] pr-4">
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="space-y-3">
+                  <Skeleton className="w-full aspect-video rounded-lg" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : sortedVideos.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="text-muted-foreground">
+                <p className="text-lg font-medium">Nenhum {platformLabels[platform].toLowerCase()} encontrado</p>
+                <p className="text-sm mt-1">Sincronize a conta para buscar os vídeos</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {sortedVideos.map((video) => (
+                <a
+                  key={video.id}
+                  href={video.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors overflow-hidden"
+                >
+                  {/* Thumbnail */}
+                  <div className="aspect-video bg-muted relative overflow-hidden">
+                    {video.thumbnailUrl ? (
+                      <img
+                        src={video.thumbnailUrl}
+                        alt={video.title || video.caption || 'Video thumbnail'}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/placeholder.svg';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                        <Eye className="h-8 w-8" />
+                      </div>
+                    )}
+                    {/* Views badge */}
+                    <Badge className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm">
+                      <Eye className="h-3 w-3 mr-1" />
+                      {formatNumber(video.viewsCount)}
+                    </Badge>
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-3 space-y-2">
+                    {/* Title or Caption */}
+                    <p className="font-medium text-sm line-clamp-2 text-foreground">
+                      {video.title || video.caption || 'Sem título'}
+                    </p>
+
+                    {/* Metrics */}
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Heart className="h-3 w-3" />
+                        <span>{formatNumber(video.likesCount)}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <MessageCircle className="h-3 w-3" />
+                        <span>{formatNumber(video.commentsCount)}</span>
+                      </div>
+                      {video.sharesCount !== undefined && video.sharesCount > 0 && (
+                        <div className="flex items-center gap-1">
+                          <Share2 className="h-3 w-3" />
+                          <span>{formatNumber(video.sharesCount)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
