@@ -160,7 +160,9 @@ function AdminUsersContent() {
       if (error) throw error;
 
       toast.success(t("users.user_banned"));
-      fetchUsers();
+      
+      // Remove banned user from the list immediately
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
     } catch (error: any) {
       toast.error(error.message || t("users.error_banning"));
     }

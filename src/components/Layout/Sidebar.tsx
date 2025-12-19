@@ -7,7 +7,6 @@ import {
   Trophy,
   Upload,
   TrendingUp,
-  Shield,
   Video,
   Users,
   BarChart3,
@@ -42,7 +41,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   ];
 
   const adminNavigation = [
-    { name: t("nav.admin_panel"), href: "/admin", icon: Shield },
     { name: t("nav.campaigns"), href: "/admin/campaigns", icon: Trophy },
     { name: t("nav.submissions"), href: "/admin/submissions", icon: Video },
     { name: t("nav.users"), href: "/admin/users", icon: Users },
