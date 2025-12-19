@@ -125,14 +125,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    // Verificar se o usuário ainda está pendente
+    // Verificar se o usuário ainda está pendente usando RPC seguro
     const { data: pendingUser } = await supabase
-      .from("pending_users")
-      .select("email")
-      .eq("email", email)
-      .maybeSingle();
+      .rpc('check_pending_user_status', { p_email: email });
     
-    if (pendingUser) {
+    if (pendingUser && pendingUser.length > 0) {
       localStorage.setItem("pending_email", email);
       return { error: { message: "pending_approval" } as any };
     }
