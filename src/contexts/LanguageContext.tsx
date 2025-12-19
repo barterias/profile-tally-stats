@@ -300,6 +300,8 @@ const translations: Translations = {
   "users.error_rejecting": { pt: "Erro ao rejeitar usuário", en: "Error rejecting user" },
   "users.error_updating_role": { pt: "Erro ao atualizar role", en: "Error updating role" },
   "users.error_updating_warning": { pt: "Erro ao atualizar advertência", en: "Error updating warning" },
+  "users.user_banned": { pt: "Usuário banido com sucesso!", en: "User banned successfully!" },
+  "users.error_banning": { pt: "Erro ao banir usuário", en: "Error banning user" },
 
   // Statistics
   "stats.title": { pt: "Estatísticas", en: "Statistics" },

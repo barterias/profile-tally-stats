@@ -62,6 +62,30 @@ function DashboardAdminContent() {
 
   useEffect(() => {
     fetchData();
+
+    // Subscribe to realtime updates for social accounts
+    const channel = supabase
+      .channel('admin-social-accounts')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'instagram_accounts' },
+        () => refetchMetrics()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tiktok_accounts' },
+        () => refetchMetrics()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'youtube_accounts' },
+        () => refetchMetrics()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchData = async () => {
