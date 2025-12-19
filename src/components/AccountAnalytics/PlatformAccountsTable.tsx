@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { MoreHorizontal, RefreshCw, Trash2, ExternalLink } from 'lucide-react';
+import { MoreHorizontal, RefreshCw, Trash2, ExternalLink, Video } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -39,6 +40,7 @@ interface PlatformAccountsTableProps {
   isLoading: boolean;
   onSync: (accountId: string) => void;
   onDelete: (accountId: string) => void;
+  onViewVideos?: (accountId: string, username: string) => void;
   isSyncing?: boolean;
 }
 
@@ -49,9 +51,9 @@ const platformUrls = {
 };
 
 const platformLabels = {
-  instagram: { followers: 'Seguidores', posts: 'Posts' },
-  youtube: { followers: 'Inscritos', posts: 'Vídeos' },
-  tiktok: { followers: 'Seguidores', posts: 'Vídeos' },
+  instagram: { followers: 'Seguidores', posts: 'Posts', videos: 'Ver Posts' },
+  youtube: { followers: 'Inscritos', posts: 'Vídeos', videos: 'Ver Vídeos' },
+  tiktok: { followers: 'Seguidores', posts: 'Vídeos', videos: 'Ver Vídeos' },
 };
 
 export function PlatformAccountsTable({
@@ -60,6 +62,7 @@ export function PlatformAccountsTable({
   isLoading,
   onSync,
   onDelete,
+  onViewVideos,
   isSyncing,
 }: PlatformAccountsTableProps) {
   const formatNumber = (num: number | bigint | null | undefined) => {
@@ -69,6 +72,13 @@ export function PlatformAccountsTable({
     if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
     return n.toString();
   };
+
+  // Sort accounts by total views (highest first)
+  const sortedAccounts = [...accounts].sort((a, b) => {
+    const aViews = Number(a.totalViews || 0);
+    const bViews = Number(b.totalViews || 0);
+    return bViews - aViews;
+  });
 
   if (isLoading) {
     return (
@@ -101,11 +111,11 @@ export function PlatformAccountsTable({
           {platform === 'tiktok' && <TableHead className="text-right">Curtidas</TableHead>}
           <TableHead>Status</TableHead>
           <TableHead>Última Sync</TableHead>
-          <TableHead className="w-12"></TableHead>
+          <TableHead className="w-24"></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {accounts.map((account) => (
+        {sortedAccounts.map((account) => (
           <TableRow key={account.id}>
             <TableCell>
               <div className="flex items-center gap-3">
@@ -151,39 +161,51 @@ export function PlatformAccountsTable({
                 : 'Nunca'}
             </TableCell>
             <TableCell>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <MoreHorizontal className="h-4 w-4" />
+              <div className="flex items-center gap-1">
+                {onViewVideos && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onViewVideos(account.id, account.username)}
+                    title={labels.videos}
+                  >
+                    <Video className="h-4 w-4" />
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-background">
-                  <DropdownMenuItem
-                    onClick={() => onSync(account.id)}
-                    disabled={isSyncing}
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Sincronizar
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <a
-                      href={platformUrls[platform](account.username)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background">
+                    <DropdownMenuItem
+                      onClick={() => onSync(account.id)}
+                      disabled={isSyncing}
                     >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Ver Perfil
-                    </a>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onDelete(account.id)}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Remover
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Sincronizar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <a
+                        href={platformUrls[platform](account.username)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Ver Perfil
+                      </a>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onDelete(account.id)}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Remover
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </TableCell>
           </TableRow>
         ))}

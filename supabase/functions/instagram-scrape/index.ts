@@ -1,3 +1,5 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -19,6 +21,7 @@ interface InstagramScrapedData {
     likesCount: number;
     commentsCount: number;
     viewsCount: number;
+    sharesCount?: number;
   }>;
 }
 
@@ -28,7 +31,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { profileUrl, action } = await req.json();
+    const { profileUrl, action, accountId, fetchVideos = true } = await req.json();
 
     if (!profileUrl) {
       return new Response(
@@ -54,7 +57,7 @@ Deno.serve(async (req) => {
     }
     username = username.replace('@', '').replace('/', '');
 
-    console.log(`Fetching Instagram profile: ${username}`);
+    console.log(`Fetching Instagram profile: ${username}, fetchVideos: ${fetchVideos}`);
 
     // Use ScrapeCreators API
     const apiUrl = `https://api.scrapecreators.com/v1/instagram/profile?handle=${encodeURIComponent(username)}`;
@@ -92,7 +95,7 @@ Deno.serve(async (req) => {
     }
 
     const profileData = await profileResponse.json();
-    console.log('Profile data received:', JSON.stringify(profileData, null, 2));
+    console.log('Profile data received');
 
     // Parse the profile data from ScrapeCreators API - data is nested in data.user
     const userData = profileData.data?.user || profileData.data || profileData;
@@ -109,36 +112,113 @@ Deno.serve(async (req) => {
     };
 
     // Extract posts from profile data if available
-    try {
-      const postsEdges = userData.edge_owner_to_timeline_media?.edges || userData.posts || userData.recent_posts || [];
-      
-      console.log(`Found ${postsEdges.length} posts in response`);
-      
-      if (Array.isArray(postsEdges) && postsEdges.length > 0) {
-        data.posts = postsEdges.slice(0, 12).map((edge: any) => {
-          const node = edge.node || edge;
-          const likesCount = node.edge_liked_by?.count || node.edge_media_preview_like?.count || node.like_count || node.likesCount || 0;
-          const commentsCount = node.edge_media_to_comment?.count || node.comment_count || node.commentsCount || 0;
-          const viewsCount = node.video_view_count || node.play_count || node.viewsCount || 0;
-          
-          console.log(`Post ${node.shortcode}: likes=${likesCount}, comments=${commentsCount}, views=${viewsCount}`);
-          
-          return {
-            postUrl: node.url || node.postUrl || (node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : ''),
-            type: node.is_video || node.isVideo ? 'video' : node.__typename === 'GraphSidecar' ? 'carousel' : 'post',
-            thumbnailUrl: node.thumbnail_url || node.thumbnailUrl || node.thumbnail_src || node.display_url || undefined,
-            caption: (node.edge_media_to_caption?.edges?.[0]?.node?.text || node.caption || '')?.substring(0, 200) || undefined,
-            likesCount,
-            commentsCount,
-            viewsCount,
-          };
-        });
+    if (fetchVideos) {
+      try {
+        const postsEdges = userData.edge_owner_to_timeline_media?.edges || userData.posts || userData.recent_posts || [];
+        
+        console.log(`Found ${postsEdges.length} posts in response`);
+        
+        if (Array.isArray(postsEdges) && postsEdges.length > 0) {
+          data.posts = postsEdges.slice(0, 20).map((edge: any) => {
+            const node = edge.node || edge;
+            const likesCount = node.edge_liked_by?.count || node.edge_media_preview_like?.count || node.like_count || node.likesCount || 0;
+            const commentsCount = node.edge_media_to_comment?.count || node.comment_count || node.commentsCount || 0;
+            const viewsCount = node.video_view_count || node.play_count || node.viewsCount || 0;
+            const sharesCount = node.share_count || node.sharesCount || 0;
+            
+            return {
+              postUrl: node.url || node.postUrl || (node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : ''),
+              type: node.is_video || node.isVideo ? 'video' : node.__typename === 'GraphSidecar' ? 'carousel' : 'post',
+              thumbnailUrl: node.thumbnail_url || node.thumbnailUrl || node.thumbnail_src || node.display_url || undefined,
+              caption: (node.edge_media_to_caption?.edges?.[0]?.node?.text || node.caption || '')?.substring(0, 200) || undefined,
+              likesCount,
+              commentsCount,
+              viewsCount,
+              sharesCount,
+            };
+          });
+        }
+      } catch (postsError) {
+        console.error('Error parsing posts:', postsError);
       }
-    } catch (postsError) {
-      console.error('Error parsing posts:', postsError);
     }
 
-    console.log('Parsed data:', JSON.stringify(data, null, 2));
+    console.log('Parsed data:', data.displayName, 'with', data.posts?.length || 0, 'posts');
+
+    // Update database if accountId is provided
+    if (accountId) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const { error: updateError } = await supabase
+        .from('instagram_accounts')
+        .update({
+          display_name: data.displayName,
+          profile_image_url: data.profileImageUrl,
+          bio: data.bio,
+          followers_count: data.followersCount,
+          following_count: data.followingCount,
+          posts_count: data.postsCount,
+          last_synced_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', accountId);
+
+      if (updateError) {
+        console.error('Error updating account:', updateError);
+      }
+
+      // Save metrics history
+      await supabase.from('instagram_metrics_history').insert({
+        account_id: accountId,
+        followers_count: data.followersCount,
+      });
+
+      // Save posts to database
+      if (data.posts && data.posts.length > 0) {
+        for (const post of data.posts) {
+          // Upsert post
+          const { data: existingPost } = await supabase
+            .from('instagram_posts')
+            .select('id')
+            .eq('account_id', accountId)
+            .eq('post_url', post.postUrl)
+            .maybeSingle();
+
+          if (existingPost) {
+            await supabase
+              .from('instagram_posts')
+              .update({
+                post_type: post.type,
+                thumbnail_url: post.thumbnailUrl,
+                caption: post.caption,
+                likes_count: post.likesCount,
+                comments_count: post.commentsCount,
+                views_count: post.viewsCount,
+                shares_count: post.sharesCount,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existingPost.id);
+          } else {
+            await supabase
+              .from('instagram_posts')
+              .insert({
+                account_id: accountId,
+                post_url: post.postUrl,
+                post_type: post.type,
+                thumbnail_url: post.thumbnailUrl,
+                caption: post.caption,
+                likes_count: post.likesCount,
+                comments_count: post.commentsCount,
+                views_count: post.viewsCount,
+                shares_count: post.sharesCount,
+              });
+          }
+        }
+        console.log(`Saved ${data.posts.length} posts to database`);
+      }
+    }
 
     return new Response(
       JSON.stringify({

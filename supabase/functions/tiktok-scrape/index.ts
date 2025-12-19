@@ -14,6 +14,19 @@ interface TikTokScrapedData {
   followingCount: number;
   likesCount: number;
   videosCount: number;
+  videos?: Array<{
+    videoId: string;
+    videoUrl: string;
+    caption?: string;
+    thumbnailUrl?: string;
+    viewsCount: number;
+    likesCount: number;
+    commentsCount: number;
+    sharesCount: number;
+    musicTitle?: string;
+    duration?: number;
+    postedAt?: string;
+  }>;
 }
 
 Deno.serve(async (req) => {
@@ -22,7 +35,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { accountId, username } = await req.json();
+    const { accountId, username, fetchVideos = true } = await req.json();
 
     if (!username) {
       return new Response(
@@ -31,7 +44,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Scraping TikTok profile: ${username}`);
+    console.log(`Scraping TikTok profile: ${username}, fetchVideos: ${fetchVideos}`);
 
     const apiKey = Deno.env.get('SCRAPECREATORS_API_KEY');
     if (!apiKey) {
@@ -64,7 +77,7 @@ Deno.serve(async (req) => {
     }
 
     const profileData = await profileResponse.json();
-    console.log('Profile data received:', JSON.stringify(profileData, null, 2));
+    console.log('Profile data received');
 
     // Parse the profile data from ScrapeCreators API
     const userData = profileData.data?.user || profileData.data || profileData;
@@ -79,9 +92,49 @@ Deno.serve(async (req) => {
       followingCount: statsData.followingCount || statsData.following || statsData.following_count || 0,
       likesCount: statsData.heartCount || statsData.heart || statsData.likes || statsData.diggCount || 0,
       videosCount: statsData.videoCount || statsData.video_count || statsData.videos || 0,
+      videos: [],
     };
 
-    console.log('Parsed profile data:', data);
+    // Fetch videos if requested
+    if (fetchVideos) {
+      try {
+        const videosResponse = await fetch(
+          `https://api.scrapecreators.com/v1/tiktok/user/posts?handle=${encodeURIComponent(username)}&limit=20`,
+          {
+            method: 'GET',
+            headers: {
+              'x-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (videosResponse.ok) {
+          const videosData = await videosResponse.json();
+          const videosArray = videosData.data?.posts || videosData.data?.videos || videosData.posts || videosData.videos || videosData.data || [];
+          
+          console.log(`Found ${videosArray.length} videos`);
+          
+          data.videos = videosArray.slice(0, 20).map((video: any) => ({
+            videoId: video.id || video.video_id || video.aweme_id || '',
+            videoUrl: video.video?.playAddr || video.video_url || video.play_url || `https://www.tiktok.com/@${username}/video/${video.id || video.video_id}`,
+            caption: video.desc || video.description || video.caption || undefined,
+            thumbnailUrl: video.video?.cover || video.cover || video.thumbnail || video.thumbnail_url || undefined,
+            viewsCount: video.stats?.playCount || video.play_count || video.views || 0,
+            likesCount: video.stats?.diggCount || video.digg_count || video.likes || 0,
+            commentsCount: video.stats?.commentCount || video.comment_count || video.comments || 0,
+            sharesCount: video.stats?.shareCount || video.share_count || video.shares || 0,
+            musicTitle: video.music?.title || video.music_title || undefined,
+            duration: video.video?.duration || video.duration || undefined,
+            postedAt: video.createTime ? new Date(video.createTime * 1000).toISOString() : video.create_time || undefined,
+          }));
+        }
+      } catch (videosError) {
+        console.error('Error fetching videos:', videosError);
+      }
+    }
+
+    console.log('Parsed profile data:', data.displayName, 'with', data.videos?.length || 0, 'videos');
 
     // Update database
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -120,6 +173,54 @@ Deno.serve(async (req) => {
 
       if (metricsError) {
         console.error('Error saving metrics history:', metricsError);
+      }
+
+      // Save videos to database
+      if (data.videos && data.videos.length > 0) {
+        for (const video of data.videos) {
+          // Upsert video
+          const { data: existingVideo } = await supabase
+            .from('tiktok_videos')
+            .select('id')
+            .eq('account_id', accountId)
+            .eq('video_id', video.videoId)
+            .maybeSingle();
+
+          if (existingVideo) {
+            await supabase
+              .from('tiktok_videos')
+              .update({
+                caption: video.caption,
+                thumbnail_url: video.thumbnailUrl,
+                views_count: video.viewsCount,
+                likes_count: video.likesCount,
+                comments_count: video.commentsCount,
+                shares_count: video.sharesCount,
+                music_title: video.musicTitle,
+                duration: video.duration,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existingVideo.id);
+          } else {
+            await supabase
+              .from('tiktok_videos')
+              .insert({
+                account_id: accountId,
+                video_id: video.videoId,
+                video_url: video.videoUrl,
+                caption: video.caption,
+                thumbnail_url: video.thumbnailUrl,
+                views_count: video.viewsCount,
+                likes_count: video.likesCount,
+                comments_count: video.commentsCount,
+                shares_count: video.sharesCount,
+                music_title: video.musicTitle,
+                duration: video.duration,
+                posted_at: video.postedAt,
+              });
+          }
+        }
+        console.log(`Saved ${data.videos.length} videos to database`);
       }
     }
 

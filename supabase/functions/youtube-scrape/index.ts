@@ -15,6 +15,17 @@ interface YouTubeScrapedData {
   subscribersCount: number;
   videosCount: number;
   totalViews: number;
+  videos?: Array<{
+    videoId: string;
+    title: string;
+    description?: string;
+    thumbnailUrl?: string;
+    viewsCount: number;
+    likesCount: number;
+    commentsCount: number;
+    publishedAt?: string;
+    duration?: number;
+  }>;
 }
 
 Deno.serve(async (req) => {
@@ -23,7 +34,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { accountId, username } = await req.json();
+    const { accountId, username, fetchVideos = true } = await req.json();
 
     if (!username) {
       return new Response(
@@ -32,7 +43,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Scraping YouTube channel: ${username}`);
+    console.log(`Scraping YouTube channel: ${username}, fetchVideos: ${fetchVideos}`);
 
     const apiKey = Deno.env.get('SCRAPECREATORS_API_KEY');
     if (!apiKey) {
@@ -43,7 +54,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Try to fetch channel data from ScrapeCreators
+    // Fetch channel data from ScrapeCreators
     const profileResponse = await fetch(
       `https://api.scrapecreators.com/v1/youtube/channel?handle=${encodeURIComponent(username)}`,
       {
@@ -65,7 +76,7 @@ Deno.serve(async (req) => {
     }
 
     const profileData = await profileResponse.json();
-    console.log('Profile data received:', JSON.stringify(profileData, null, 2));
+    console.log('Profile data received');
 
     // Parse the channel data from ScrapeCreators API
     const channelData = profileData.data || profileData;
@@ -80,9 +91,47 @@ Deno.serve(async (req) => {
       subscribersCount: channelData.subscriber_count || channelData.subscriberCount || channelData.statistics?.subscriberCount || 0,
       videosCount: channelData.video_count || channelData.videoCount || channelData.statistics?.videoCount || 0,
       totalViews: channelData.view_count || channelData.viewCount || channelData.statistics?.viewCount || 0,
+      videos: [],
     };
 
-    console.log('Parsed channel data:', data);
+    // Fetch videos if requested
+    if (fetchVideos && data.channelId) {
+      try {
+        const videosResponse = await fetch(
+          `https://api.scrapecreators.com/v1/youtube/channel/videos?channel_id=${encodeURIComponent(data.channelId)}&limit=20`,
+          {
+            method: 'GET',
+            headers: {
+              'x-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (videosResponse.ok) {
+          const videosData = await videosResponse.json();
+          const videosArray = videosData.data?.videos || videosData.videos || videosData.data || [];
+          
+          console.log(`Found ${videosArray.length} videos`);
+          
+          data.videos = videosArray.slice(0, 20).map((video: any) => ({
+            videoId: video.video_id || video.videoId || video.id || '',
+            title: video.title || '',
+            description: video.description?.substring(0, 500) || undefined,
+            thumbnailUrl: video.thumbnail?.url || video.thumbnails?.high?.url || video.thumbnail_url || undefined,
+            viewsCount: video.view_count || video.viewCount || video.views || 0,
+            likesCount: video.like_count || video.likeCount || video.likes || 0,
+            commentsCount: video.comment_count || video.commentCount || video.comments || 0,
+            publishedAt: video.published_at || video.publishedAt || undefined,
+            duration: video.duration || video.length_seconds || undefined,
+          }));
+        }
+      } catch (videosError) {
+        console.error('Error fetching videos:', videosError);
+      }
+    }
+
+    console.log('Parsed channel data:', data.displayName, 'with', data.videos?.length || 0, 'videos');
 
     // Update database
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -122,6 +171,54 @@ Deno.serve(async (req) => {
 
       if (metricsError) {
         console.error('Error saving metrics history:', metricsError);
+      }
+
+      // Save videos to database
+      if (data.videos && data.videos.length > 0) {
+        for (const video of data.videos) {
+          const videoUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+          
+          // Upsert video
+          const { data: existingVideo } = await supabase
+            .from('youtube_videos')
+            .select('id')
+            .eq('account_id', accountId)
+            .eq('video_id', video.videoId)
+            .maybeSingle();
+
+          if (existingVideo) {
+            await supabase
+              .from('youtube_videos')
+              .update({
+                title: video.title,
+                description: video.description,
+                thumbnail_url: video.thumbnailUrl,
+                views_count: video.viewsCount,
+                likes_count: video.likesCount,
+                comments_count: video.commentsCount,
+                duration: video.duration,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existingVideo.id);
+          } else {
+            await supabase
+              .from('youtube_videos')
+              .insert({
+                account_id: accountId,
+                video_id: video.videoId,
+                video_url: videoUrl,
+                title: video.title,
+                description: video.description,
+                thumbnail_url: video.thumbnailUrl,
+                views_count: video.viewsCount,
+                likes_count: video.likesCount,
+                comments_count: video.commentsCount,
+                duration: video.duration,
+                published_at: video.publishedAt,
+              });
+          }
+        }
+        console.log(`Saved ${data.videos.length} videos to database`);
       }
     }
 
