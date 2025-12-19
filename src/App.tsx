@@ -19,7 +19,7 @@ import Auth from "./pages/Auth";
 import PendingApproval from "./pages/PendingApproval";
 import UserDashboard from "./pages/UserDashboard";
 import SubmitPost from "./pages/SubmitPost";
-import Wallet from "./pages/Wallet";
+
 import Profile from "./pages/Profile";
 import Campaigns from "./pages/Campaigns";
 import CampaignDetail from "./pages/CampaignDetail";
@@ -53,23 +53,23 @@ const App = () => (
               <Route path="/pending-approval" element={<PendingApproval />} />
               <Route path="/" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
               <Route path="/submit" element={<ProtectedRoute><SubmitPost /></ProtectedRoute>} />
-              <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+              
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
               <Route path="/campaign/:id" element={<ProtectedRoute><CampaignDetail /></ProtectedRoute>} />
               <Route path="/ranking/monthly" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
               <Route path="/ranking/daily" element={<ProtectedRoute><RankingDaily /></ProtectedRoute>} />
               {/* Dashboard Routes by Role */}
-              <Route path="/dashboard/admin" element={<DashboardAdmin />} />
-              <Route path="/dashboard/client" element={<DashboardClient />} />
-              <Route path="/dashboard/clipper" element={<DashboardClipper />} />
+              <Route path="/dashboard/admin" element={<ProtectedRoute requireAdmin><DashboardAdmin /></ProtectedRoute>} />
+              <Route path="/dashboard/client" element={<ProtectedRoute><DashboardClient /></ProtectedRoute>} />
+              <Route path="/dashboard/clipper" element={<ProtectedRoute><DashboardClipper /></ProtectedRoute>} />
               {/* Client Routes */}
               <Route path="/client/campaigns" element={<ClientCampaigns />} />
               <Route path="/client/edit-campaign/:id" element={<ClientEditCampaign />} />
               <Route path="/client/financial" element={<FinanceiroClient />} />
               {/* Admin Routes */}
-              <Route path="/admin" element={<DashboardAdmin />} />
-              <Route path="/admin/dashboard" element={<DashboardAdmin />} />
+              <Route path="/admin" element={<ProtectedRoute requireAdmin><DashboardAdmin /></ProtectedRoute>} />
+              <Route path="/admin/dashboard" element={<ProtectedRoute requireAdmin><DashboardAdmin /></ProtectedRoute>} />
               <Route path="/admin/campaigns" element={<AdminCampaigns />} />
               <Route path="/admin/videos" element={<ProtectedRoute requireAdmin><ManageVideos /></ProtectedRoute>} />
               <Route path="/admin/submissions" element={<AdminSubmissions />} />
