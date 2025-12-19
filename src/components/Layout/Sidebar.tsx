@@ -37,26 +37,18 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: t("nav.dashboard"), href: "/", icon: LayoutDashboard },
     { name: t("nav.campaigns"), href: "/campaigns", icon: Trophy },
     { name: t("nav.submit"), href: "/submit", icon: Upload },
-    { name: t("nav.ranking_monthly"), href: "/ranking/monthly", icon: Medal },
-    { name: t("nav.ranking_daily"), href: "/ranking/daily", icon: TrendingUp },
     { name: t("nav.wallet"), href: "/wallet", icon: Wallet },
   ];
 
   const clientNavigation = [
     { name: t("nav.dashboard"), href: "/dashboard/client", icon: LayoutDashboard },
-    { name: t("nav.my_campaigns"), href: "/client/campaigns", icon: Trophy },
-    { name: t("nav.payments"), href: "/payments", icon: DollarSign },
-    { name: t("nav.financial"), href: "/client/financial", icon: Wallet },
     { name: t("nav.clippers"), href: "/dashboard/client", icon: Users },
-    { name: t("nav.ranking"), href: "/ranking/monthly", icon: Medal },
   ];
 
   const adminNavigation = [
     { name: t("nav.admin_panel"), href: "/admin", icon: Shield },
     { name: t("nav.campaigns"), href: "/admin/campaigns", icon: Trophy },
     { name: t("nav.submissions"), href: "/admin/submissions", icon: Video },
-    { name: t("nav.payments"), href: "/payments", icon: DollarSign },
-    { name: t("nav.financial"), href: "/admin/payouts", icon: Wallet },
     { name: t("nav.users"), href: "/admin/users", icon: Users },
     { name: t("nav.statistics"), href: "/admin/stats", icon: BarChart3 },
   ];
