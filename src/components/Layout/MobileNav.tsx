@@ -7,19 +7,32 @@ import {
   Upload,
   Shield,
   User,
+  BarChart3,
 } from "lucide-react";
 
 export default function MobileNav() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isClient } = useAuth();
   const location = useLocation();
 
-  const navigation = [
-    { name: "Home", href: "/", icon: LayoutDashboard },
-    { name: "Campanhas", href: "/campaigns", icon: Trophy },
-    { name: "Enviar", href: "/submit", icon: Upload },
-    ...(isAdmin ? [{ name: "Admin", href: "/admin", icon: Shield }] : []),
-    { name: "Perfil", href: "/profile", icon: User },
-  ];
+  const getNavigation = () => {
+    if (isClient && !isAdmin) {
+      return [
+        { name: "Dashboard", href: "/dashboard/client", icon: LayoutDashboard },
+        { name: "Analytics", href: "/account-analytics", icon: BarChart3 },
+        { name: "Perfil", href: "/profile", icon: User },
+      ];
+    }
+    
+    return [
+      { name: "Home", href: "/", icon: LayoutDashboard },
+      { name: "Campanhas", href: "/campaigns", icon: Trophy },
+      { name: "Enviar", href: "/submit", icon: Upload },
+      ...(isAdmin ? [{ name: "Admin", href: "/admin", icon: Shield }] : []),
+      { name: "Perfil", href: "/profile", icon: User },
+    ];
+  };
+
+  const navigation = getNavigation();
 
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/";

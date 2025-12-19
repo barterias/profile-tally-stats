@@ -386,6 +386,12 @@ const translations: Translations = {
   "averagePerClipper": { pt: "Média por Clipador", en: "Average per Clipper" },
   "ratePer1kViews": { pt: "Taxa por 1K Views", en: "Rate per 1K Views" },
   "paymentsThisMonth": { pt: "Pagamentos este mês", en: "Payments this month" },
+  "socialMediaOverview": { pt: "Visão Geral de Redes Sociais", en: "Social Media Overview" },
+  "viewDetails": { pt: "Ver Detalhes", en: "View Details" },
+  "followers": { pt: "Seguidores", en: "Followers" },
+  "views": { pt: "Visualizações", en: "Views" },
+  "likes": { pt: "Curtidas", en: "Likes" },
+  "accounts": { pt: "Contas", en: "Accounts" },
 
   // Status Badges
   "status.admin": { pt: "Admin", en: "Admin" },
