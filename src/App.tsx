@@ -36,7 +36,7 @@ import NotFound from "./pages/NotFound";
 import SocialDashboard from "./pages/SocialDashboard";
 import SocialAccounts from "./pages/SocialAccounts";
 import SocialSettings from "./pages/SocialSettings";
-import InstagramDashboard from "./pages/InstagramDashboard";
+import AccountAnalytics from "./pages/AccountAnalytics";
 
 const queryClient = new QueryClient();
 
@@ -81,7 +81,7 @@ const App = () => (
               <Route path="/admin/payments" element={<PaymentManagement />} />
               <Route path="/payments" element={<PaymentManagement />} />
               <Route path="/ranking" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
-              <Route path="/instagram" element={<ProtectedRoute><InstagramDashboard /></ProtectedRoute>} />
+              <Route path="/account-analytics" element={<ProtectedRoute><AccountAnalytics /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
