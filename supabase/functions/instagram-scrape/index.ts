@@ -37,11 +37,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY') || Deno.env.get('FIRECRAWL_API_KEY_1');
-    if (!firecrawlApiKey) {
-      console.error('FIRECRAWL_API_KEY not configured');
+    const rapidApiKey = Deno.env.get('RAPIDAPI_KEY');
+    if (!rapidApiKey) {
+      console.error('RAPIDAPI_KEY not configured');
       return new Response(
-        JSON.stringify({ success: false, error: 'Firecrawl API key not configured.' }),
+        JSON.stringify({ success: false, error: 'RapidAPI key not configured. Please add your RAPIDAPI_KEY.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -54,96 +54,80 @@ Deno.serve(async (req) => {
     }
     username = username.replace('@', '').replace('/', '');
 
-    const instagramUrl = `https://www.instagram.com/${username}/`;
-    console.log(`Scraping Instagram profile with Firecrawl: ${instagramUrl}`);
+    console.log(`Fetching Instagram profile: ${username}`);
 
-    // Use Firecrawl to scrape the Instagram profile page
-    const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
-      method: 'POST',
+    // Use RapidAPI Instagram API (instagram28 - has free tier)
+    const apiHost = 'instagram28.p.rapidapi.com';
+    
+    const profileResponse = await fetch(`https://${apiHost}/user_info?user_name=${encodeURIComponent(username)}`, {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${firecrawlApiKey}`,
-        'Content-Type': 'application/json',
+        'x-rapidapi-key': rapidApiKey,
+        'x-rapidapi-host': apiHost,
       },
-      body: JSON.stringify({
-        url: instagramUrl,
-        formats: ['markdown', 'html', 'links'],
-        onlyMainContent: false,
-        waitFor: 3000,
-      }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Firecrawl error:', response.status, errorText);
+    if (!profileResponse.ok) {
+      const errorText = await profileResponse.text();
+      console.error('RapidAPI error:', profileResponse.status, errorText);
       
-      if (response.status === 429) {
+      if (profileResponse.status === 429) {
         return new Response(
           JSON.stringify({ success: false, error: 'Rate limit exceeded. Please try again later.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      
+      if (profileResponse.status === 403) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Invalid API key or subscription required. Please subscribe to the Instagram API on RapidAPI.' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       return new Response(
-        JSON.stringify({ success: false, error: `Scraping failed: ${response.status}` }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: `API error: ${profileResponse.status}` }),
+        { status: profileResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const scrapeResult = await response.json();
-    console.log('Firecrawl response received');
+    const profileData = await profileResponse.json();
+    console.log('Profile data received:', JSON.stringify(profileData, null, 2));
 
-    const pageContent = scrapeResult.data?.markdown || scrapeResult.markdown || '';
-    const html = scrapeResult.data?.html || scrapeResult.html || '';
-
-    // Parse Instagram data from scraped content
+    // Parse the profile data from instagram28 API
+    const userData = profileData.data?.user || profileData.user || profileData.data || profileData;
+    
     const data: InstagramScrapedData = {
-      username: username,
-      displayName: undefined,
-      profileImageUrl: undefined,
-      bio: undefined,
-      followersCount: 0,
-      followingCount: 0,
-      postsCount: 0,
+      username: userData.username || username,
+      displayName: userData.full_name || undefined,
+      profileImageUrl: userData.profile_pic_url_hd || userData.profile_pic_url || undefined,
+      bio: userData.biography || undefined,
+      followersCount: userData.edge_followed_by?.count || userData.follower_count || 0,
+      followingCount: userData.edge_follow?.count || userData.following_count || 0,
+      postsCount: userData.edge_owner_to_timeline_media?.count || userData.media_count || 0,
       posts: [],
     };
 
-    // Try to extract follower count from content
-    const followersMatch = pageContent.match(/(\d+(?:[.,]\d+)?[KMB]?)\s*(?:Followers|seguidores)/i) ||
-                          pageContent.match(/Followers[:\s]*(\d+(?:[.,]\d+)?[KMB]?)/i);
-    if (followersMatch) {
-      data.followersCount = parseCount(followersMatch[1]);
-    }
-
-    // Try to extract following count
-    const followingMatch = pageContent.match(/(\d+(?:[.,]\d+)?[KMB]?)\s*(?:Following|seguindo)/i) ||
-                          pageContent.match(/Following[:\s]*(\d+(?:[.,]\d+)?[KMB]?)/i);
-    if (followingMatch) {
-      data.followingCount = parseCount(followingMatch[1]);
-    }
-
-    // Try to extract posts count
-    const postsMatch = pageContent.match(/(\d+(?:[.,]\d+)?[KMB]?)\s*(?:Posts|posts|publicações)/i);
-    if (postsMatch) {
-      data.postsCount = parseCount(postsMatch[1]);
-    }
-
-    // Try to extract bio - look for text between name and stats
-    const bioMatch = pageContent.match(/\n([^\n]{10,300})\n.*?(?:Followers|Posts)/i);
-    if (bioMatch) {
-      data.bio = bioMatch[1].trim();
-    }
-
-    // Try to extract profile image from HTML
-    const imgMatch = html.match(/profile_pic_url['":\s]+['"]([^'"]+)['"]/i) ||
-                    html.match(/<img[^>]+alt="[^"]*profile[^"]*"[^>]+src="([^"]+)"/i);
-    if (imgMatch) {
-      data.profileImageUrl = imgMatch[1].replace(/\\u0026/g, '&');
-    }
-
-    // Extract display name
-    const nameMatch = pageContent.match(/^#?\s*([^\n\|]+)/);
-    if (nameMatch && nameMatch[1].length < 50) {
-      data.displayName = nameMatch[1].trim().replace(/^#\s*/, '');
+    // Extract posts from profile data if available
+    try {
+      const edges = userData.edge_owner_to_timeline_media?.edges || [];
+      
+      if (Array.isArray(edges) && edges.length > 0) {
+        data.posts = edges.slice(0, 12).map((edge: any) => {
+          const node = edge.node || edge;
+          return {
+            postUrl: `https://www.instagram.com/p/${node.shortcode}/`,
+            type: node.is_video ? 'video' : node.__typename === 'GraphSidecar' ? 'carousel' : 'post',
+            thumbnailUrl: node.thumbnail_src || node.display_url || undefined,
+            caption: node.edge_media_to_caption?.edges?.[0]?.node?.text?.substring(0, 200) || undefined,
+            likesCount: node.edge_liked_by?.count || node.like_count || 0,
+            commentsCount: node.edge_media_to_comment?.count || node.comment_count || 0,
+            viewsCount: node.video_view_count || 0,
+          };
+        });
+      }
+    } catch (postsError) {
+      console.error('Error parsing posts:', postsError);
     }
 
     console.log('Parsed data:', JSON.stringify(data, null, 2));
@@ -164,21 +148,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-function parseCount(countStr: string): number {
-  if (!countStr) return 0;
-  
-  const normalized = countStr.replace(',', '.').toUpperCase();
-  const numMatch = normalized.match(/([\d.]+)([KMB])?/);
-  
-  if (!numMatch) return 0;
-  
-  let num = parseFloat(numMatch[1]);
-  const suffix = numMatch[2];
-  
-  if (suffix === 'K') num *= 1000;
-  else if (suffix === 'M') num *= 1000000;
-  else if (suffix === 'B') num *= 1000000000;
-  
-  return Math.round(num);
-}
