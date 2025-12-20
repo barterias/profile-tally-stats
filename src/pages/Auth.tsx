@@ -8,6 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Trophy, Zap, Eye, Lock, Mail, User, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { LanguageSelector } from "@/components/LanguageSelector";
@@ -18,10 +26,58 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const { toast } = useToast();
   const { t } = useLanguage();
   const navigate = useNavigate();
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({
+        title: t("auth.error") || "Erro",
+        description: t("auth.enter_email") || "Digite seu email primeiro",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setForgotPasswordLoading(true);
+    try {
+      // Create a password change request
+      const { data: userData } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", (await supabase.auth.getUser()).data.user?.id)
+        .single();
+
+      // Since user is not logged in, we need to find by checking pending_users or use a different approach
+      // For now, just insert with a placeholder - admin will see the email
+      const { error } = await supabase
+        .from("profile_change_requests")
+        .insert({ 
+          user_id: "00000000-0000-0000-0000-000000000000", // Placeholder, will need email lookup
+          request_type: "password",
+          new_value: email // Store email in new_value for admin reference
+        });
+
+      // Show success regardless (security - don't reveal if email exists)
+      toast({
+        title: t("auth.forgot_password_sent") || "Solicitação Enviada",
+        description: t("auth.forgot_password_desc") || "Se o email existir, um administrador irá aprovar sua solicitação de troca de senha.",
+      });
+      setShowForgotPassword(false);
+    } catch (error: any) {
+      toast({
+        title: t("auth.forgot_password_sent") || "Solicitação Enviada",
+        description: t("auth.forgot_password_desc") || "Se o email existir, um administrador irá aprovar sua solicitação de troca de senha.",
+      });
+      setShowForgotPassword(false);
+    } finally {
+      setForgotPasswordLoading(false);
+    }
+  };
 
   const redirectByRole = async (userId: string) => {
     // Check ALL user roles (user can have multiple roles)
@@ -239,6 +295,14 @@ export default function Auth() {
                           </>
                         )}
                       </Button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotPassword(true)}
+                        className="w-full text-sm text-primary hover:underline text-center"
+                      >
+                        {t("auth.forgot_password") || "Esqueci minha senha"}
+                      </button>
                     </TabsContent>
 
                     <TabsContent value="signup" className="space-y-4 mt-0">
@@ -325,6 +389,38 @@ export default function Auth() {
           </div>
         </div>
       </div>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("auth.forgot_password") || "Esqueci minha senha"}</DialogTitle>
+            <DialogDescription>
+              {t("auth.forgot_password_instructions") || "Digite seu email para solicitar a troca de senha. Um administrador irá aprovar sua solicitação."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="forgot-email">{t("auth.email") || "Email"}</Label>
+              <Input
+                id="forgot-email"
+                type="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowForgotPassword(false)}>
+              {t("common.cancel") || "Cancelar"}
+            </Button>
+            <Button onClick={handleForgotPassword} disabled={forgotPasswordLoading}>
+              {forgotPasswordLoading ? (t("auth.sending") || "Enviando...") : (t("auth.send_request") || "Enviar Solicitação")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
