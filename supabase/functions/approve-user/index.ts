@@ -87,7 +87,6 @@ Deno.serve(async (req) => {
     }
 
     // Generate a random temporary password for the new user
-    // The stored password_hash is now properly hashed and cannot be used directly
     const tempPassword = crypto.randomUUID()
 
     // Criar usuário no auth.users usando Admin API
@@ -107,8 +106,20 @@ Deno.serve(async (req) => {
 
     console.log('Usuário criado com sucesso:', newUser.user.id)
 
-    // O trigger 'handle_new_user' já cria automaticamente o perfil e a role
-    // quando o usuário é criado em auth.users, então não precisamos fazer isso manualmente
+    // Enviar email de redefinição de senha para o usuário definir sua própria senha
+    const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(
+      pendingUser.email,
+      {
+        redirectTo: `${req.headers.get('origin') || 'https://profile-tally-stats.lovable.app'}/auth`
+      }
+    )
+
+    if (resetError) {
+      console.error('Erro ao enviar email de reset:', resetError)
+      // Não falhar a aprovação por causa disso, usuário pode pedir reset depois
+    } else {
+      console.log('Email de redefinição de senha enviado para:', pendingUser.email)
+    }
 
     // Remover da tabela pending_users
     const { error: deleteError } = await supabaseAdmin
@@ -121,7 +132,11 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, userId: newUser.user.id }),
+      JSON.stringify({ 
+        success: true, 
+        userId: newUser.user.id,
+        message: 'Usuário aprovado. Email de redefinição de senha enviado.'
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
