@@ -32,7 +32,8 @@ export function InstagramTab() {
   const allAccountsQuery = useAllInstagramAccounts();
   
   // Select the appropriate data based on role
-  const { data: accounts = [], isLoading: accountsLoading } = (isAdmin || isClient) 
+  // Admins see all accounts, clients and clippers see only their own accounts
+  const { data: accounts = [], isLoading: accountsLoading } = isAdmin 
     ? allAccountsQuery 
     : userAccountsQuery;
 
