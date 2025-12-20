@@ -16,7 +16,8 @@ import {
   User,
   Shield,
   Lock,
-  Trash2
+  Trash2,
+  CheckCircle
 } from "lucide-react";
 
 export default function Profile() {
@@ -28,9 +29,14 @@ export default function Profile() {
     email: user?.email || "",
     avatar_url: "",
   });
+  const [approvedPasswordRequest, setApprovedPasswordRequest] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     fetchProfile();
+    checkApprovedRequests();
   }, [user]);
 
   const fetchProfile = async () => {
@@ -48,6 +54,23 @@ export default function Profile() {
         email: user?.email || "",
         avatar_url: data.avatar_url || "",
       });
+    }
+  };
+
+  const checkApprovedRequests = async () => {
+    if (!user?.id) return;
+    
+    const { data } = await supabase
+      .from("profile_change_requests")
+      .select("id, request_type")
+      .eq("user_id", user.id)
+      .eq("request_type", "password")
+      .eq("status", "approved")
+      .limit(1)
+      .single();
+
+    if (data) {
+      setApprovedPasswordRequest(data.id);
     }
   };
 
@@ -85,10 +108,39 @@ export default function Profile() {
     }
   };
 
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toString();
+  const handlePasswordChange = async () => {
+    if (newPassword.length < 6) {
+      toast.error(t('passwordTooShort') || 'A senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error(t('passwordMismatch') || 'As senhas não coincidem');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      
+      if (error) throw error;
+
+      // Mark the request as completed by deleting it
+      if (approvedPasswordRequest) {
+        await supabase
+          .from("profile_change_requests")
+          .delete()
+          .eq("id", approvedPasswordRequest);
+      }
+
+      toast.success(t('passwordChanged') || 'Senha alterada com sucesso!');
+      setApprovedPasswordRequest(null);
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      toast.error(error.message || t('error'));
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   return (
@@ -165,6 +217,49 @@ export default function Profile() {
             </div>
           </div>
         </GlowCard>
+
+        {/* Password Change Card - Only shows when approved */}
+        {approvedPasswordRequest && (
+          <GlowCard className="p-6 border-2 border-success/50">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-success" />
+              {t('passwordChangeApproved') || 'Alteração de Senha Aprovada'}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {t('passwordChangeApprovedDesc') || 'Sua solicitação foi aprovada. Digite sua nova senha abaixo.'}
+            </p>
+            <div className="space-y-4 max-w-md">
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">{t('newPassword') || 'Nova Senha'}</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">{t('confirmPassword') || 'Confirmar Senha'}</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+              <Button
+                onClick={handlePasswordChange}
+                disabled={changingPassword || !newPassword || !confirmPassword}
+                className="bg-success hover:bg-success/90"
+              >
+                <Lock className="h-4 w-4 mr-2" />
+                {changingPassword ? (t('saving') || 'Salvando...') : (t('changePassword') || 'Alterar Senha')}
+              </Button>
+            </div>
+          </GlowCard>
+        )}
 
         {/* Account Settings */}
         <GlowCard className="p-6">

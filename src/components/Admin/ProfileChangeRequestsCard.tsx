@@ -238,18 +238,9 @@ export function ProfileChangeRequestsCard() {
 
           <div className="space-y-4">
             {processDialog.action === "approved" && processDialog.request?.request_type === "password" && (
-              <div className="space-y-2">
-                <Label>{t("profileRequests.newPassword") || "Nova Senha (opcional)"}</Label>
-                <Input
-                  type="password"
-                  placeholder="Digite a nova senha..."
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t("profileRequests.passwordNote") || "A alteração de senha deve ser feita manualmente no painel do backend."}
-                </p>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                {t("profileRequests.passwordApproveNote") || "Ao aprovar, o usuário poderá alterar a senha diretamente no perfil dele."}
+              </p>
             )}
 
             {processDialog.action === "approved" && processDialog.request?.request_type === "email" && (
