@@ -10,6 +10,17 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { GlowCard } from "@/components/ui/GlowCard";
 import MainLayout from "@/components/Layout/MainLayout";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Trophy,
   ArrowLeft,
   Calendar,
@@ -26,6 +37,9 @@ import {
   Edit,
   Play,
   Pause,
+  Trash2,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -69,6 +83,8 @@ function CampaignDetailContent() {
   const [videos, setVideos] = useState<CampaignVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
+  const [syncingMetrics, setSyncingMetrics] = useState(false);
+  const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCampaignData();
@@ -99,6 +115,111 @@ function CampaignDetailContent() {
       setCampaign({ ...campaign, is_active: !campaign.is_active });
     } catch (error: any) {
       toast.error(error.message || "Erro ao atualizar status");
+    }
+  };
+
+  const handleDeleteVideo = async (videoId: string) => {
+    setDeletingVideoId(videoId);
+    try {
+      const { error } = await supabase
+        .from("campaign_videos")
+        .delete()
+        .eq("id", videoId);
+
+      if (error) throw error;
+      
+      setVideos(videos.filter(v => v.id !== videoId));
+      toast.success("Vídeo removido do ranking");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao remover vídeo");
+    } finally {
+      setDeletingVideoId(null);
+    }
+  };
+
+  const handleSyncVideoMetrics = async (video: CampaignVideo) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('video-details', {
+        body: { 
+          videoUrl: video.video_link,
+          updateDatabase: true,
+          tableId: video.id
+        },
+      });
+
+      if (error) throw error;
+      
+      if (data?.success && data?.data) {
+        const updatedMetrics = {
+          views: data.data.viewsCount || 0,
+          likes: data.data.likesCount || 0,
+          comments: data.data.commentsCount || 0,
+          shares: data.data.sharesCount || 0,
+        };
+        
+        // Update local state
+        setVideos(videos.map(v => 
+          v.id === video.id ? { ...v, ...updatedMetrics } : v
+        ).sort((a, b) => (b.views || 0) - (a.views || 0)));
+        
+        // Update database
+        await supabase
+          .from("campaign_videos")
+          .update(updatedMetrics)
+          .eq("id", video.id);
+          
+        toast.success("Métricas atualizadas!");
+      }
+    } catch (error: any) {
+      console.error("Error syncing metrics:", error);
+      toast.error("Erro ao sincronizar métricas");
+    }
+  };
+
+  const handleSyncAllMetrics = async () => {
+    setSyncingMetrics(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const video of videos) {
+      try {
+        const { data, error } = await supabase.functions.invoke('video-details', {
+          body: { 
+            videoUrl: video.video_link,
+          },
+        });
+
+        if (!error && data?.success && data?.data) {
+          const updatedMetrics = {
+            views: data.data.viewsCount || 0,
+            likes: data.data.likesCount || 0,
+            comments: data.data.commentsCount || 0,
+            shares: data.data.sharesCount || 0,
+          };
+          
+          await supabase
+            .from("campaign_videos")
+            .update(updatedMetrics)
+            .eq("id", video.id);
+            
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      } catch {
+        errorCount++;
+      }
+    }
+
+    // Refresh data
+    await fetchCampaignData();
+    setSyncingMetrics(false);
+    
+    if (successCount > 0) {
+      toast.success(`${successCount} vídeo(s) atualizados`);
+    }
+    if (errorCount > 0) {
+      toast.error(`${errorCount} vídeo(s) com erro`);
     }
   };
 
@@ -465,10 +586,27 @@ function CampaignDetailContent() {
           {/* Right Column - Ranking */}
           <div className="lg:col-span-2">
             <GlowCard>
-              <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-primary" />
-                Ranking de Vídeos
-              </h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-primary" />
+                  Ranking de Vídeos
+                </h3>
+                {isAdmin && videos.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSyncAllMetrics}
+                    disabled={syncingMetrics}
+                  >
+                    {syncingMetrics ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Sincronizar Métricas
+                  </Button>
+                )}
+              </div>
 
               {videos.length === 0 ? (
                 <div className="text-center py-12">
@@ -507,6 +645,19 @@ function CampaignDetailContent() {
                           {index + 1}
                         </div>
 
+                        {/* Platform Icon */}
+                        <div className="hidden sm:flex">
+                          {video.platform === "instagram" && (
+                            <Instagram className="h-5 w-5 text-pink-400" />
+                          )}
+                          {video.platform === "tiktok" && (
+                            <Music className="h-5 w-5 text-cyan-400" />
+                          )}
+                          {video.platform === "youtube" && (
+                            <Youtube className="h-5 w-5 text-red-400" />
+                          )}
+                        </div>
+
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate">{video.username}</p>
@@ -521,7 +672,7 @@ function CampaignDetailContent() {
                         </div>
 
                         {/* Stats */}
-                        <div className="flex items-center gap-3 text-sm">
+                        <div className="flex items-center gap-2 text-sm">
                           <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-background/50">
                             <Eye className="h-3.5 w-3.5 text-green-400" />
                             <span className="font-semibold">{formatNumber(video.views)}</span>
@@ -541,6 +692,56 @@ function CampaignDetailContent() {
                             </div>
                           )}
                         </div>
+
+                        {/* Admin Actions */}
+                        {isAdmin && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleSyncVideoMetrics(video)}
+                              title="Atualizar métricas"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  disabled={deletingVideoId === video.id}
+                                  title="Remover vídeo"
+                                >
+                                  {deletingVideoId === video.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Remover Vídeo</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Tem certeza que deseja remover este vídeo do ranking? 
+                                    Esta ação não pode ser desfeita.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteVideo(video.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Remover
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
