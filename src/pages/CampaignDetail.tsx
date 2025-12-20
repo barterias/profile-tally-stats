@@ -493,7 +493,7 @@ function CampaignDetailContent() {
                   <Trophy className="h-5 w-5 text-primary" />
                   Ranking de Vídeos
                 </h3>
-                {isAdmin && videos.length > 0 && (
+                {(isAdmin || isOwner) && videos.length > 0 && (
                   <Button
                     variant="outline"
                     size="sm"
