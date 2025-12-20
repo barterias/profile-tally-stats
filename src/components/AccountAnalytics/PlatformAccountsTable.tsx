@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { MoreHorizontal, RefreshCw, Trash2, ExternalLink, Video } from 'lucide-react';
+import { MoreHorizontal, RefreshCw, Trash2, ExternalLink, Video, CheckCircle, XCircle, Clock } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -32,6 +32,7 @@ interface AccountData {
   likesCount?: number | bigint | null;
   lastSyncedAt?: string | null;
   isActive?: boolean | null;
+  approvalStatus?: string | null;
 }
 
 interface PlatformAccountsTableProps {
@@ -41,7 +42,10 @@ interface PlatformAccountsTableProps {
   onSync: (accountId: string) => void;
   onDelete: (accountId: string) => void;
   onViewVideos?: (accountId: string, username: string) => void;
+  onApprove?: (accountId: string) => void;
+  onReject?: (accountId: string) => void;
   isSyncing?: boolean;
+  showApprovalActions?: boolean;
 }
 
 const platformUrls = {
@@ -63,7 +67,10 @@ export function PlatformAccountsTable({
   onSync,
   onDelete,
   onViewVideos,
+  onApprove,
+  onReject,
   isSyncing,
+  showApprovalActions = false,
 }: PlatformAccountsTableProps) {
   const formatNumber = (num: number | bigint | null | undefined) => {
     if (num === null || num === undefined) return '0';
@@ -100,6 +107,16 @@ export function PlatformAccountsTable({
 
   const labels = platformLabels[platform];
 
+  const getApprovalBadge = (status: string | null | undefined) => {
+    if (!status || status === 'approved') {
+      return <Badge className="bg-success/15 text-success border-success/30"><CheckCircle className="h-3 w-3 mr-1" />Aprovada</Badge>;
+    }
+    if (status === 'pending') {
+      return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Pendente</Badge>;
+    }
+    return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rejeitada</Badge>;
+  };
+
   return (
     <Table>
       <TableHeader>
@@ -109,9 +126,9 @@ export function PlatformAccountsTable({
           <TableHead className="text-right">{labels.posts}</TableHead>
           {platform === 'youtube' && <TableHead className="text-right">Views Totais</TableHead>}
           {platform === 'tiktok' && <TableHead className="text-right">Curtidas</TableHead>}
-          <TableHead>Status</TableHead>
+          <TableHead>Aprovação</TableHead>
           <TableHead>Última Sync</TableHead>
-          <TableHead className="w-24"></TableHead>
+          <TableHead className="w-32"></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -148,9 +165,7 @@ export function PlatformAccountsTable({
               </TableCell>
             )}
             <TableCell>
-              <Badge variant={account.isActive ? 'default' : 'secondary'}>
-                {account.isActive ? 'Ativo' : 'Inativo'}
-              </Badge>
+              {getApprovalBadge(account.approvalStatus)}
             </TableCell>
             <TableCell className="text-muted-foreground text-sm">
               {account.lastSyncedAt
@@ -162,6 +177,29 @@ export function PlatformAccountsTable({
             </TableCell>
             <TableCell>
               <div className="flex items-center gap-1">
+                {/* Approval actions for pending accounts */}
+                {showApprovalActions && account.approvalStatus === 'pending' && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onApprove?.(account.id)}
+                      title="Aprovar"
+                      className="text-success hover:text-success hover:bg-success/10"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onReject?.(account.id)}
+                      title="Rejeitar"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
                 {onViewVideos && (
                   <Button
                     variant="ghost"

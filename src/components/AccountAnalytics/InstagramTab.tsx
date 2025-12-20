@@ -16,6 +16,7 @@ import {
   useDeleteInstagramAccount,
 } from '@/hooks/useInstagramAccounts';
 import { useInstagramVideos } from '@/hooks/useInstagramVideos';
+import { useApproveAccount, useRejectAccount } from '@/hooks/usePendingAccounts';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -40,6 +41,8 @@ export function InstagramTab() {
   const addAccount = useAddInstagramAccount();
   const syncAccount = useSyncInstagramAccount();
   const deleteAccount = useDeleteInstagramAccount();
+  const approveAccount = useApproveAccount();
+  const rejectAccount = useRejectAccount();
 
   const handleAddAccount = (username: string) => {
     addAccount.mutate(username, {
@@ -70,6 +73,16 @@ export function InstagramTab() {
     accounts.forEach((account) => {
       syncAccount.mutate(account.id);
     });
+  };
+
+  const handleApprove = (accountId: string) => {
+    approveAccount.mutate({ accountId, platform: 'instagram' });
+  };
+
+  const handleReject = (accountId: string) => {
+    if (confirm('Tem certeza que deseja rejeitar esta conta?')) {
+      rejectAccount.mutate({ accountId, platform: 'instagram' });
+    }
   };
 
   // Clippers see all their accounts (with approval status)
@@ -172,16 +185,19 @@ export function InstagramTab() {
           ) : (
             <PlatformAccountsTable
               platform="instagram"
-              accounts={sortedAccounts.map(acc => ({
+              accounts={sortedAccounts.map((acc: any) => ({
                 id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
                 followersCount: acc.followers_count, postsCount: acc.posts_count, totalViews: (acc.posts_count || 0) * 1000,
-                lastSyncedAt: acc.last_synced_at, isActive: acc.is_active,
+                lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
               }))}
               isLoading={accountsLoading}
               onSync={handleSyncAccount}
               onDelete={handleDeleteAccount}
               onViewVideos={handleViewPosts}
+              onApprove={handleApprove}
+              onReject={handleReject}
               isSyncing={syncAccount.isPending}
+              showApprovalActions={isAdmin || isClient}
             />
           )}
         </CardContent>
