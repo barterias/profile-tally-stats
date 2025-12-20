@@ -46,6 +46,7 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
   const [importMode, setImportMode] = useState<"links" | "account">("links");
   const [selectedAccount, setSelectedAccount] = useState("");
   const [loadingAccountVideos, setLoadingAccountVideos] = useState(false);
+  const [importedVideosMetrics, setImportedVideosMetrics] = useState<Record<string, { views: number; likes: number; comments: number; shares: number }>>({});
 
   useEffect(() => {
     if (open && user) {
@@ -105,26 +106,44 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
     
     setLoadingAccountVideos(true);
     try {
-      let videos: { video_url: string }[] = [];
+      let videos: { video_url: string; views?: number; likes?: number; comments?: number; shares?: number }[] = [];
       
       if (selectedPlatform === 'tiktok') {
         const { data } = await supabase
           .from('tiktok_videos')
-          .select('video_url')
+          .select('video_url, views_count, likes_count, comments_count, shares_count')
           .eq('account_id', selectedAccount);
-        videos = data || [];
+        videos = (data || []).map(v => ({
+          video_url: v.video_url,
+          views: v.views_count || 0,
+          likes: v.likes_count || 0,
+          comments: v.comments_count || 0,
+          shares: v.shares_count || 0,
+        }));
       } else if (selectedPlatform === 'instagram') {
         const { data } = await supabase
           .from('instagram_posts')
-          .select('post_url')
+          .select('post_url, views_count, likes_count, comments_count, shares_count')
           .eq('account_id', selectedAccount);
-        videos = (data || []).map(p => ({ video_url: p.post_url }));
+        videos = (data || []).map(p => ({
+          video_url: p.post_url,
+          views: p.views_count || 0,
+          likes: p.likes_count || 0,
+          comments: p.comments_count || 0,
+          shares: p.shares_count || 0,
+        }));
       } else if (selectedPlatform === 'youtube') {
         const { data } = await supabase
           .from('youtube_videos')
-          .select('video_url')
+          .select('video_url, views_count, likes_count, comments_count')
           .eq('account_id', selectedAccount);
-        videos = data || [];
+        videos = (data || []).map(v => ({
+          video_url: v.video_url,
+          views: v.views_count || 0,
+          likes: v.likes_count || 0,
+          comments: v.comments_count || 0,
+          shares: 0,
+        }));
       }
       
       if (videos.length === 0) {
@@ -150,6 +169,18 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
       
       const newLinks = newVideos.map(v => v.video_url);
       setLinks(newLinks);
+      
+      // Store metrics for each imported video
+      const metricsMap: Record<string, { views: number; likes: number; comments: number; shares: number }> = {};
+      newVideos.forEach(v => {
+        metricsMap[v.video_url] = {
+          views: v.views || 0,
+          likes: v.likes || 0,
+          comments: v.comments || 0,
+          shares: v.shares || 0,
+        };
+      });
+      setImportedVideosMetrics(metricsMap);
       
       // Pre-validate all imported links
       const newValidatedLinks: Record<number, { valid: boolean; username?: string }> = {};
@@ -280,9 +311,12 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
 
     setLoading(true);
     try {
-      // Insert videos and fetch metrics
+      // Insert videos with metrics
       for (const link of validLinks) {
-        // First insert the video
+        // Check if we have stored metrics for this link (from account import)
+        const storedMetrics = importedVideosMetrics[link];
+        
+        // Insert the video with metrics if available
         const { data: insertedVideo, error: insertError } = await supabase
           .from("campaign_videos")
           .insert({
@@ -291,6 +325,10 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
             platform: selectedPlatform,
             submitted_by: user?.id,
             verified: false,
+            views: storedMetrics?.views || 0,
+            likes: storedMetrics?.likes || 0,
+            comments: storedMetrics?.comments || 0,
+            shares: storedMetrics?.shares || 0,
           })
           .select()
           .single();
@@ -300,28 +338,29 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
           continue;
         }
 
-        // Fetch metrics from API
-        try {
-          const { data: metricsData } = await supabase.functions.invoke('video-details', {
-            body: { videoUrl: link },
-          });
+        // Only fetch from API if we don't have stored metrics (manual link entry)
+        if (!storedMetrics) {
+          try {
+            const { data: metricsData } = await supabase.functions.invoke('video-details', {
+              body: { videoUrl: link },
+            });
 
-          if (metricsData?.success && metricsData?.data) {
-            const metrics = {
-              views: metricsData.data.viewsCount || 0,
-              likes: metricsData.data.likesCount || 0,
-              comments: metricsData.data.commentsCount || 0,
-              shares: metricsData.data.sharesCount || 0,
-            };
+            if (metricsData?.success && metricsData?.data) {
+              const metrics = {
+                views: metricsData.data.viewsCount || 0,
+                likes: metricsData.data.likesCount || 0,
+                comments: metricsData.data.commentsCount || 0,
+                shares: metricsData.data.sharesCount || 0,
+              };
 
-            await supabase
-              .from("campaign_videos")
-              .update(metrics)
-              .eq("id", insertedVideo.id);
+              await supabase
+                .from("campaign_videos")
+                .update(metrics)
+                .eq("id", insertedVideo.id);
+            }
+          } catch (metricsError) {
+            console.error("Error fetching metrics for video:", metricsError);
           }
-        } catch (metricsError) {
-          console.error("Error fetching metrics for video:", metricsError);
-          // Continue anyway - video was inserted, just without initial metrics
         }
       }
       toast.success(`${validLinks.length} vídeo(s) enviado(s) com sucesso!`);
