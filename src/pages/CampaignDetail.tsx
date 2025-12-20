@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -77,6 +76,7 @@ interface CampaignVideo {
 function CampaignDetailContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast: toastHook } = useToast();
   const { user, isAdmin } = useAuth();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -85,6 +85,15 @@ function CampaignDetailContent() {
   const [isOwner, setIsOwner] = useState(false);
   const [syncingMetrics, setSyncingMetrics] = useState(false);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
+
+  // Determine the correct back navigation path
+  const getBackPath = () => {
+    const referrer = location.state?.from;
+    if (referrer) return referrer;
+    if (isAdmin) return "/admin/campaigns";
+    if (isOwner) return "/client/campaigns";
+    return "/campaigns";
+  };
 
   useEffect(() => {
     fetchCampaignData();
@@ -335,7 +344,7 @@ function CampaignDetailContent() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate(isOwner ? "/client/campaigns" : "/campaigns")}>
+            <Button variant="ghost" size="icon" onClick={() => navigate(getBackPath())}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>

@@ -54,11 +54,13 @@ import {
   Pause,
   RefreshCw,
   Download,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { PendingClippersModal } from "@/components/Campaign/PendingClippersModal";
 
 interface Campaign {
   id: string;
@@ -106,6 +108,8 @@ function AdminCampaignsContent() {
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [form, setForm] = useState<CampaignForm>(initialForm);
   const [saving, setSaving] = useState(false);
+  const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [selectedCampaignForPending, setSelectedCampaignForPending] = useState<{id: string, name: string} | null>(null);
 
   useEffect(() => {
     fetchCampaigns();
@@ -437,9 +441,16 @@ function AdminCampaignsContent() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => navigate(`/campaign/${campaign.id}`)}>
+                            <DropdownMenuItem onClick={() => navigate(`/campaign/${campaign.id}`, { state: { from: '/admin/campaigns' } })}>
                               <Eye className="h-4 w-4 mr-2" />
                               Ver Detalhes
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              setSelectedCampaignForPending({ id: campaign.id, name: campaign.name });
+                              setPendingModalOpen(true);
+                            }}>
+                              <UserCheck className="h-4 w-4 mr-2" />
+                              Gerenciar Inscrições
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEditDialog(campaign)}>
                               <Edit className="h-4 w-4 mr-2" />
@@ -588,6 +599,14 @@ function AdminCampaignsContent() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Pending Clippers Modal */}
+        <PendingClippersModal
+          open={pendingModalOpen}
+          onOpenChange={setPendingModalOpen}
+          campaignId={selectedCampaignForPending?.id}
+          campaignName={selectedCampaignForPending?.name}
+        />
       </div>
     </MainLayout>
   );

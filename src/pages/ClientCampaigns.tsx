@@ -34,7 +34,6 @@ import {
   Trophy,
   Search,
   MoreHorizontal,
-  Edit,
   Eye,
   Users,
   Video,
@@ -42,10 +41,12 @@ import {
   Pause,
   RefreshCw,
   Download,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { format } from "date-fns";
+import { PendingClippersModal } from "@/components/Campaign/PendingClippersModal";
 
 interface Campaign {
   id: string;
@@ -71,6 +72,8 @@ function ClientCampaignsContent() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
+  const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [selectedCampaignForPending, setSelectedCampaignForPending] = useState<{id: string, name: string} | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -342,9 +345,16 @@ function ClientCampaignsContent() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => navigate(`/campaign/${campaign.id}`)}>
+                            <DropdownMenuItem onClick={() => navigate(`/campaign/${campaign.id}`, { state: { from: '/client/campaigns' } })}>
                               <Eye className="h-4 w-4 mr-2" />
                               {t("common.view")} {t("common.details")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              setSelectedCampaignForPending({ id: campaign.id, name: campaign.name });
+                              setPendingModalOpen(true);
+                            }}>
+                              <UserCheck className="h-4 w-4 mr-2" />
+                              Gerenciar Inscrições
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -356,6 +366,14 @@ function ClientCampaignsContent() {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Pending Clippers Modal */}
+        <PendingClippersModal
+          open={pendingModalOpen}
+          onOpenChange={setPendingModalOpen}
+          campaignId={selectedCampaignForPending?.id}
+          campaignName={selectedCampaignForPending?.name}
+        />
       </div>
     </MainLayout>
   );
