@@ -503,21 +503,50 @@ export default function SubmitPost() {
         }
       }
 
-      // Insert videos
-      const promises = validLinks.map((link) =>
-        supabase.from("campaign_videos").insert({
-          campaign_id: formData.campaignId,
-          video_link: link,
-          platform: formData.platform,
-          submitted_by: user?.id,
-          verified: false,
-        })
-      );
+      // Insert videos and fetch metrics
+      for (const link of validLinks) {
+        // First insert the video
+        const { data: insertedVideo, error: insertError } = await supabase
+          .from("campaign_videos")
+          .insert({
+            campaign_id: formData.campaignId,
+            video_link: link,
+            platform: formData.platform,
+            submitted_by: user?.id,
+            verified: false,
+          })
+          .select()
+          .single();
 
-      await Promise.all(promises);
+        if (insertError) {
+          console.error("Error inserting video:", insertError);
+          continue;
+        }
 
-      // Track videos via webhook
-      await Promise.all(validLinks.map((link) => n8nWebhook.trackVideo(link)));
+        // Fetch metrics from API
+        try {
+          const { data: metricsData } = await supabase.functions.invoke('video-details', {
+            body: { videoUrl: link },
+          });
+
+          if (metricsData?.success && metricsData?.data) {
+            const metrics = {
+              views: metricsData.data.viewsCount || 0,
+              likes: metricsData.data.likesCount || 0,
+              comments: metricsData.data.commentsCount || 0,
+              shares: metricsData.data.sharesCount || 0,
+            };
+
+            await supabase
+              .from("campaign_videos")
+              .update(metrics)
+              .eq("id", insertedVideo.id);
+          }
+        } catch (metricsError) {
+          console.error("Error fetching metrics for video:", metricsError);
+          // Continue anyway - video was inserted, just without initial metrics
+        }
+      }
 
       toast({
         title: "Posts enviados com sucesso!",

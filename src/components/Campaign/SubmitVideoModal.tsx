@@ -280,17 +280,50 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
 
     setLoading(true);
     try {
-      const promises = validLinks.map(link =>
-        supabase.from("campaign_videos").insert({
-          campaign_id: selectedCampaign,
-          video_link: link,
-          platform: selectedPlatform,
-          submitted_by: user?.id,
-          verified: false,
-        })
-      );
+      // Insert videos and fetch metrics
+      for (const link of validLinks) {
+        // First insert the video
+        const { data: insertedVideo, error: insertError } = await supabase
+          .from("campaign_videos")
+          .insert({
+            campaign_id: selectedCampaign,
+            video_link: link,
+            platform: selectedPlatform,
+            submitted_by: user?.id,
+            verified: false,
+          })
+          .select()
+          .single();
 
-      await Promise.all(promises);
+        if (insertError) {
+          console.error("Error inserting video:", insertError);
+          continue;
+        }
+
+        // Fetch metrics from API
+        try {
+          const { data: metricsData } = await supabase.functions.invoke('video-details', {
+            body: { videoUrl: link },
+          });
+
+          if (metricsData?.success && metricsData?.data) {
+            const metrics = {
+              views: metricsData.data.viewsCount || 0,
+              likes: metricsData.data.likesCount || 0,
+              comments: metricsData.data.commentsCount || 0,
+              shares: metricsData.data.sharesCount || 0,
+            };
+
+            await supabase
+              .from("campaign_videos")
+              .update(metrics)
+              .eq("id", insertedVideo.id);
+          }
+        } catch (metricsError) {
+          console.error("Error fetching metrics for video:", metricsError);
+          // Continue anyway - video was inserted, just without initial metrics
+        }
+      }
       toast.success(`${validLinks.length} vídeo(s) enviado(s) com sucesso!`);
       onOpenChange(false);
       setLinks([""]);
