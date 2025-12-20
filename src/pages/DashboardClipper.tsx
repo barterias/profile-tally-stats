@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MainLayout from "@/components/Layout/MainLayout";
 import { GlowCard } from "@/components/ui/GlowCard";
@@ -10,7 +9,6 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSocialMetrics, usePlatformDistribution } from "@/hooks/useSocialMetrics";
-import { SubmitVideoModal } from "@/components/Campaign/SubmitVideoModal";
 import { 
   Users, 
   Eye, 
@@ -21,17 +19,14 @@ import {
   Heart,
   Instagram,
   Youtube,
-  Upload,
-  Trophy
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 function DashboardClipperContent() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const queryClient = useQueryClient();
-  const [submitModalOpen, setSubmitModalOpen] = useState(false);
 
   const { data: socialMetrics, isLoading, refetch } = useSocialMetrics();
   const platformDistribution = usePlatformDistribution();
@@ -47,6 +42,7 @@ function DashboardClipperContent() {
     queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
   };
 
+  // Generate chart data from platform breakdown
   const generateViewsChartData = () => {
     if (!socialMetrics?.platformBreakdown) {
       return [{ date: 'Instagram', views: 0 }, { date: 'TikTok', views: 0 }, { date: 'YouTube', views: 0 }];
@@ -112,7 +108,7 @@ function DashboardClipperContent() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-glow">
-              Dashboard Clipador
+              {t('clientDashboard')}
             </h1>
             <p className="text-muted-foreground mt-1">
               {t('trackPerformance')}
@@ -129,18 +125,11 @@ function DashboardClipperContent() {
               {t('common.refresh')}
             </Button>
             <Button 
-              variant="outline"
-              onClick={() => navigate('/campaigns')}
-            >
-              <Trophy className="h-4 w-4 mr-2" />
-              Campanhas
-            </Button>
-            <Button 
-              onClick={() => setSubmitModalOpen(true)}
+              onClick={() => navigate('/account-analytics')}
               className="premium-gradient"
             >
-              <Upload className="h-4 w-4 mr-2" />
-              Enviar Vídeo
+              <BarChart3 className="h-4 w-4 mr-2" />
+              {t('viewDetails')}
             </Button>
           </div>
         </div>
@@ -296,23 +285,7 @@ function DashboardClipperContent() {
         {/* Quick Actions */}
         <GlowCard className="p-6" glowColor="primary">
           <h3 className="text-lg font-semibold mb-4">{t('quickActions')}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Button 
-              variant="outline" 
-              className="h-auto py-4 flex-col gap-2"
-              onClick={() => setSubmitModalOpen(true)}
-            >
-              <Upload className="h-6 w-6" />
-              <span>Enviar Vídeo</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="h-auto py-4 flex-col gap-2"
-              onClick={() => navigate('/campaigns')}
-            >
-              <Trophy className="h-6 w-6" />
-              <span>Campanhas</span>
-            </Button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Button 
               variant="outline" 
               className="h-auto py-4 flex-col gap-2"
@@ -324,6 +297,14 @@ function DashboardClipperContent() {
             <Button 
               variant="outline" 
               className="h-auto py-4 flex-col gap-2"
+              onClick={() => navigate('/profile')}
+            >
+              <Users className="h-6 w-6" />
+              <span>{t('nav.profile')}</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-auto py-4 flex-col gap-2"
               onClick={handleRefresh}
             >
               <RefreshCw className="h-6 w-6" />
@@ -331,13 +312,6 @@ function DashboardClipperContent() {
             </Button>
           </div>
         </GlowCard>
-
-        {/* Submit Video Modal */}
-        <SubmitVideoModal 
-          open={submitModalOpen} 
-          onOpenChange={setSubmitModalOpen}
-          onSuccess={handleRefresh}
-        />
       </div>
     </MainLayout>
   );
