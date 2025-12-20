@@ -46,6 +46,7 @@ import {
   Clock,
   MoreHorizontal,
   Building2,
+  Scissors,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -194,6 +195,9 @@ function AdminUsersContent() {
     }
     if (role === "client") {
       return <Badge className="bg-blue-500">{t("status.client")}</Badge>;
+    }
+    if (role === "user") {
+      return <Badge className="bg-orange-500">{t("status.clipper") || "Clipper"}</Badge>;
     }
     if (status === "banned") {
       return <Badge variant="destructive">{t("status.banned")}</Badge>;
@@ -385,6 +389,22 @@ function AdminUsersContent() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {/* Make Clipper option */}
+                              {user.role !== "user" && user.role !== "admin" && (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    openConfirmDialog(
+                                      t("users.make_clipper_question") || "Tornar Clipper?",
+                                      `${user.username} ${t("users.make_clipper_desc") || "será convertido para Clipper"}`,
+                                      () => handleUpdateRole(user.id, "user")
+                                    )
+                                  }
+                                >
+                                  <Scissors className="h-4 w-4 mr-2" />
+                                  {t("users.make_clipper") || "Tornar Clipper"}
+                                </DropdownMenuItem>
+                              )}
+                              {/* Make Client option */}
                               {user.role !== "admin" && (
                                 <DropdownMenuItem
                                   onClick={() => openClientModal(user.id, user.username)}
@@ -393,6 +413,7 @@ function AdminUsersContent() {
                                   {user.role === "client" ? t("users.edit_campaigns") : t("users.make_client")}
                                 </DropdownMenuItem>
                               )}
+                              {/* Make Admin option */}
                               {user.role !== "admin" && (
                                 <DropdownMenuItem
                                   onClick={() =>
@@ -407,6 +428,7 @@ function AdminUsersContent() {
                                   {t("users.make_admin")}
                                 </DropdownMenuItem>
                               )}
+                              {/* Remove Admin option */}
                               {user.role === "admin" && (
                                 <DropdownMenuItem
                                   onClick={() =>
