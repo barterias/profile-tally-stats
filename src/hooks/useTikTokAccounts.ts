@@ -147,9 +147,22 @@ export function useDeleteTikTokAccount() {
   
   return useMutation({
     mutationFn: async (accountId: string) => {
+      // Delete metrics history first
+      await supabase
+        .from('tiktok_metrics_history')
+        .delete()
+        .eq('account_id', accountId);
+
+      // Delete videos
+      await supabase
+        .from('tiktok_videos')
+        .delete()
+        .eq('account_id', accountId);
+
+      // Delete the account
       const { error } = await supabase
         .from('tiktok_accounts')
-        .update({ is_active: false })
+        .delete()
         .eq('id', accountId);
       
       if (error) throw error;
