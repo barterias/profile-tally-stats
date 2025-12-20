@@ -129,7 +129,7 @@ export default function Auth() {
                   </div>
                 </div>
                 <h1 className="text-5xl font-bold text-glow-lg">
-                  Clipper Pro League
+                  ORDO JG
                 </h1>
               </div>
               
