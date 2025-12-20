@@ -6,20 +6,26 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Simple secret check for one-time use
-  const authHeader = req.headers.get("x-admin-secret");
-  if (authHeader !== "create-admin-now-2024") {
-    return new Response(
-      JSON.stringify({ error: "Unauthorized" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
   try {
+    // Simple secret check for one-time use
+    const adminSecret = req.headers.get("x-admin-secret");
+    console.log("Received admin secret header:", adminSecret ? "present" : "missing");
+    
+    if (adminSecret !== "create-admin-now-2024") {
+      console.log("Invalid admin secret");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized - invalid secret" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { email, password, username } = await req.json();
+    console.log("Creating admin user:", email, username);
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -36,10 +42,12 @@ Deno.serve(async (req) => {
     });
 
     if (createError) {
+      console.error("Create user error:", createError);
       throw createError;
     }
 
     const userId = userData.user.id;
+    console.log("User created with ID:", userId);
 
     // Create profile
     const { error: profileError } = await supabaseAdmin
@@ -58,6 +66,8 @@ Deno.serve(async (req) => {
     if (roleError) {
       console.error("Role error:", roleError);
     }
+
+    console.log("Admin user created successfully:", userId);
 
     return new Response(
       JSON.stringify({ success: true, userId }),
