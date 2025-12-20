@@ -12,6 +12,7 @@ import { useInstagramAccounts } from "@/hooks/useInstagramAccounts";
 import { useTikTokAccounts } from "@/hooks/useTikTokAccounts";
 import { useYouTubeAccounts } from "@/hooks/useYouTubeAccounts";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { PendingAccountsCard } from "@/components/Admin/PendingAccountsCard";
 import { 
   Trophy, 
   Users, 
@@ -231,6 +232,11 @@ function DashboardAdminContent() {
             </GlowCard>
           ))}
         </div>
+
+        {/* Pending Approvals */}
+        <PendingAccountsCard />
+
+        {/* Charts Row */}
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { externalSupabase } from "@/lib/externalSupabase";
 import MainLayout from "@/components/Layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, Plus, Clock, Target, Users, Eye, Edit, Video } from "lucide-react";
+import { Trophy, Plus, Clock, Target, Users, Eye, Edit, Video, UserPlus, CheckCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useUserCampaignParticipations, useRequestCampaignParticipation } from "@/hooks/useCampaignParticipation";
 
 interface Campaign {
   id: string;
@@ -28,10 +30,13 @@ interface Campaign {
 
 export default function Campaigns() {
   const { isAdmin } = useAuth();
+  const { isClipper } = useUserRole();
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"active" | "finished">("active");
+  const { data: participations = [] } = useUserCampaignParticipations();
+  const requestParticipation = useRequestCampaignParticipation();
 
   useEffect(() => {
     fetchCampaigns();
@@ -113,6 +118,16 @@ export default function Campaigns() {
   const handleEditClick = (e: React.MouseEvent, campaignId: string) => {
     e.stopPropagation();
     navigate(`/admin/edit-campaign/${campaignId}`);
+  };
+
+  const handleJoinClick = (e: React.MouseEvent, campaignId: string) => {
+    e.stopPropagation();
+    requestParticipation.mutate(campaignId);
+  };
+
+  const getParticipationStatus = (campaignId: string) => {
+    const participation = participations.find(p => p.campaign_id === campaignId);
+    return participation?.status;
   };
 
   if (loading) {
@@ -265,7 +280,7 @@ export default function Campaigns() {
                     </span>
                   </div>
 
-                  {/* Stats */}
+                  {/* Stats and Join Button */}
                   <div className="flex items-center justify-between pt-3 border-t border-border/50">
                     <div className="flex items-center gap-4 text-sm">
                       <div className="flex items-center gap-1.5">
@@ -285,6 +300,44 @@ export default function Campaigns() {
                         </span>
                       </div>
                     </div>
+                    {isClipper && campaign.is_active && (
+                      (() => {
+                        const status = getParticipationStatus(campaign.id);
+                        if (status === 'approved') {
+                          return (
+                            <Badge className="bg-success/15 text-success border-success/30">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Participando
+                            </Badge>
+                          );
+                        }
+                        if (status === 'requested') {
+                          return (
+                            <Badge variant="secondary">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Pendente
+                            </Badge>
+                          );
+                        }
+                        return (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => handleJoinClick(e, campaign.id)}
+                            disabled={requestParticipation.isPending}
+                          >
+                            {requestParticipation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <UserPlus className="h-4 w-4 mr-1" />
+                                Inscrever-se
+                              </>
+                            )}
+                          </Button>
+                        );
+                      })()
+                    )}
                   </div>
                 </div>
               </Card>
