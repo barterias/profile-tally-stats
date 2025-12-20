@@ -47,6 +47,7 @@ import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { format } from "date-fns";
 import { PendingClippersModal } from "@/components/Campaign/PendingClippersModal";
+import { PendingVideosModal } from "@/components/Campaign/PendingVideosModal";
 
 interface Campaign {
   id: string;
@@ -74,6 +75,8 @@ function ClientCampaignsContent() {
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [selectedCampaignForPending, setSelectedCampaignForPending] = useState<{id: string, name: string} | null>(null);
+  const [videosModalOpen, setVideosModalOpen] = useState(false);
+  const [selectedCampaignForVideos, setSelectedCampaignForVideos] = useState<{id: string, name: string} | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -356,6 +359,13 @@ function ClientCampaignsContent() {
                               <UserCheck className="h-4 w-4 mr-2" />
                               Gerenciar Inscrições
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              setSelectedCampaignForVideos({ id: campaign.id, name: campaign.name });
+                              setVideosModalOpen(true);
+                            }}>
+                              <Video className="h-4 w-4 mr-2" />
+                              Aprovar Vídeos
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -373,6 +383,14 @@ function ClientCampaignsContent() {
           onOpenChange={setPendingModalOpen}
           campaignId={selectedCampaignForPending?.id}
           campaignName={selectedCampaignForPending?.name}
+        />
+
+        {/* Pending Videos Modal */}
+        <PendingVideosModal
+          open={videosModalOpen}
+          onOpenChange={setVideosModalOpen}
+          campaignId={selectedCampaignForVideos?.id}
+          campaignName={selectedCampaignForVideos?.name}
         />
       </div>
     </MainLayout>
