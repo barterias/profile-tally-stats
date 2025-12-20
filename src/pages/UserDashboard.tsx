@@ -429,13 +429,6 @@ export default function UserDashboard() {
                         {formatDate(post.posted_at)}
                       </span>
                     </div>
-                    {post.thumbnail_url && (
-                      <img
-                        src={post.thumbnail_url}
-                        alt="Thumbnail"
-                        className="w-full h-24 object-cover rounded-lg mb-3"
-                      />
-                    )}
                     <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
                       {post.title || 'Sem título'}
                     </p>
@@ -473,13 +466,6 @@ export default function UserDashboard() {
               </div>
             </div>
             <div className="flex flex-col md:flex-row gap-6">
-              {mostViewedPost.thumbnail_url && (
-                <img
-                  src={mostViewedPost.thumbnail_url}
-                  alt="Thumbnail"
-                  className="w-full md:w-48 h-32 object-cover rounded-lg"
-                />
-              )}
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   {getPlatformIcon(mostViewedPost.platform)}
