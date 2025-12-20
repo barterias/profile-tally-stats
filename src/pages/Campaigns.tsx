@@ -305,10 +305,23 @@ export default function Campaigns() {
                         const status = getParticipationStatus(campaign.id);
                         if (status === 'approved') {
                           return (
-                            <Badge className="bg-success/15 text-success border-success/30">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Participando
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-success/15 text-success border-success/30">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Participando
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/submit?campaign=${campaign.id}`);
+                                }}
+                              >
+                                <Video className="h-4 w-4 mr-1" />
+                                Enviar
+                              </Button>
+                            </div>
                           );
                         }
                         if (status === 'requested') {
