@@ -16,6 +16,7 @@ import {
   useDeleteTikTokAccount,
 } from '@/hooks/useTikTokAccounts';
 import { useTikTokVideos } from '@/hooks/useTikTokVideos';
+import { useApproveAccount, useRejectAccount } from '@/hooks/usePendingAccounts';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -40,6 +41,8 @@ export function TikTokTab() {
   const addAccount = useAddTikTokAccount();
   const syncAccount = useSyncTikTokAccount();
   const deleteAccount = useDeleteTikTokAccount();
+  const approveAccount = useApproveAccount();
+  const rejectAccount = useRejectAccount();
 
   const handleAddAccount = (username: string) => {
     addAccount.mutate(username, {
@@ -60,6 +63,16 @@ export function TikTokTab() {
   };
 
   const handleSyncAll = () => accounts.forEach((account) => syncAccount.mutate(account.id));
+
+  const handleApprove = (accountId: string) => {
+    approveAccount.mutate({ accountId, platform: 'tiktok' });
+  };
+
+  const handleReject = (accountId: string) => {
+    if (confirm('Tem certeza que deseja rejeitar esta conta?')) {
+      rejectAccount.mutate({ accountId, platform: 'tiktok' });
+    }
+  };
 
   // All accounts are visible - clippers see theirs, admins/clients see all
   const visibleAccounts = accounts;
@@ -159,16 +172,19 @@ export function TikTokTab() {
           ) : (
             <PlatformAccountsTable
               platform="tiktok"
-              accounts={sortedAccounts.map(acc => ({
+              accounts={sortedAccounts.map((acc: any) => ({
                 id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
                 followersCount: acc.followers_count, postsCount: acc.videos_count, likesCount: acc.likes_count,
-                lastSyncedAt: acc.last_synced_at, isActive: acc.is_active,
+                lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
               }))}
               isLoading={accountsLoading}
               onSync={handleSyncAccount}
               onDelete={handleDeleteAccount}
               onViewVideos={handleViewVideos}
+              onApprove={handleApprove}
+              onReject={handleReject}
               isSyncing={syncAccount.isPending}
+              showApprovalActions={isAdmin || isClient}
             />
           )}
         </CardContent>

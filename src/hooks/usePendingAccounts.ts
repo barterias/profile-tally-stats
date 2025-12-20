@@ -112,8 +112,12 @@ export function useApproveAccount() {
       toast.success('Conta aprovada com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['pending-social-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['instagram-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Erro ao aprovar conta');
@@ -136,8 +140,12 @@ export function useRejectAccount() {
       toast.success('Conta rejeitada');
       queryClient.invalidateQueries({ queryKey: ['pending-social-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['instagram-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Erro ao rejeitar conta');

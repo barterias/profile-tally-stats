@@ -16,6 +16,7 @@ import {
   useDeleteYouTubeAccount,
 } from '@/hooks/useYouTubeAccounts';
 import { useYouTubeVideos } from '@/hooks/useYouTubeVideos';
+import { useApproveAccount, useRejectAccount } from '@/hooks/usePendingAccounts';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -40,6 +41,8 @@ export function YouTubeTab() {
   const addAccount = useAddYouTubeAccount();
   const syncAccount = useSyncYouTubeAccount();
   const deleteAccount = useDeleteYouTubeAccount();
+  const approveAccount = useApproveAccount();
+  const rejectAccount = useRejectAccount();
 
   const handleAddAccount = (username: string) => {
     addAccount.mutate(username, {
@@ -70,6 +73,16 @@ export function YouTubeTab() {
     accounts.forEach((account) => {
       syncAccount.mutate(account.id);
     });
+  };
+
+  const handleApprove = (accountId: string) => {
+    approveAccount.mutate({ accountId, platform: 'youtube' });
+  };
+
+  const handleReject = (accountId: string) => {
+    if (confirm('Tem certeza que deseja rejeitar este canal?')) {
+      rejectAccount.mutate({ accountId, platform: 'youtube' });
+    }
   };
 
   // All accounts are visible - clippers see theirs, admins/clients see all
@@ -170,16 +183,19 @@ export function YouTubeTab() {
           ) : (
             <PlatformAccountsTable
               platform="youtube"
-              accounts={sortedAccounts.map(acc => ({
+              accounts={sortedAccounts.map((acc: any) => ({
                 id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
                 followersCount: acc.subscribers_count, postsCount: acc.videos_count, totalViews: acc.total_views,
-                lastSyncedAt: acc.last_synced_at, isActive: acc.is_active,
+                lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
               }))}
               isLoading={accountsLoading}
               onSync={handleSyncAccount}
               onDelete={handleDeleteAccount}
               onViewVideos={handleViewVideos}
+              onApprove={handleApprove}
+              onReject={handleReject}
               isSyncing={syncAccount.isPending}
+              showApprovalActions={isAdmin || isClient}
             />
           )}
         </CardContent>
