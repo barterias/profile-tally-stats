@@ -87,6 +87,7 @@ export function useDeleteInstagramAccount() {
         toast.success('Conta removida com sucesso!');
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
         queryClient.invalidateQueries({ queryKey: ['instagram-metrics-summary'] });
+        queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
       } else {
         toast.error(result.error || 'Erro ao remover conta');
       }
