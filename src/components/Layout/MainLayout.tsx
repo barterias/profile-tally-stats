@@ -33,6 +33,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
     navigate("/auth");
   };
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen gradient-bg-dark">
       {/* Desktop Sidebar */}
@@ -40,6 +42,25 @@ export default function MainLayout({ children }: MainLayoutProps) {
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+      </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/50 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <div className={cn(
+        "fixed left-0 top-0 z-50 h-screen w-64 transform transition-transform duration-300 md:hidden",
+        mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <Sidebar
+          collapsed={false}
+          onToggle={() => setMobileMenuOpen(false)}
         />
       </div>
 
@@ -56,7 +77,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
               variant="ghost"
               size="icon"
               className="md:hidden"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               <Menu className="h-5 w-5" />
             </Button>
