@@ -941,6 +941,7 @@ export type Database = {
         Row: {
           admin_notes: string | null
           created_at: string
+          email_reference: string | null
           id: string
           new_value: string | null
           processed_at: string | null
@@ -953,6 +954,7 @@ export type Database = {
         Insert: {
           admin_notes?: string | null
           created_at?: string
+          email_reference?: string | null
           id?: string
           new_value?: string | null
           processed_at?: string | null
@@ -965,6 +967,7 @@ export type Database = {
         Update: {
           admin_notes?: string | null
           created_at?: string
+          email_reference?: string | null
           id?: string
           new_value?: string | null
           processed_at?: string | null
@@ -1991,6 +1994,7 @@ export type Database = {
         Args: { p_campaign_id: string }
         Returns: undefined
       }
+      request_password_reset: { Args: { p_email: string }; Returns: undefined }
       request_payout: {
         Args: { p_amount: number; p_pix_key: string; p_pix_type: string }
         Returns: string

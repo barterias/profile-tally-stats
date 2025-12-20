@@ -45,24 +45,10 @@ export default function Auth() {
 
     setForgotPasswordLoading(true);
     try {
-      // Create a password change request
-      const { data: userData } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", (await supabase.auth.getUser()).data.user?.id)
-        .single();
+      // Use the RPC function that handles unauthenticated requests
+      await supabase.rpc("request_password_reset", { p_email: email });
 
-      // Since user is not logged in, we need to find by checking pending_users or use a different approach
-      // For now, just insert with a placeholder - admin will see the email
-      const { error } = await supabase
-        .from("profile_change_requests")
-        .insert({ 
-          user_id: "00000000-0000-0000-0000-000000000000", // Placeholder, will need email lookup
-          request_type: "password",
-          new_value: email // Store email in new_value for admin reference
-        });
-
-      // Show success regardless (security - don't reveal if email exists)
+      // Always show success for security (don't reveal if email exists)
       toast({
         title: t("auth.forgot_password_sent") || "Solicitação Enviada",
         description: t("auth.forgot_password_desc") || "Se o email existir, um administrador irá aprovar sua solicitação de troca de senha.",
