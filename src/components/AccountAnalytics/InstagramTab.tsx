@@ -26,9 +26,14 @@ export function InstagramTab() {
   const { user } = useAuth();
   const { role, isClipper, isAdmin, isClient } = useUserRole();
 
-  const { data: accounts = [], isLoading: accountsLoading } = isAdmin || isClient
-    ? useAllInstagramAccounts()
-    : useInstagramAccounts();
+  // Always call both hooks to respect Rules of Hooks
+  const userAccountsQuery = useInstagramAccounts();
+  const allAccountsQuery = useAllInstagramAccounts();
+  
+  // Select the appropriate data based on role
+  const { data: accounts = [], isLoading: accountsLoading } = (isAdmin || isClient) 
+    ? allAccountsQuery 
+    : userAccountsQuery;
 
   const { data: posts = [], isLoading: postsLoading } = useInstagramVideos(selectedAccount?.id || '');
 
