@@ -281,17 +281,17 @@ export default function Campaigns() {
                   </div>
 
                   {/* Stats and Join Button */}
-                  <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-border/50">
+                    <div className="flex items-center gap-3 text-sm">
+                      <div className="flex items-center gap-1">
                         <Users className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">{campaign.participants || 0}</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         <Video className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">{campaign.videoCount || 0}</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         <Eye className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">
                           {(campaign.totalViews || 0) > 1000
@@ -305,20 +305,21 @@ export default function Campaigns() {
                         const status = getParticipationStatus(campaign.id);
                         if (status === 'approved') {
                           return (
-                            <div className="flex items-center gap-2">
-                              <Badge className="bg-success/15 text-success border-success/30">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge className="bg-success/15 text-success border-success/30 text-xs">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Participando
                               </Badge>
                               <Button
                                 size="sm"
                                 variant="default"
+                                className="h-7 px-2 text-xs"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   navigate(`/submit?campaign=${campaign.id}`);
                                 }}
                               >
-                                <Video className="h-4 w-4 mr-1" />
+                                <Video className="h-3.5 w-3.5 mr-1" />
                                 Enviar
                               </Button>
                             </div>
@@ -326,7 +327,7 @@ export default function Campaigns() {
                         }
                         if (status === 'requested') {
                           return (
-                            <Badge variant="secondary">
+                            <Badge variant="secondary" className="text-xs">
                               <Clock className="h-3 w-3 mr-1" />
                               Pendente
                             </Badge>
@@ -336,14 +337,15 @@ export default function Campaigns() {
                           <Button
                             size="sm"
                             variant="outline"
+                            className="h-7 px-2 text-xs"
                             onClick={(e) => handleJoinClick(e, campaign.id)}
                             disabled={requestParticipation.isPending}
                           >
                             {requestParticipation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : (
                               <>
-                                <UserPlus className="h-4 w-4 mr-1" />
+                                <UserPlus className="h-3.5 w-3.5 mr-1" />
                                 Inscrever-se
                               </>
                             )}
