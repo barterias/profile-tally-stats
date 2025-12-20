@@ -146,7 +146,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </div>
             {!collapsed && (
               <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                CPL
+                ORDOJG
               </span>
             )}
           </Link>
