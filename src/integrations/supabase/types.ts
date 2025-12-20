@@ -1903,6 +1903,10 @@ export type Database = {
           username: string
         }[]
       }
+      delete_social_account: {
+        Args: { p_account_id: string; p_platform: string }
+        Returns: undefined
+      }
       get_admin_users_view: {
         Args: never
         Returns: {
