@@ -171,6 +171,7 @@ export function useDeleteYouTubeAccount() {
     onSuccess: () => {
       toast.success('Canal removido!');
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao remover canal');

@@ -171,6 +171,7 @@ export function useDeleteTikTokAccount() {
     onSuccess: () => {
       toast.success('Conta removida!');
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao remover conta');

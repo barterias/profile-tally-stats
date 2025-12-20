@@ -83,49 +83,36 @@ export function useSocialMetrics() {
       const youtubeViews = youtubeAccounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
       const youtubeVideos = youtubeAccounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
 
-      // Fetch video/post metrics for views
-      const instagramPostsQuery = supabase
-        .from('instagram_posts')
-        .select('views_count, likes_count, comments_count, account_id');
-      
-      const tiktokVideosQuery = supabase
-        .from('tiktok_videos')
-        .select('views_count, likes_count, comments_count, account_id');
-      
-      const youtubeVideosQuery = supabase
-        .from('youtube_videos')
-        .select('views_count, likes_count, comments_count, account_id');
+      // Get active account IDs for filtering videos/posts
+      const instagramAccountIds = instagramAccounts.map(a => a.id);
+      const tiktokAccountIds = tiktokAccounts.map(a => a.id);
+      const youtubeAccountIds = youtubeAccounts.map(a => a.id);
 
-      // Filter by user's accounts if not admin
-      if (!isAdmin && user?.id) {
-        const instagramAccountIds = instagramAccounts.map(a => a.id);
-        const tiktokAccountIds = tiktokAccounts.map(a => a.id);
-        const youtubeAccountIds = youtubeAccounts.map(a => a.id);
-        
-        if (instagramAccountIds.length > 0) {
-          instagramPostsQuery.in('account_id', instagramAccountIds);
-        } else {
-          instagramPostsQuery.eq('account_id', '00000000-0000-0000-0000-000000000000');
-        }
-        
-        if (tiktokAccountIds.length > 0) {
-          tiktokVideosQuery.in('account_id', tiktokAccountIds);
-        } else {
-          tiktokVideosQuery.eq('account_id', '00000000-0000-0000-0000-000000000000');
-        }
-        
-        if (youtubeAccountIds.length > 0) {
-          youtubeVideosQuery.in('account_id', youtubeAccountIds);
-        } else {
-          youtubeVideosQuery.eq('account_id', '00000000-0000-0000-0000-000000000000');
-        }
+      // Fetch video/post metrics for views - only from active accounts
+      let instagramPosts: { data: any[] | null } = { data: [] };
+      let tiktokVids: { data: any[] | null } = { data: [] };
+      let youtubeVids: { data: any[] | null } = { data: [] };
+
+      if (instagramAccountIds.length > 0) {
+        instagramPosts = await supabase
+          .from('instagram_posts')
+          .select('views_count, likes_count, comments_count, account_id')
+          .in('account_id', instagramAccountIds);
       }
-
-      const [instagramPosts, tiktokVids, youtubeVids] = await Promise.all([
-        instagramPostsQuery,
-        tiktokVideosQuery,
-        youtubeVideosQuery,
-      ]);
+      
+      if (tiktokAccountIds.length > 0) {
+        tiktokVids = await supabase
+          .from('tiktok_videos')
+          .select('views_count, likes_count, comments_count, account_id')
+          .in('account_id', tiktokAccountIds);
+      }
+      
+      if (youtubeAccountIds.length > 0) {
+        youtubeVids = await supabase
+          .from('youtube_videos')
+          .select('views_count, likes_count, comments_count, account_id')
+          .in('account_id', youtubeAccountIds);
+      }
 
       const igViews = (instagramPosts.data || []).reduce((sum, p) => sum + (p.views_count || 0), 0);
       const igLikes = (instagramPosts.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
