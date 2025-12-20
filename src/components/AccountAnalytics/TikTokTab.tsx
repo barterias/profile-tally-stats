@@ -32,10 +32,16 @@ export function TikTokTab() {
   const allAccountsQuery = useAllTikTokAccounts();
   
   // Select the appropriate data based on role
-  // Admins see all accounts, clients and clippers see only their own accounts
-  const { data: accounts = [], isLoading: accountsLoading } = isAdmin 
+  const { data: rawAccounts = [], isLoading: accountsLoading } = (isAdmin || isClient) 
     ? allAccountsQuery 
     : userAccountsQuery;
+
+  // Deduplicate accounts by username - keep only the first occurrence (most recent)
+  const accounts = (isAdmin || isClient)
+    ? rawAccounts.filter((account, index, self) => 
+        index === self.findIndex(a => a.username === account.username)
+      )
+    : rawAccounts;
 
   const { data: videos = [], isLoading: videosLoading } = useTikTokVideos(selectedAccount?.id || '');
 
