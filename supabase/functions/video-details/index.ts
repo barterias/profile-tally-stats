@@ -156,8 +156,12 @@ async function fetchYouTubeVideo(videoId: string, apiKey: string): Promise<Video
   console.log(`Fetching YouTube video: ${videoId}`);
   
   try {
+    // ScrapeCreators API requires a full URL, not just video_id
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    console.log(`Fetching youtube video: ${videoId}`);
+    
     const response = await fetch(
-      `https://api.scrapecreators.com/v1/youtube/video?video_id=${encodeURIComponent(videoId)}`,
+      `https://api.scrapecreators.com/v1/youtube/video?url=${encodeURIComponent(videoUrl)}`,
       {
         method: 'GET',
         headers: {
