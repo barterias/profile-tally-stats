@@ -35,6 +35,7 @@ interface ProfileChangeRequest {
   status: string;
   admin_notes: string | null;
   created_at: string;
+  email_reference: string | null;
   username?: string;
   email?: string;
 }
@@ -100,26 +101,59 @@ export function ProfileChangeRequestsCard() {
     try {
       const { request, action } = processDialog;
 
-      // Update request status
-      const { error } = await supabase
-        .from("profile_change_requests")
-        .update({
-          status: action,
-          admin_notes: adminNotes || null,
-          processed_at: new Date().toISOString(),
-        })
-        .eq("id", request.id);
-
-      if (error) throw error;
-
-      // If approved and it's a password change, we need to handle via edge function
-      // For now, just show success - admin can manually change in Supabase dashboard
+      // For password changes from login (has email_reference), admin sets the password directly
+      const isLoginPasswordRequest = request.request_type === "password" && request.email_reference;
       
-      toast.success(
-        action === "approved" 
-          ? (t("profileRequests.approved") || "Solicitação aprovada!")
-          : (t("profileRequests.rejected") || "Solicitação rejeitada")
-      );
+      if (action === "approved" && isLoginPasswordRequest) {
+        // Admin sets password directly via edge function
+        if (!newPassword || newPassword.length < 6) {
+          toast.error("A senha deve ter pelo menos 6 caracteres");
+          return;
+        }
+
+        const { data: session } = await supabase.auth.getSession();
+        const response = await supabase.functions.invoke("admin-change-password", {
+          body: { 
+            userId: request.user_id, 
+            newPassword,
+            requestId: request.id
+          },
+        });
+
+        if (response.error) throw new Error(response.error.message);
+
+        toast.success("Senha alterada com sucesso!");
+      } else if (action === "approved" && request.request_type === "password") {
+        // Regular password change - user will change on their profile
+        const { error } = await supabase
+          .from("profile_change_requests")
+          .update({
+            status: action,
+            admin_notes: adminNotes || null,
+            processed_at: new Date().toISOString(),
+          })
+          .eq("id", request.id);
+
+        if (error) throw error;
+        toast.success(t("profileRequests.approved") || "Solicitação aprovada!");
+      } else {
+        // Rejection or email change
+        const { error } = await supabase
+          .from("profile_change_requests")
+          .update({
+            status: action,
+            admin_notes: adminNotes || null,
+            processed_at: new Date().toISOString(),
+          })
+          .eq("id", request.id);
+
+        if (error) throw error;
+        toast.success(
+          action === "approved" 
+            ? (t("profileRequests.approved") || "Solicitação aprovada!")
+            : (t("profileRequests.rejected") || "Solicitação rejeitada")
+        );
+      }
 
       setProcessDialog({ open: false, request: null, action: "approved" });
       setNewPassword("");
@@ -237,7 +271,27 @@ export function ProfileChangeRequestsCard() {
           </DialogHeader>
 
           <div className="space-y-4">
-            {processDialog.action === "approved" && processDialog.request?.request_type === "password" && (
+            {/* Forgot password from login page - admin sets password */}
+            {processDialog.action === "approved" && processDialog.request?.request_type === "password" && processDialog.request?.email_reference && (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground mb-2">
+                  Email: <strong>{processDialog.request.email_reference}</strong>
+                </p>
+                <Label>{t("profileRequests.newPassword") || "Nova Senha"}</Label>
+                <Input
+                  type="password"
+                  placeholder="Digite a nova senha..."
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("profileRequests.adminPasswordNote") || "Você definirá a nova senha para o usuário."}
+                </p>
+              </div>
+            )}
+
+            {/* Regular password change from profile - user changes on their profile */}
+            {processDialog.action === "approved" && processDialog.request?.request_type === "password" && !processDialog.request?.email_reference && (
               <p className="text-sm text-muted-foreground">
                 {t("profileRequests.passwordApproveNote") || "Ao aprovar, o usuário poderá alterar a senha diretamente no perfil dele."}
               </p>
