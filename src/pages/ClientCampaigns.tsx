@@ -346,24 +346,6 @@ function ClientCampaignsContent() {
                               <Eye className="h-4 w-4 mr-2" />
                               {t("common.view")} {t("common.details")}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => navigate(`/client/edit-campaign/${campaign.id}`)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              {t("common.edit")}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleToggleStatus(campaign)}>
-                              {campaign.is_active ? (
-                                <>
-                                  <Pause className="h-4 w-4 mr-2" />
-                                  {t("campaigns.pause")}
-                                </>
-                              ) : (
-                                <>
-                                  <Play className="h-4 w-4 mr-2" />
-                                  {t("campaigns.activate")}
-                                </>
-                              )}
-                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
