@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { externalSupabase, UnifiedPost, PlatformInsight } from "@/lib/externalSupabase";
 import MainLayout from "@/components/Layout/MainLayout";
 import StatCard from "@/components/Dashboard/StatCard";
 import ChartCard from "@/components/Dashboard/ChartCard";
@@ -10,23 +9,22 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Eye,
-  DollarSign,
   Trophy,
   TrendingUp,
   Upload,
-  Wallet,
   User,
   Video,
   Target,
   ArrowRight,
   Instagram,
-  Music,
+  ExternalLink,
+  Heart,
+  MessageCircle,
+  Youtube,
 } from "lucide-react";
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -37,13 +35,24 @@ import {
   Cell,
 } from "recharts";
 
+interface UnifiedPost {
+  id: string;
+  platform: 'instagram' | 'tiktok' | 'youtube';
+  url: string;
+  title: string | null;
+  thumbnail_url: string | null;
+  views_count: number;
+  likes_count: number;
+  comments_count: number;
+  posted_at: string | null;
+}
+
 export default function UserDashboard() {
   const { user, isAdmin, isClient } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalViews: 0,
-    totalEarnings: 0,
     totalVideosSubmitted: 0,
     activeCampaigns: 0,
     submittedPosts: 0,
@@ -66,18 +75,20 @@ export default function UserDashboard() {
   }, [isAdmin, isClient, navigate]);
 
   useEffect(() => {
-    if (!isAdmin && !isClient) {
+    if (!isAdmin && !isClient && user?.id) {
       fetchUserData();
     }
   }, [user, isAdmin, isClient]);
 
   const fetchUserData = async () => {
+    if (!user?.id) return;
+    
     try {
-      // Buscar vídeos submetidos pelo usuário
+      // Buscar vídeos submetidos pelo usuário em campanhas
       const { data: userVideos } = await supabase
         .from("campaign_videos")
         .select("*")
-        .eq("submitted_by", user?.id);
+        .eq("submitted_by", user.id);
 
       // Buscar competições ativas
       const { data: activeCampaigns } = await supabase
@@ -85,101 +96,179 @@ export default function UserDashboard() {
         .select("*")
         .eq("is_active", true);
 
-      // Buscar métricas reais dos vídeos do usuário
-      let totalViews = 0;
-      if (userVideos && userVideos.length > 0) {
-        const [allInstagramVideos, allTikTokVideos] = await Promise.all([
-          externalSupabase.getAllVideos(),
-          externalSupabase.getSocialVideos(),
-        ]);
+      // Buscar contas do usuário
+      const [instagramAccs, tiktokAccs, youtubeAccs] = await Promise.all([
+        supabase.from('instagram_accounts').select('id').eq('user_id', user.id).eq('is_active', true),
+        supabase.from('tiktok_accounts').select('id').eq('user_id', user.id).eq('is_active', true),
+        supabase.from('youtube_accounts').select('id').eq('user_id', user.id).eq('is_active', true),
+      ]);
 
-        const viewsPromises = userVideos.map(async (video) => {
-          try {
-            if (video.platform === "instagram") {
-              const match = allInstagramVideos.find((v) => v.link === video.video_link);
-              return match?.views || 0;
-            } else if (video.platform === "tiktok") {
-              // Extrair video_id do link
-              const videoIdMatch = video.video_link.match(/\/video\/(\d+)/);
-              const videoId = videoIdMatch ? videoIdMatch[1] : null;
-              
-              if (videoId) {
-                // Buscar considerando o "=" no início do video_id
-                const match = allTikTokVideos.find((v) => v.video_id === videoId || v.video_id === `=${videoId}`);
-                if (match) return match.views || 0;
-              }
-              
-              // Fallback: buscar por link
-              const matchByLink = allTikTokVideos.find((v) =>
-                v.link === video.video_link || v.video_url?.includes(video.video_link)
-              );
-              return matchByLink?.views || 0;
-            }
-          } catch (error) {
-            console.error("Erro ao buscar métricas do vídeo:", error);
-          }
-          return 0;
+      const instagramIds = (instagramAccs.data || []).map(a => a.id);
+      const tiktokIds = (tiktokAccs.data || []).map(a => a.id);
+      const youtubeIds = (youtubeAccs.data || []).map(a => a.id);
+
+      // Buscar posts/vídeos de cada plataforma
+      const allPosts: UnifiedPost[] = [];
+      let instagramViews = 0;
+      let tiktokViews = 0;
+      let youtubeViews = 0;
+
+      // Instagram posts
+      if (instagramIds.length > 0) {
+        const { data: igPosts } = await supabase
+          .from('instagram_posts')
+          .select('*')
+          .in('account_id', instagramIds)
+          .order('posted_at', { ascending: false, nullsFirst: false });
+
+        (igPosts || []).forEach(post => {
+          instagramViews += post.views_count || 0;
+          allPosts.push({
+            id: post.id,
+            platform: 'instagram',
+            url: post.post_url,
+            title: post.caption,
+            thumbnail_url: post.thumbnail_url,
+            views_count: post.views_count || 0,
+            likes_count: post.likes_count || 0,
+            comments_count: post.comments_count || 0,
+            posted_at: post.posted_at,
+          });
         });
-
-        const viewsArray = await Promise.all(viewsPromises);
-        totalViews = viewsArray.reduce((sum, views) => sum + views, 0);
       }
 
-      // Buscar latest posts
-      const latest = await externalSupabase.getLatestPosts(5);
-      setLatestPosts(latest);
+      // TikTok videos
+      if (tiktokIds.length > 0) {
+        const { data: ttVideos } = await supabase
+          .from('tiktok_videos')
+          .select('*')
+          .in('account_id', tiktokIds)
+          .order('posted_at', { ascending: false, nullsFirst: false });
 
-      // Buscar most viewed post
-      const mostViewed = await externalSupabase.getMostViewedPost();
-      setMostViewedPost(mostViewed);
+        (ttVideos || []).forEach(video => {
+          tiktokViews += Number(video.views_count) || 0;
+          allPosts.push({
+            id: video.id,
+            platform: 'tiktok',
+            url: video.video_url,
+            title: video.caption,
+            thumbnail_url: video.thumbnail_url,
+            views_count: Number(video.views_count) || 0,
+            likes_count: video.likes_count || 0,
+            comments_count: video.comments_count || 0,
+            posted_at: video.posted_at,
+          });
+        });
+      }
 
-      // Buscar platform insights
-      const platformInsights = await externalSupabase.getPlatformInsights();
+      // YouTube videos
+      if (youtubeIds.length > 0) {
+        const { data: ytVideos } = await supabase
+          .from('youtube_videos')
+          .select('*')
+          .in('account_id', youtubeIds)
+          .order('published_at', { ascending: false, nullsFirst: false });
 
-      // Buscar daily growth para o gráfico
-      const dailyGrowth = await externalSupabase.getDailyGrowth(7);
+        (ytVideos || []).forEach(video => {
+          youtubeViews += Number(video.views_count) || 0;
+          allPosts.push({
+            id: video.id,
+            platform: 'youtube',
+            url: video.video_url,
+            title: video.title,
+            thumbnail_url: video.thumbnail_url,
+            views_count: Number(video.views_count) || 0,
+            likes_count: video.likes_count || 0,
+            comments_count: video.comments_count || 0,
+            posted_at: video.published_at,
+          });
+        });
+      }
 
-      // Contar total de vídeos (Instagram + TikTok)
-      const [instagramVideos, tiktokVideos] = await Promise.all([
-        externalSupabase.getAllVideos(),
-        externalSupabase.getSocialVideos(),
-      ]);
-      
-      const totalVideosInDB = (instagramVideos?.length || 0) + (tiktokVideos?.length || 0);
+      const totalViews = instagramViews + tiktokViews + youtubeViews;
 
-      // Mock earnings calculation (R$ 0.01 per 1000 views)
-      const totalEarnings = (totalViews / 1000) * 0.01;
-
+      // Set stats
       setStats({
         totalViews,
-        totalEarnings,
-        totalVideosSubmitted: userVideos?.length || 0,
+        totalVideosSubmitted: allPosts.length,
         activeCampaigns: activeCampaigns?.length || 0,
         submittedPosts: userVideos?.length || 0,
       });
 
-      // Formatar evolution data do daily growth
-      const evolution = dailyGrowth.map((day) => ({
-        date: new Date(day.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
-        views: day.total_views,
-        instagram: day.instagram_views,
-        tiktok: day.tiktok_views,
-      }));
-      setEvolutionData(evolution);
+      // Latest posts (sorted by date)
+      const sortedByDate = [...allPosts].sort((a, b) => {
+        const dateA = new Date(a.posted_at || '1970-01-01').getTime();
+        const dateB = new Date(b.posted_at || '1970-01-01').getTime();
+        return dateB - dateA;
+      });
+      setLatestPosts(sortedByDate.slice(0, 5));
 
-      // Formatar platform data dos insights
-      const platforms = platformInsights.map((insight, index) => ({
-        name: insight.platform === "instagram" ? "Instagram" : "TikTok",
-        value: insight.total_posts,
-        views: insight.total_views,
-        color: index === 0 ? "hsl(var(--primary))" : "hsl(var(--accent))",
-      }));
+      // Most viral post (sorted by views)
+      const sortedByViews = [...allPosts].sort((a, b) => b.views_count - a.views_count);
+      setMostViewedPost(sortedByViews[0] || null);
+
+      // Platform distribution data
+      const platforms = [];
+      if (instagramViews > 0) {
+        platforms.push({
+          name: 'Instagram',
+          value: instagramViews,
+          color: 'hsl(340, 82%, 52%)',
+        });
+      }
+      if (tiktokViews > 0) {
+        platforms.push({
+          name: 'TikTok',
+          value: tiktokViews,
+          color: 'hsl(var(--primary))',
+        });
+      }
+      if (youtubeViews > 0) {
+        platforms.push({
+          name: 'YouTube',
+          value: youtubeViews,
+          color: 'hsl(0, 70%, 50%)',
+        });
+      }
       setPlatformData(platforms);
+
+      // Generate evolution data from platform breakdown
+      const evolutionFromPlatforms = [
+        { date: 'Instagram', views: instagramViews },
+        { date: 'TikTok', views: tiktokViews },
+        { date: 'YouTube', views: youtubeViews },
+      ].filter(p => p.views > 0);
+      setEvolutionData(evolutionFromPlatforms);
+
     } catch (error) {
       console.error("Error fetching user data:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(0)}K`;
+    return num.toString();
+  };
+
+  const getPlatformIcon = (platform: string) => {
+    switch (platform) {
+      case 'instagram':
+        return <Instagram className="h-4 w-4 text-pink-400" />;
+      case 'youtube':
+        return <Youtube className="h-4 w-4 text-red-400" />;
+      case 'tiktok':
+        return <Video className="h-4 w-4 text-primary" />;
+      default:
+        return <Video className="h-4 w-4" />;
+    }
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('pt-BR');
   };
 
   if (loading) {
@@ -205,17 +294,12 @@ export default function UserDashboard() {
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        {/* Stats Grid - Removed Total Ganho */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             title="Total de Views"
-            value={stats.totalViews.toLocaleString()}
+            value={formatNumber(stats.totalViews)}
             icon={Eye}
-          />
-          <StatCard
-            title="Total Ganho"
-            value={`R$ ${stats.totalEarnings.toFixed(2)}`}
-            icon={DollarSign}
           />
           <StatCard
             title="Vídeos no Sistema"
@@ -238,8 +322,8 @@ export default function UserDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Evolution Chart */}
           <ChartCard
-            title="Evolução Diária"
-            subtitle="Views dos últimos 7 dias"
+            title="Views por Plataforma"
+            subtitle="Distribuição de views entre plataformas"
           >
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={evolutionData}>
@@ -249,13 +333,14 @@ export default function UserDashboard() {
                   stroke="hsl(var(--muted-foreground))"
                   fontSize={12}
                 />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={formatNumber} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
                     border: "1px solid hsl(var(--border))",
                     borderRadius: "8px",
                   }}
+                  formatter={(value: number) => formatNumber(value)}
                 />
                 <Line
                   type="monotone"
@@ -263,23 +348,7 @@ export default function UserDashboard() {
                   stroke="hsl(var(--primary))"
                   strokeWidth={2}
                   dot={{ fill: "hsl(var(--primary))", strokeWidth: 2 }}
-                  name="Total Views"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="instagram"
-                  stroke="hsl(var(--accent))"
-                  strokeWidth={2}
-                  dot={{ fill: "hsl(var(--accent))", strokeWidth: 2 }}
-                  name="Instagram"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="tiktok"
-                  stroke="hsl(var(--chart-3))"
-                  strokeWidth={2}
-                  dot={{ fill: "hsl(var(--chart-3))", strokeWidth: 2 }}
-                  name="TikTok"
+                  name="Views"
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -306,11 +375,11 @@ export default function UserDashboard() {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip formatter={(value: number) => formatNumber(value)} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-3 gap-4 mt-4">
               {platformData.map((platform) => (
                 <div key={platform.name} className="flex items-center gap-2">
                   <div
@@ -320,7 +389,7 @@ export default function UserDashboard() {
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">{platform.name}</span>
                     <span className="text-xs text-muted-foreground">
-                      {platform.views.toLocaleString()} views
+                      {formatNumber(platform.value)} views
                     </span>
                   </div>
                 </div>
@@ -337,46 +406,55 @@ export default function UserDashboard() {
               <div>
                 <h3 className="font-semibold text-lg">Posts Recentes</h3>
                 <p className="text-sm text-muted-foreground">
-                  Últimos vídeos adicionados ao sistema
+                  Seus últimos vídeos adicionados
                 </p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {latestPosts.map((post) => (
-                <Card key={post.id} className="glass-card-hover p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    {post.platform === "instagram" ? (
-                      <Instagram className="h-5 w-5 text-primary" />
-                    ) : (
-                      <Music className="h-5 w-5 text-primary" />
+                <a
+                  key={post.id}
+                  href={post.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block"
+                >
+                  <Card className="glass-card-hover p-4 h-full">
+                    <div className="flex items-center gap-3 mb-3">
+                      {getPlatformIcon(post.platform)}
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {post.platform}
+                      </span>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {formatDate(post.posted_at)}
+                      </span>
+                    </div>
+                    {post.thumbnail_url && (
+                      <img
+                        src={post.thumbnail_url}
+                        alt="Thumbnail"
+                        className="w-full h-24 object-cover rounded-lg mb-3"
+                      />
                     )}
-                    <span className="text-xs text-muted-foreground">
-                      {post.platform}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Views</span>
-                      <span className="text-sm font-semibold">
-                        {post.views.toLocaleString()}
-                      </span>
+                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                      {post.title || 'Sem título'}
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <p className="text-sm font-semibold">{formatNumber(post.views_count)}</p>
+                        <p className="text-xs text-muted-foreground">Views</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold">{formatNumber(post.likes_count)}</p>
+                        <p className="text-xs text-muted-foreground">Likes</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold">{formatNumber(post.comments_count)}</p>
+                        <p className="text-xs text-muted-foreground">Coment.</p>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Likes</span>
-                      <span className="text-sm font-semibold">
-                        {post.likes.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                  <a
-                    href={post.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline truncate block mt-3"
-                  >
-                    Ver post
-                  </a>
-                </Card>
+                  </Card>
+                </a>
               ))}
             </div>
           </Card>
@@ -386,52 +464,64 @@ export default function UserDashboard() {
         {mostViewedPost && (
           <Card className="glass-card p-6 animate-slide-up">
             <div className="flex items-center gap-4 mb-4">
-              <Trophy className="h-6 w-6 text-primary" />
+              <Trophy className="h-6 w-6 text-yellow-400" />
               <div>
                 <h3 className="font-semibold">Post Mais Viral</h3>
                 <p className="text-sm text-muted-foreground">
-                  O vídeo com melhor desempenho no sistema
+                  Seu vídeo com melhor desempenho
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="flex items-center gap-2">
-                <Eye className="h-4 w-4 text-primary" />
-                <div>
-                  <p className="text-2xl font-bold">
-                    {mostViewedPost.views?.toLocaleString() || 0}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Views</p>
+            <div className="flex flex-col md:flex-row gap-6">
+              {mostViewedPost.thumbnail_url && (
+                <img
+                  src={mostViewedPost.thumbnail_url}
+                  alt="Thumbnail"
+                  className="w-full md:w-48 h-32 object-cover rounded-lg"
+                />
+              )}
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  {getPlatformIcon(mostViewedPost.platform)}
+                  <span className="text-sm capitalize">{mostViewedPost.platform}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {formatDate(mostViewedPost.posted_at)}
+                  </span>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-primary" />
-                <div>
-                  <p className="text-2xl font-bold">
-                    {mostViewedPost.likes?.toLocaleString() || 0}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Likes</p>
+                <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+                  {mostViewedPost.title || 'Sem título'}
+                </p>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-primary" />
+                    <div>
+                      <p className="text-xl font-bold">{formatNumber(mostViewedPost.views_count)}</p>
+                      <p className="text-xs text-muted-foreground">Views</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Heart className="h-4 w-4 text-pink-400" />
+                    <div>
+                      <p className="text-xl font-bold">{formatNumber(mostViewedPost.likes_count)}</p>
+                      <p className="text-xs text-muted-foreground">Likes</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="h-4 w-4 text-blue-400" />
+                    <div>
+                      <p className="text-xl font-bold">{formatNumber(mostViewedPost.comments_count)}</p>
+                      <p className="text-xs text-muted-foreground">Comentários</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {mostViewedPost.platform === "instagram" ? (
-                  <Instagram className="h-4 w-4 text-primary" />
-                ) : (
-                  <Music className="h-4 w-4 text-primary" />
-                )}
-                <div>
-                  <p className="text-sm font-semibold">{mostViewedPost.platform}</p>
-                  <p className="text-xs text-muted-foreground">Plataforma</p>
-                </div>
-              </div>
-              <div className="flex items-center">
                 <a
-                  href={mostViewedPost.link}
+                  href={mostViewedPost.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline"
+                  className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
                 >
-                  Ver post →
+                  <ExternalLink className="h-4 w-4" />
+                  Ver post
                 </a>
               </div>
             </div>
