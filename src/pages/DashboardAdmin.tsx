@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import { useSocialMetrics } from "@/hooks/useSocialMetrics";
-import { useAllInstagramAccounts } from "@/hooks/useInstagramAccounts";
-import { useAllTikTokAccounts } from "@/hooks/useTikTokAccounts";
-import { useAllYouTubeAccounts } from "@/hooks/useYouTubeAccounts";
+import { useInstagramAccounts } from "@/hooks/useInstagramAccounts";
+import { useTikTokAccounts } from "@/hooks/useTikTokAccounts";
+import { useYouTubeAccounts } from "@/hooks/useYouTubeAccounts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { 
   Trophy, 
@@ -44,10 +44,10 @@ function DashboardAdminContent() {
   // Use social metrics hook - real data from API
   const { data: socialMetrics, isLoading: metricsLoading, refetch: refetchMetrics } = useSocialMetrics();
 
-  // Get accounts for display - real data from API
-  const { data: instagramAccounts = [] } = useAllInstagramAccounts();
-  const { data: tiktokAccounts = [] } = useAllTikTokAccounts();
-  const { data: youtubeAccounts = [] } = useAllYouTubeAccounts();
+  // Get accounts for display - only accounts added by the logged-in user
+  const { data: instagramAccounts = [] } = useInstagramAccounts();
+  const { data: tiktokAccounts = [] } = useTikTokAccounts();
+  const { data: youtubeAccounts = [] } = useYouTubeAccounts();
 
   useEffect(() => {
     fetchData();
