@@ -106,56 +106,21 @@ export function AccountVideosModal({
     // Let the native <a> tag handle the navigation
   };
 
-  const renderThumbnail = (video: Video) => (
-    <div className="aspect-video bg-muted relative overflow-hidden">
-      {video.thumbnailUrl ? (
-        <img
-          src={video.thumbnailUrl}
-          alt={video.title || video.caption || 'Video thumbnail'}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = '/placeholder.svg';
-          }}
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-          <Eye className="h-8 w-8" />
-        </div>
-      )}
-      {/* Views badge */}
-      <Badge className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm">
-        <Eye className="h-3 w-3 mr-1" />
-        {formatNumber(video.viewsCount)}
-      </Badge>
-      {/* External link indicator */}
-      <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Badge className="bg-primary text-primary-foreground">
-          <ExternalLink className="h-3 w-3 mr-1" />
-          Abrir
-        </Badge>
-      </div>
-    </div>
-  );
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh]">
+      <DialogContent className="max-w-3xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>{platformLabels[platform]} de @{accountName}</DialogTitle>
           <DialogDescription>
-            {videos.length} {platformLabels[platform].toLowerCase()} encontrados. Clique em qualquer vídeo para abrir no {platform === 'youtube' ? 'YouTube' : platform === 'instagram' ? 'Instagram' : 'TikTok'}.
+            {videos.length} {platformLabels[platform].toLowerCase()} encontrados. Clique para abrir no {platform === 'youtube' ? 'YouTube' : platform === 'instagram' ? 'Instagram' : 'TikTok'}.
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="h-[70vh] pr-4">
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="space-y-3">
-                  <Skeleton className="w-full aspect-video rounded-lg" />
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                </div>
+                <Skeleton key={i} className="h-20 w-full rounded-lg" />
               ))}
             </div>
           ) : sortedVideos.length === 0 ? (
@@ -166,75 +131,68 @@ export function AccountVideosModal({
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
               {sortedVideos.map((video) => (
-                <div
+                <a
                   key={video.id}
-                  className="group rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-primary/50 transition-all overflow-hidden"
+                  href={getVideoUrl(video)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => handleVideoClick(e, video.videoUrl)}
+                  className="flex items-center justify-between p-4 rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-primary/50 transition-all group"
                 >
-                  {/* Clickable Thumbnail Area - Simple native link */}
-                  <a 
-                    href={getVideoUrl(video)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                    onClick={(e) => handleVideoClick(e, video.videoUrl)}
-                  >
-                    {renderThumbnail(video)}
-                  </a>
-
-                  {/* Content */}
-                  <div className="p-3 space-y-2">
-                    {/* Title or Caption - Simple native link */}
-                    <a 
-                      href={getVideoUrl(video)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-primary transition-colors block"
-                      onClick={(e) => handleVideoClick(e, video.videoUrl)}
-                    >
-                      <p className="font-medium text-sm line-clamp-2 text-foreground hover:text-primary">
-                        {video.title || video.caption || 'Sem título'}
+                  {/* Title/Caption */}
+                  <div className="flex-1 min-w-0 mr-4">
+                    <p className="font-medium text-sm line-clamp-2 text-foreground group-hover:text-primary transition-colors">
+                      {video.title || video.caption || 'Sem título'}
+                    </p>
+                    {video.postedAt && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(video.postedAt).toLocaleDateString('pt-BR')}
                       </p>
-                    </a>
-
-                    {/* Metrics and Sync Button */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Heart className="h-3 w-3" />
-                          <span>{formatNumber(video.likesCount)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <MessageCircle className="h-3 w-3" />
-                          <span>{formatNumber(video.commentsCount)}</span>
-                        </div>
-                        {video.sharesCount !== undefined && video.sharesCount > 0 && (
-                          <div className="flex items-center gap-1">
-                            <Share2 className="h-3 w-3" />
-                            <span>{formatNumber(video.sharesCount)}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Sync button */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0"
-                        onClick={(e) => handleSyncVideo(video, e)}
-                        disabled={syncingVideoId === video.id}
-                        title="Atualizar visualizações"
-                      >
-                        {syncingVideoId === video.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                    </div>
+                    )}
                   </div>
-                </div>
+
+                  {/* Metrics */}
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground shrink-0">
+                    <div className="flex items-center gap-1">
+                      <Eye className="h-3.5 w-3.5" />
+                      <span className="font-medium">{formatNumber(video.viewsCount)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Heart className="h-3.5 w-3.5" />
+                      <span>{formatNumber(video.likesCount)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      <span>{formatNumber(video.commentsCount)}</span>
+                    </div>
+                    {video.sharesCount !== undefined && video.sharesCount > 0 && (
+                      <div className="flex items-center gap-1">
+                        <Share2 className="h-3.5 w-3.5" />
+                        <span>{formatNumber(video.sharesCount)}</span>
+                      </div>
+                    )}
+                    
+                    {/* Sync button */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={(e) => handleSyncVideo(video, e)}
+                      disabled={syncingVideoId === video.id}
+                      title="Atualizar métricas"
+                    >
+                      {syncingVideoId === video.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+
+                    <ExternalLink className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </a>
               ))}
             </div>
           )}
