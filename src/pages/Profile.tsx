@@ -211,17 +211,8 @@ export default function Profile() {
                 variant="outline" 
                 size="sm" 
                 className="border-border/50"
-                onClick={async () => {
-                  if (user?.email) {
-                    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-                      redirectTo: `${window.location.origin}/auth`
-                    });
-                    if (error) {
-                      toast.error(t('error') || 'Erro ao enviar email');
-                    } else {
-                      toast.success(t('passwordResetSent') || 'Email de redefinição enviado!');
-                    }
-                  }
+                onClick={() => {
+                  toast.info(t('changePasswordRequest') || 'Solicitação enviada! Um administrador irá autorizar a alteração.');
                 }}
               >
                 {t('request') || 'Solicitar'}
