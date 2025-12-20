@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useSocialMetrics, usePlatformDistribution } from "@/hooks/useSocialMetrics";
+import { useClientMetrics, useClientPlatformDistribution } from "@/hooks/useClientMetrics";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   Users, 
   Eye, 
@@ -19,17 +20,19 @@ import {
   Heart,
   Instagram,
   Youtube,
+  Trophy,
+  Target,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 function DashboardClientContent() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
 
-  const { data: socialMetrics, isLoading, refetch } = useSocialMetrics();
-  const platformDistribution = usePlatformDistribution();
+  const { data: clientMetrics, isLoading, refetch } = useClientMetrics();
+  const platformDistribution = useClientPlatformDistribution();
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -39,16 +42,15 @@ function DashboardClientContent() {
 
   const handleRefresh = () => {
     refetch();
-    queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
+    queryClient.invalidateQueries({ queryKey: ['client-metrics'] });
   };
 
-  // Generate chart data from platform breakdown
   const generateViewsChartData = () => {
-    if (!socialMetrics?.platformBreakdown) {
+    if (!clientMetrics?.platformBreakdown) {
       return [{ date: 'Instagram', views: 0 }, { date: 'TikTok', views: 0 }, { date: 'YouTube', views: 0 }];
     }
     
-    return socialMetrics.platformBreakdown.map(p => ({
+    return clientMetrics.platformBreakdown.map(p => ({
       date: p.platform,
       views: p.views
     }));
@@ -77,24 +79,24 @@ function DashboardClientContent() {
     );
   }
 
-  const hasAccounts = socialMetrics && socialMetrics.accountsCount.total > 0;
+  const hasCampaigns = clientMetrics && clientMetrics.totalCampaigns > 0;
 
-  if (!hasAccounts) {
+  if (!hasCampaigns) {
     return (
       <MainLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] text-center">
           <div className="p-6 rounded-full bg-primary/10 mb-6 animate-pulse-glow">
-            <BarChart3 className="h-16 w-16 text-primary" />
+            <Target className="h-16 w-16 text-primary" />
           </div>
           <h2 className="text-3xl font-bold mb-3 text-glow">
-            {t('noAccountsLinked')}
+            Nenhuma Campanha Encontrada
           </h2>
           <p className="text-muted-foreground mb-6 max-w-md">
-            {t('noAccountsDescription')}
+            Você ainda não possui campanhas. Crie uma campanha para começar a acompanhar o desempenho dos seus clippers.
           </p>
-          <Button onClick={() => navigate('/account-analytics')} className="premium-gradient">
-            <BarChart3 className="h-4 w-4 mr-2" />
-            {t('addAccounts')}
+          <Button onClick={() => navigate('/client/campaigns')} className="premium-gradient">
+            <Target className="h-4 w-4 mr-2" />
+            Gerenciar Campanhas
           </Button>
         </div>
       </MainLayout>
@@ -108,10 +110,10 @@ function DashboardClientContent() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-glow">
-              {t('clientDashboard')}
+              Dashboard do Cliente
             </h1>
             <p className="text-muted-foreground mt-1">
-              {t('trackPerformance')}
+              Métricas dos clippers das suas campanhas
             </p>
           </div>
           
@@ -125,39 +127,45 @@ function DashboardClientContent() {
               {t('common.refresh')}
             </Button>
             <Button 
-              onClick={() => navigate('/account-analytics')}
+              onClick={() => navigate('/client/campaigns')}
               className="premium-gradient"
             >
-              <BarChart3 className="h-4 w-4 mr-2" />
-              {t('viewDetails')}
+              <Target className="h-4 w-4 mr-2" />
+              Campanhas
             </Button>
           </div>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <MetricCardGlow
-            title={t('followers')}
-            value={formatNumber(socialMetrics?.totalFollowers || 0)}
+            title="Campanhas"
+            value={clientMetrics?.totalCampaigns || 0}
+            icon={Target}
+            glowColor="orange"
+          />
+          <MetricCardGlow
+            title="Clippers"
+            value={clientMetrics?.totalClippers || 0}
             icon={Users}
             glowColor="blue"
           />
           <MetricCardGlow
             title={t('views')}
-            value={formatNumber(socialMetrics?.totalViews || 0)}
+            value={formatNumber(clientMetrics?.totalViews || 0)}
             icon={Eye}
             glowColor="purple"
           />
           <MetricCardGlow
             title={t('likes')}
-            value={formatNumber(socialMetrics?.totalLikes || 0)}
+            value={formatNumber(clientMetrics?.totalLikes || 0)}
             icon={Heart}
             glowColor="purple"
           />
           <MetricCardGlow
-            title={t('accounts')}
-            value={socialMetrics?.accountsCount.total || 0}
-            icon={Video}
+            title={t('followers')}
+            value={formatNumber(clientMetrics?.totalFollowers || 0)}
+            icon={Users}
             glowColor="green"
           />
         </div>
@@ -174,112 +182,100 @@ function DashboardClientContent() {
           />
         </div>
 
-        {/* Platform Breakdown */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Instagram */}
-          <GlowCard className="p-6" glowColor="purple">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-pink-500/20">
-                <Instagram className="h-6 w-6 text-pink-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Instagram</h3>
-                <p className="text-sm text-muted-foreground">
-                  {socialMetrics?.accountsCount.instagram || 0} {t('accounts')}
-                </p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('followers')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.followers || 0)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('views')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.views || 0)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('likes')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.likes || 0)}
-                </span>
-              </div>
-            </div>
-          </GlowCard>
-
-          {/* TikTok */}
-          <GlowCard className="p-6" glowColor="blue">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-blue-500/20">
-                <Video className="h-6 w-6 text-blue-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold">TikTok</h3>
-                <p className="text-sm text-muted-foreground">
-                  {socialMetrics?.accountsCount.tiktok || 0} {t('accounts')}
-                </p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('followers')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.followers || 0)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('views')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.views || 0)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('likes')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.likes || 0)}
-                </span>
-              </div>
-            </div>
-          </GlowCard>
-
-          {/* YouTube */}
+        {/* Top Clippers & Platform Breakdown */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Top Clippers */}
           <GlowCard className="p-6" glowColor="orange">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-red-500/20">
-                <Youtube className="h-6 w-6 text-red-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold">YouTube</h3>
-                <p className="text-sm text-muted-foreground">
-                  {socialMetrics?.accountsCount.youtube || 0} {t('accounts')}
-                </p>
-              </div>
+              <Trophy className="h-6 w-6 text-yellow-400" />
+              <h3 className="text-lg font-semibold">Top Clippers</h3>
             </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('followers')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.followers || 0)}
-                </span>
+            {clientMetrics?.topClippers && clientMetrics.topClippers.length > 0 ? (
+              <div className="space-y-3">
+                {clientMetrics.topClippers.map((clipper, index) => (
+                  <div key={clipper.userId} className="flex items-center gap-3 p-3 rounded-lg bg-muted/10">
+                    <span className="text-lg font-bold text-primary w-6">#{index + 1}</span>
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={clipper.avatarUrl || undefined} />
+                      <AvatarFallback>{clipper.username.charAt(0).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{clipper.username}</p>
+                      <p className="text-xs text-muted-foreground">{clipper.platform}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">{formatNumber(clipper.totalViews)}</p>
+                      <p className="text-xs text-muted-foreground">views</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('views')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.views || 0)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('likes')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.likes || 0)}
-                </span>
-              </div>
-            </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                Nenhum clipper com métricas ainda
+              </p>
+            )}
           </GlowCard>
+
+          {/* Platform Breakdown */}
+          <div className="space-y-4">
+            {/* Instagram */}
+            <GlowCard className="p-4" glowColor="purple">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-pink-500/20">
+                  <Instagram className="h-5 w-5 text-pink-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold">Instagram</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.accounts || 0} contas
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.views || 0)}</p>
+                  <p className="text-xs text-muted-foreground">views</p>
+                </div>
+              </div>
+            </GlowCard>
+
+            {/* TikTok */}
+            <GlowCard className="p-4" glowColor="blue">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-500/20">
+                  <Video className="h-5 w-5 text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold">TikTok</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.accounts || 0} contas
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.views || 0)}</p>
+                  <p className="text-xs text-muted-foreground">views</p>
+                </div>
+              </div>
+            </GlowCard>
+
+            {/* YouTube */}
+            <GlowCard className="p-4" glowColor="orange">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-red-500/20">
+                  <Youtube className="h-5 w-5 text-red-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold">YouTube</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.accounts || 0} contas
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.views || 0)}</p>
+                  <p className="text-xs text-muted-foreground">views</p>
+                </div>
+              </div>
+            </GlowCard>
+          </div>
         </div>
 
         {/* Quick Actions */}
@@ -289,10 +285,10 @@ function DashboardClientContent() {
             <Button 
               variant="outline" 
               className="h-auto py-4 flex-col gap-2"
-              onClick={() => navigate('/account-analytics')}
+              onClick={() => navigate('/client/campaigns')}
             >
-              <BarChart3 className="h-6 w-6" />
-              <span>{t('manageAccounts')}</span>
+              <Target className="h-6 w-6" />
+              <span>Gerenciar Campanhas</span>
             </Button>
             <Button 
               variant="outline" 
