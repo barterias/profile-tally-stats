@@ -26,9 +26,14 @@ export function YouTubeTab() {
   const { user } = useAuth();
   const { isClipper, isAdmin, isClient } = useUserRole();
 
-  const { data: accounts = [], isLoading: accountsLoading } = isAdmin || isClient
-    ? useAllYouTubeAccounts()
-    : useYouTubeAccounts();
+  // Always call both hooks to respect Rules of Hooks
+  const userAccountsQuery = useYouTubeAccounts();
+  const allAccountsQuery = useAllYouTubeAccounts();
+  
+  // Select the appropriate data based on role
+  const { data: accounts = [], isLoading: accountsLoading } = (isAdmin || isClient) 
+    ? allAccountsQuery 
+    : userAccountsQuery;
 
   const { data: videos = [], isLoading: videosLoading } = useYouTubeVideos(selectedAccount?.id || '');
 

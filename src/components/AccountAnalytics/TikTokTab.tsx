@@ -26,9 +26,14 @@ export function TikTokTab() {
   const { user } = useAuth();
   const { isClipper, isAdmin, isClient } = useUserRole();
 
-  const { data: accounts = [], isLoading: accountsLoading } = isAdmin || isClient
-    ? useAllTikTokAccounts()
-    : useTikTokAccounts();
+  // Always call both hooks to respect Rules of Hooks
+  const userAccountsQuery = useTikTokAccounts();
+  const allAccountsQuery = useAllTikTokAccounts();
+  
+  // Select the appropriate data based on role
+  const { data: accounts = [], isLoading: accountsLoading } = (isAdmin || isClient) 
+    ? allAccountsQuery 
+    : userAccountsQuery;
 
   const { data: videos = [], isLoading: videosLoading } = useTikTokVideos(selectedAccount?.id || '');
 
