@@ -13,6 +13,7 @@ import {
   useAllYouTubeAccounts,
   useAddYouTubeAccount,
   useSyncYouTubeAccount,
+  useSyncAllYouTubeAccounts,
   useDeleteYouTubeAccount,
 } from '@/hooks/useYouTubeAccounts';
 import { useYouTubeVideos } from '@/hooks/useYouTubeVideos';
@@ -47,6 +48,7 @@ export function YouTubeTab() {
 
   const addAccount = useAddYouTubeAccount();
   const syncAccount = useSyncYouTubeAccount();
+  const syncAllAccounts = useSyncAllYouTubeAccounts();
   const deleteAccount = useDeleteYouTubeAccount();
   const approveAccount = useApproveAccount();
   const rejectAccount = useRejectAccount();
@@ -77,9 +79,8 @@ export function YouTubeTab() {
   };
 
   const handleSyncAll = () => {
-    accounts.forEach((account) => {
-      syncAccount.mutate(account.id);
-    });
+    const accountsToSync = accounts.map(acc => ({ id: acc.id, username: acc.username }));
+    syncAllAccounts.mutate(accountsToSync);
   };
 
   const handleApprove = (accountId: string) => {
@@ -120,8 +121,8 @@ export function YouTubeTab() {
     <div className="space-y-6">
       <div className="flex justify-end gap-2">
         {(isAdmin || isClient) && (
-          <Button variant="outline" onClick={handleSyncAll} disabled={accounts.length === 0 || syncAccount.isPending}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${syncAccount.isPending ? 'animate-spin' : ''}`} />
+          <Button variant="outline" onClick={handleSyncAll} disabled={accounts.length === 0 || syncAllAccounts.isPending}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncAllAccounts.isPending ? 'animate-spin' : ''}`} />
             Atualizar Todos
           </Button>
         )}

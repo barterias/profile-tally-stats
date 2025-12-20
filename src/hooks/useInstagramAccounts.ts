@@ -82,6 +82,39 @@ export function useSyncInstagramAccount() {
   });
 }
 
+export function useSyncAllInstagramAccounts() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (accountIds: string[]) => {
+      const results = await Promise.allSettled(
+        accountIds.map(id => instagramApi.syncAccount(id))
+      );
+      
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      const failCount = accountIds.length - successCount;
+      
+      return { successCount, failCount, total: accountIds.length };
+    },
+    onSuccess: (result) => {
+      if (result.failCount === 0) {
+        toast.success(`${result.successCount} contas sincronizadas com sucesso!`);
+      } else {
+        toast.warning(`${result.successCount}/${result.total} contas sincronizadas. ${result.failCount} falharam.`);
+      }
+      // Invalidate all related queries after all syncs complete
+      queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['instagram-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['instagram-posts'] });
+      queryClient.invalidateQueries({ queryKey: ['instagram-metrics-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao sincronizar contas');
+    },
+  });
+}
+
 export function useDeleteInstagramAccount() {
   const queryClient = useQueryClient();
 

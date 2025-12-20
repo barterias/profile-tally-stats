@@ -145,10 +145,48 @@ export function useSyncTikTokAccount() {
       toast.success('Conta sincronizada!');
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
       queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao sincronizar conta');
+    },
+  });
+}
+
+export function useSyncAllTikTokAccounts() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (accounts: { id: string; username: string }[]) => {
+      const results = await Promise.allSettled(
+        accounts.map(async (acc) => {
+          const { error } = await supabase.functions.invoke('tiktok-scrape', {
+            body: { accountId: acc.id, username: acc.username },
+          });
+          if (error) throw error;
+          return { success: true };
+        })
+      );
+      
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = accounts.length - successCount;
+      
+      return { successCount, failCount, total: accounts.length };
+    },
+    onSuccess: (result) => {
+      if (result.failCount === 0) {
+        toast.success(`${result.successCount} contas sincronizadas com sucesso!`);
+      } else {
+        toast.warning(`${result.successCount}/${result.total} contas sincronizadas. ${result.failCount} falharam.`);
+      }
+      queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
+      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao sincronizar contas');
     },
   });
 }
