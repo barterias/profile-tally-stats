@@ -23,9 +23,13 @@ import {
   Instagram,
   Music,
   Youtube,
+  Edit,
+  Play,
+  Pause,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 interface Campaign {
   id: string;
@@ -59,14 +63,46 @@ interface CampaignVideo {
 function CampaignDetailContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast: toastHook } = useToast();
+  const { user, isAdmin } = useAuth();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [videos, setVideos] = useState<CampaignVideo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     fetchCampaignData();
-  }, [id]);
+    checkOwnership();
+  }, [id, user]);
+
+  const checkOwnership = async () => {
+    if (!user || !id) return;
+    const { data } = await supabase
+      .from("campaign_owners")
+      .select("id")
+      .eq("campaign_id", id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    setIsOwner(!!data);
+  };
+
+  const canManage = isAdmin || isOwner;
+
+  const handleToggleStatus = async () => {
+    if (!campaign) return;
+    try {
+      const { error } = await supabase
+        .from("campaigns")
+        .update({ is_active: !campaign.is_active })
+        .eq("id", campaign.id);
+
+      if (error) throw error;
+      toast.success(campaign.is_active ? "Campanha pausada" : "Campanha ativada");
+      setCampaign({ ...campaign, is_active: !campaign.is_active });
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar status");
+    }
+  };
 
   const fetchCampaignData = async () => {
     try {
@@ -100,7 +136,7 @@ function CampaignDetailContent() {
       }
     } catch (error) {
       console.error("Error fetching campaign data:", error);
-      toast({
+      toastHook({
         title: "Erro ao carregar campanha",
         description: "Não foi possível carregar os dados da campanha",
         variant: "destructive",
@@ -287,7 +323,7 @@ function CampaignDetailContent() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/campaigns")}>
+            <Button variant="ghost" size="icon" onClick={() => navigate(isOwner ? "/client/campaigns" : "/campaigns")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
@@ -313,6 +349,37 @@ function CampaignDetailContent() {
               </div>
             </div>
           </div>
+          
+          {/* Admin/Owner Actions */}
+          {canManage && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(isAdmin ? `/admin/edit-campaign/${campaign.id}` : `/client/edit-campaign/${campaign.id}`)}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Editar
+              </Button>
+              <Button
+                variant={campaign.is_active ? "outline" : "default"}
+                size="sm"
+                onClick={handleToggleStatus}
+              >
+                {campaign.is_active ? (
+                  <>
+                    <Pause className="h-4 w-4 mr-2" />
+                    Pausar
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Ativar
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Hashtags Badge */}
