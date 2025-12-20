@@ -603,8 +603,8 @@ function CampaignDetailContent() {
                           )}
                         </div>
 
-                        {/* Admin Actions */}
-                        {isAdmin && (
+                        {/* Admin/Owner Actions */}
+                        {(isAdmin || isOwner) && (
                           <div className="flex items-center gap-1">
                             <Button
                               variant="ghost"
