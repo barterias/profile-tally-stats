@@ -605,6 +605,9 @@ export type Database = {
       }
       instagram_accounts: {
         Row: {
+          approval_status: string | null
+          approved_at: string | null
+          approved_by: string | null
           bio: string | null
           created_at: string
           display_name: string | null
@@ -621,6 +624,9 @@ export type Database = {
           username: string
         }
         Insert: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           bio?: string | null
           created_at?: string
           display_name?: string | null
@@ -637,6 +643,9 @@ export type Database = {
           username: string
         }
         Update: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           bio?: string | null
           created_at?: string
           display_name?: string | null
@@ -1011,6 +1020,9 @@ export type Database = {
       }
       tiktok_accounts: {
         Row: {
+          approval_status: string | null
+          approved_at: string | null
+          approved_by: string | null
           bio: string | null
           created_at: string
           display_name: string | null
@@ -1028,6 +1040,9 @@ export type Database = {
           videos_count: number | null
         }
         Insert: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           bio?: string | null
           created_at?: string
           display_name?: string | null
@@ -1045,6 +1060,9 @@ export type Database = {
           videos_count?: number | null
         }
         Update: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           bio?: string | null
           created_at?: string
           display_name?: string | null
@@ -1357,6 +1375,9 @@ export type Database = {
       }
       youtube_accounts: {
         Row: {
+          approval_status: string | null
+          approved_at: string | null
+          approved_by: string | null
           banner_url: string | null
           channel_id: string | null
           created_at: string
@@ -1375,6 +1396,9 @@ export type Database = {
           videos_count: number | null
         }
         Insert: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           banner_url?: string | null
           channel_id?: string | null
           created_at?: string
@@ -1393,6 +1417,9 @@ export type Database = {
           videos_count?: number | null
         }
         Update: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           banner_url?: string | null
           channel_id?: string | null
           created_at?: string
@@ -1704,6 +1731,22 @@ export type Database = {
           },
         ]
       }
+      pending_social_accounts: {
+        Row: {
+          approval_status: string | null
+          content_count: number | null
+          created_at: string | null
+          display_name: string | null
+          followers_count: number | null
+          id: string | null
+          owner_username: string | null
+          platform: string | null
+          profile_image_url: string | null
+          user_id: string | null
+          username: string | null
+        }
+        Relationships: []
+      }
       ranking_views: {
         Row: {
           avatar_url: string | null
@@ -1845,6 +1888,10 @@ export type Database = {
         Args: { p_participant_id: string }
         Returns: undefined
       }
+      approve_social_account: {
+        Args: { p_account_id: string; p_platform: string }
+        Returns: undefined
+      }
       approve_user: { Args: { pending_id: string }; Returns: undefined }
       ban_user: { Args: { p_user_id: string }; Returns: undefined }
       check_pending_user_status: {
@@ -1881,6 +1928,10 @@ export type Database = {
       }
       reject_participant: {
         Args: { p_participant_id: string }
+        Returns: undefined
+      }
+      reject_social_account: {
+        Args: { p_account_id: string; p_platform: string }
         Returns: undefined
       }
       reject_user: { Args: { pending_id: string }; Returns: undefined }
