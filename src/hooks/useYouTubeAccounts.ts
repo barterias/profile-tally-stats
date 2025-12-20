@@ -102,6 +102,8 @@ export function useAddYouTubeAccount() {
       if (result.success) {
         toast.success(result.reactivated ? 'Canal reativado!' : 'Canal adicionado!');
         queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+        queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
       } else {
         toast.error(result.error || 'Erro ao adicionar canal');
       }
@@ -135,6 +137,8 @@ export function useSyncYouTubeAccount() {
     onSuccess: () => {
       toast.success('Canal sincronizado!');
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao sincronizar canal');
@@ -171,6 +175,7 @@ export function useDeleteYouTubeAccount() {
     onSuccess: () => {
       toast.success('Canal removido!');
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: any) => {
