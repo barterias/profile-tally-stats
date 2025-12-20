@@ -138,43 +138,64 @@ export default function SubmitPost() {
     }
   };
 
-  const validateLinkAgainstAccounts = (link: string, platformId: string): boolean => {
+  const [validatingLinks, setValidatingLinks] = useState<Record<number, boolean>>({});
+  const [validatedLinks, setValidatedLinks] = useState<Record<number, { valid: boolean; username?: string }>>({});
+
+  const validateLinkViaAPI = async (link: string, platformId: string, index: number): Promise<{ valid: boolean; username?: string; error?: string }> => {
     const accounts = getAccountsForPlatform(platformId);
     
     if (accounts.length === 0) {
-      return false;
+      return { valid: false, error: "Nenhuma conta cadastrada para esta plataforma" };
     }
 
-    const normalizedLink = link.toLowerCase().trim();
+    try {
+      // Call the video-details edge function to get the video author
+      const { data, error } = await supabase.functions.invoke('video-details', {
+        body: { videoUrl: link },
+      });
 
-    // Check if the link contains any of the user's usernames
-    for (const account of accounts) {
-      const username = account.username.toLowerCase();
-      
-      // Different URL patterns for each platform
-      if (platformId === 'tiktok') {
-        // TikTok URLs: tiktok.com/@username/video/...
-        if (normalizedLink.includes(`tiktok.com/@${username}`) || 
-            normalizedLink.includes(`vm.tiktok.com`)) {
-          return true;
-        }
-      } else if (platformId === 'instagram') {
-        // Instagram URLs: instagram.com/reel/... or instagram.com/p/...
-        // We can't easily verify Instagram URLs without the username in URL
-        // So we'll check if they have any Instagram account registered
-        if (normalizedLink.includes('instagram.com') && accounts.length > 0) {
-          return true;
-        }
-      } else if (platformId === 'youtube') {
-        // YouTube URLs: youtube.com/shorts/... or youtu.be/...
-        // Similar to Instagram, YouTube short URLs don't always contain username
-        if ((normalizedLink.includes('youtube.com') || normalizedLink.includes('youtu.be')) && 
-            accounts.length > 0) {
-          return true;
-        }
+      if (error || !data?.success) {
+        return { valid: false, error: data?.error || "Não foi possível verificar o vídeo" };
       }
-    }
 
+      const videoDetails = data.data;
+      const videoUsername = videoDetails.author?.username?.toLowerCase()?.replace('@', '');
+
+      if (!videoUsername) {
+        return { valid: false, error: "Não foi possível identificar o autor do vídeo" };
+      }
+
+      // Check if the video author matches any registered account
+      const matchingAccount = accounts.find(
+        account => account.username.toLowerCase().replace('@', '') === videoUsername
+      );
+
+      if (matchingAccount) {
+        return { valid: true, username: videoUsername };
+      } else {
+        const registeredUsernames = accounts.map(a => `@${a.username}`).join(', ');
+        return { 
+          valid: false, 
+          error: `O vídeo pertence a @${videoUsername}, mas suas contas cadastradas são: ${registeredUsernames}` 
+        };
+      }
+    } catch (error: any) {
+      return { valid: false, error: error.message || "Erro ao verificar o vídeo" };
+    }
+  };
+
+  const validateLinkAgainstAccounts = (link: string, platformId: string): boolean => {
+    // This is now just a simple URL format check
+    const normalizedLink = link.toLowerCase().trim();
+    
+    if (platformId === 'tiktok') {
+      return normalizedLink.includes('tiktok.com');
+    } else if (platformId === 'instagram') {
+      return normalizedLink.includes('instagram.com');
+    } else if (platformId === 'youtube') {
+      return normalizedLink.includes('youtube.com') || normalizedLink.includes('youtu.be');
+    }
+    
     return false;
   };
 
@@ -233,14 +254,47 @@ export default function SubmitPost() {
     newLinks[index] = value;
     setFormData({ ...formData, links: newLinks });
 
-    // Validate link in real-time
+    // Clear previous validation state
+    setValidatedLinks(prev => {
+      const newState = { ...prev };
+      delete newState[index];
+      return newState;
+    });
+
+    // Basic URL format validation
     const newErrors = [...linkErrors];
     if (value.trim() && !validateLinkAgainstAccounts(value, formData.platform)) {
-      newErrors[index] = "Este link não corresponde a nenhuma conta cadastrada";
+      newErrors[index] = "URL inválida para esta plataforma";
     } else {
       newErrors[index] = "";
     }
     setLinkErrors(newErrors);
+  };
+
+  const handleValidateLink = async (index: number) => {
+    const link = formData.links[index];
+    if (!link.trim()) return;
+
+    setValidatingLinks(prev => ({ ...prev, [index]: true }));
+    setLinkErrors(prev => {
+      const newErrors = [...prev];
+      newErrors[index] = "";
+      return newErrors;
+    });
+
+    const result = await validateLinkViaAPI(link, formData.platform, index);
+    
+    setValidatedLinks(prev => ({ ...prev, [index]: { valid: result.valid, username: result.username } }));
+    
+    if (!result.valid) {
+      setLinkErrors(prev => {
+        const newErrors = [...prev];
+        newErrors[index] = result.error || "Vídeo não pertence a uma conta cadastrada";
+        return newErrors;
+      });
+    }
+    
+    setValidatingLinks(prev => ({ ...prev, [index]: false }));
   };
 
   const removeLink = (index: number) => {
@@ -261,15 +315,37 @@ export default function SubmitPost() {
         throw new Error("Adicione pelo menos um link");
       }
 
-      // Validate all links against user's accounts
-      const invalidLinks = validLinks.filter(
-        (link) => !validateLinkAgainstAccounts(link, formData.platform)
-      );
+      // Check if all links have been validated
+      const allLinksValidated = validLinks.every((_, index) => validatedLinks[index]?.valid === true);
+      
+      if (!allLinksValidated) {
+        // Validate all non-validated links
+        const validationPromises = validLinks.map(async (link, index) => {
+          if (!validatedLinks[index]) {
+            setValidatingLinks(prev => ({ ...prev, [index]: true }));
+            const result = await validateLinkViaAPI(link, formData.platform, index);
+            setValidatedLinks(prev => ({ ...prev, [index]: { valid: result.valid, username: result.username } }));
+            setValidatingLinks(prev => ({ ...prev, [index]: false }));
+            
+            if (!result.valid) {
+              setLinkErrors(prev => {
+                const newErrors = [...prev];
+                newErrors[index] = result.error || "Vídeo não pertence a uma conta cadastrada";
+                return newErrors;
+              });
+            }
+            
+            return result;
+          }
+          return validatedLinks[index];
+        });
 
-      if (invalidLinks.length > 0) {
-        throw new Error(
-          `Os seguintes links não correspondem às suas contas cadastradas. Cadastre a conta em Account Analytics primeiro.`
-        );
+        const results = await Promise.all(validationPromises);
+        const hasInvalidLinks = results.some(r => !r?.valid);
+        
+        if (hasInvalidLinks) {
+          throw new Error("Alguns links não foram validados. Verifique se os vídeos pertencem às suas contas cadastradas.");
+        }
       }
 
       // Insert videos
@@ -494,15 +570,35 @@ export default function SubmitPost() {
                         <Label htmlFor={`link-${index}`}>
                           Link {index + 1}
                         </Label>
-                        <Input
-                          id={`link-${index}`}
-                          placeholder={`Cole o link do ${
-                            platforms.find((p) => p.id === formData.platform)?.name
-                          }`}
-                          value={link}
-                          onChange={(e) => updateLink(index, e.target.value)}
-                          className={linkErrors[index] ? "border-destructive" : ""}
-                        />
+                        <div className="flex gap-2">
+                          <Input
+                            id={`link-${index}`}
+                            placeholder={`Cole o link do ${
+                              platforms.find((p) => p.id === formData.platform)?.name
+                            }`}
+                            value={link}
+                            onChange={(e) => updateLink(index, e.target.value)}
+                            className={`flex-1 ${linkErrors[index] ? "border-destructive" : validatedLinks[index]?.valid ? "border-green-500" : ""}`}
+                          />
+                          <Button
+                            type="button"
+                            variant={validatedLinks[index]?.valid ? "outline" : "secondary"}
+                            onClick={() => handleValidateLink(index)}
+                            disabled={!link.trim() || validatingLinks[index]}
+                            className={`min-w-[100px] ${validatedLinks[index]?.valid ? "border-green-500 text-green-500" : ""}`}
+                          >
+                            {validatingLinks[index] ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : validatedLinks[index]?.valid ? (
+                              <>
+                                <Check className="h-4 w-4 mr-1" />
+                                Válido
+                              </>
+                            ) : (
+                              "Validar"
+                            )}
+                          </Button>
+                        </div>
                       </div>
                       {formData.links.length > 1 && (
                         <Button
@@ -515,6 +611,11 @@ export default function SubmitPost() {
                         </Button>
                       )}
                     </div>
+                    {validatedLinks[index]?.valid && validatedLinks[index]?.username && (
+                      <p className="text-xs text-green-500">
+                        ✓ Vídeo de @{validatedLinks[index].username} verificado
+                      </p>
+                    )}
                     {linkErrors[index] && (
                       <p className="text-xs text-destructive">{linkErrors[index]}</p>
                     )}
