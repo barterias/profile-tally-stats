@@ -4,27 +4,23 @@ import MainLayout from "@/components/Layout/MainLayout";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { MetricCardGlow } from "@/components/ui/MetricCardGlow";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { RankingList } from "@/components/Ranking/RankingList";
 import { CampaignTypeBadge } from "@/components/Campaign/CampaignTypeBadge";
+import { SubmitVideoModal } from "@/components/Campaign/SubmitVideoModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { CampaignType, RankingItem } from "@/types/campaign";
+import { CampaignType } from "@/types/campaign";
 import { 
   Trophy, 
   Eye, 
   Video,
-  Medal,
   Plus,
-  Loader2,
-  TrendingUp,
-  Crown,
-  Flame,
-  Target,
-  BarChart3
+  DollarSign,
+  BarChart3,
+  Upload
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -67,7 +63,7 @@ function DashboardClipperContent() {
   const [participations, setParticipations] = useState<Participation[]>([]);
   const [submissions, setSubmissions] = useState<VideoSubmission[]>([]);
   const [stats, setStats] = useState({ totalViews: 0, totalVideos: 0, ranking: 0, estimatedEarnings: 0 });
-  const [userRanking, setUserRanking] = useState<RankingItem[]>([]);
+  const [submitModalOpen, setSubmitModalOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -141,21 +137,6 @@ function DashboardClipperContent() {
       setStats({ totalViews, totalVideos, ranking: 0, estimatedEarnings });
 
       // Fetch user's ranking position in each campaign
-      const { data: rankingData } = await supabase
-        .from('ranking_views')
-        .select('*')
-        .eq('user_id', user?.id);
-
-      if (rankingData) {
-        setUserRanking(rankingData.map(r => ({
-          user_id: r.user_id || '',
-          username: r.username || '',
-          avatar_url: r.avatar_url,
-          total_videos: Number(r.total_videos || 0),
-          total_views: Number(r.total_views || 0),
-          rank_position: Number(r.rank_position || 0),
-        })));
-      }
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -211,9 +192,9 @@ function DashboardClipperContent() {
               <BarChart3 className="h-4 w-4 mr-2" />
               Métricas
             </Button>
-            <Button onClick={() => navigate('/campaigns')}>
-              <Trophy className="h-4 w-4 mr-2" />
-              Campanhas
+            <Button onClick={() => setSubmitModalOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Enviar Vídeo
             </Button>
           </div>
         </div>
@@ -368,6 +349,13 @@ function DashboardClipperContent() {
             </GlowCard>
           </TabsContent>
         </Tabs>
+
+        {/* Submit Video Modal */}
+        <SubmitVideoModal 
+          open={submitModalOpen} 
+          onOpenChange={setSubmitModalOpen}
+          onSuccess={fetchData}
+        />
       </div>
 
     </MainLayout>
