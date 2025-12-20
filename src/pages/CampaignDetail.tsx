@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { externalSupabase } from "@/lib/externalSupabase";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -234,21 +234,43 @@ function CampaignDetailContent() {
       if (campaignError) throw campaignError;
       setCampaign(campaignData);
 
-      // Fetch videos submitted to this campaign
+      // Fetch videos submitted to this campaign - use stored data from campaign_videos table
       const { data: videosData } = await supabase
         .from("campaign_videos")
         .select("*")
         .eq("campaign_id", id);
 
       if (videosData && videosData.length > 0) {
-        // Fetch external video metrics
-        const [allInstagramVideos, allTikTokVideos, allYoutubeVideos] = await Promise.all([
-          externalSupabase.getAllVideos(),
-          externalSupabase.getSocialVideos(),
-          externalSupabase.getYoutubeVideos(),
-        ]);
+        // Get usernames for all submitted_by users
+        const userIds = [...new Set(videosData?.map(v => v.submitted_by).filter(Boolean))];
+        let usernamesMap: Record<string, string> = {};
         
-        const processedVideos = await processVideosWithMetrics(videosData, allInstagramVideos, allTikTokVideos, allYoutubeVideos);
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .in('id', userIds);
+          
+          if (profiles) {
+            usernamesMap = Object.fromEntries(profiles.map(p => [p.id, p.username]));
+          }
+        }
+
+        // Process videos using stored metrics from campaign_videos table
+        const processedVideos = videosData.map((video) => ({
+          id: video.id,
+          video_link: video.video_link,
+          platform: video.platform,
+          views: video.views || 0,
+          likes: video.likes || 0,
+          comments: video.comments || 0,
+          shares: video.shares || 0,
+          submitted_at: video.submitted_at,
+          submitted_by: video.submitted_by,
+          verified: video.verified,
+          username: usernamesMap[video.submitted_by] || `Participante #${video.id.slice(0, 4)}`,
+        })).sort((a, b) => (b.views || 0) - (a.views || 0));
+
         setVideos(processedVideos);
       } else {
         setVideos([]);
@@ -265,135 +287,6 @@ function CampaignDetailContent() {
     }
   };
 
-  const processVideosWithMetrics = async (
-    videosData: any[],
-    allInstagramVideos: any[],
-    allTikTokVideos: any[],
-    allYoutubeVideos: any[]
-  ): Promise<CampaignVideo[]> => {
-    const normalizeLink = (link: string): string => {
-      if (!link) return '';
-      return link
-        .toLowerCase()
-        .replace(/^https?:\/\//, '')
-        .replace(/^www\./, '')
-        .replace(/\/$/, '')
-        .trim();
-    };
-
-    const extractVideoId = (link: string): string | null => {
-      if (!link) return null;
-      const instaMatch = link.match(/\/(reels?|p)\/([A-Za-z0-9_-]+)/);
-      if (instaMatch) return instaMatch[2];
-      const tiktokMatch = link.match(/\/video\/(\d+)/);
-      if (tiktokMatch) return tiktokMatch[1];
-      return null;
-    };
-
-    const extractYoutubeId = (link: string): string | null => {
-      if (!link) return null;
-      const watchMatch = link.match(/[?&]v=([A-Za-z0-9_-]{11})/i);
-      if (watchMatch) return watchMatch[1];
-      const shortsMatch = link.match(/\/shorts\/([A-Za-z0-9_-]+)/i);
-      if (shortsMatch) return shortsMatch[1].split('?')[0];
-      const shortMatch = link.match(/youtu\.be\/([A-Za-z0-9_-]+)/i);
-      if (shortMatch) return shortMatch[1].split('?')[0];
-      return null;
-    };
-
-    const userIds = [...new Set(videosData?.map(v => v.submitted_by).filter(Boolean))];
-    let usernamesMap: Record<string, string> = {};
-    
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .in('id', userIds);
-      
-      if (profiles) {
-        usernamesMap = Object.fromEntries(profiles.map(p => [p.id, p.username]));
-      }
-    }
-
-    return videosData.map((video) => {
-      const normalizedCampaignLink = normalizeLink(video.video_link);
-      let metrics = { views: 0, likes: 0, comments: 0, shares: 0 };
-      
-      if (video.platform === "instagram") {
-        const match = allInstagramVideos?.find(v => {
-          const dbLink = normalizeLink(v.link || v.video_url || '');
-          return dbLink === normalizedCampaignLink || 
-                 dbLink.includes(normalizedCampaignLink) || 
-                 normalizedCampaignLink.includes(dbLink);
-        });
-
-        if (match) {
-          metrics = {
-            views: match.views || 0,
-            likes: match.likes || 0,
-            comments: match.comments || 0,
-            shares: match.shares || 0,
-          };
-        } else {
-          const videoId = extractVideoId(video.video_link);
-          if (videoId) {
-            const matchById = allInstagramVideos?.find(v => {
-              const dbId = extractVideoId(v.link || v.video_url || '');
-              return dbId === videoId;
-            });
-            if (matchById) {
-              metrics = {
-                views: matchById.views || 0,
-                likes: matchById.likes || 0,
-                comments: matchById.comments || 0,
-                shares: matchById.shares || 0,
-              };
-            }
-          }
-        }
-      } else if (video.platform === "tiktok") {
-        const videoId = extractVideoId(video.video_link);
-        
-        if (videoId) {
-          const matchById = allTikTokVideos?.find(v => 
-            v.video_id === videoId || v.video_id === `=${videoId}`
-          );
-          if (matchById) {
-            metrics = {
-              views: matchById.views || 0,
-              likes: matchById.likes || 0,
-              comments: matchById.comments || 0,
-              shares: matchById.shares || 0,
-            };
-          }
-        }
-      } else if (video.platform === "youtube") {
-        const youtubeId = extractYoutubeId(video.video_link);
-        
-        if (youtubeId && allYoutubeVideos) {
-          const matchById = allYoutubeVideos.find(v => {
-            const externalId = (v.youtube_id || v.video_id || '').replace(/^=/, '');
-            return externalId.toLowerCase() === youtubeId.toLowerCase();
-          });
-          
-          if (matchById) {
-            metrics = {
-              views: matchById.views || 0,
-              likes: matchById.likes || 0,
-              comments: matchById.comments || 0,
-              shares: matchById.shares || 0,
-            };
-          }
-        }
-      }
-      
-      return {
-        ...video,
-        ...metrics,
-        username: usernamesMap[video.submitted_by] || `Participante #${video.id.slice(0, 4)}`,
-      };
-    }).sort((a, b) => (b.views || 0) - (a.views || 0));
-  };
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
