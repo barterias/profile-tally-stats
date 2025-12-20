@@ -19,6 +19,7 @@ export default function MobileNav() {
       return [
         { name: "Dashboard", href: "/dashboard/client", icon: LayoutDashboard },
         { name: "Campanhas", href: "/client/campaigns", icon: Trophy },
+        { name: "Enviar", href: "/submit", icon: Upload },
         { name: "Analytics", href: "/account-analytics", icon: BarChart3 },
         { name: "Perfil", href: "/profile", icon: User },
       ];
