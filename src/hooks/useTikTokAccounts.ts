@@ -148,28 +148,34 @@ export function useSyncTikTokAccount() {
 
 export function useDeleteTikTokAccount() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (accountId: string) => {
       // Delete metrics history first
-      await supabase
+      const { error: metricsError } = await supabase
         .from('tiktok_metrics_history')
         .delete()
         .eq('account_id', accountId);
 
+      if (metricsError) throw metricsError;
+
       // Delete videos
-      await supabase
+      const { error: videosError } = await supabase
         .from('tiktok_videos')
         .delete()
         .eq('account_id', accountId);
 
-      // Delete the account
-      const { error } = await supabase
+      if (videosError) throw videosError;
+
+      // Delete the account (ensure affected rows)
+      const { error: accountError, count } = await supabase
         .from('tiktok_accounts')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('id', accountId);
-      
-      if (error) throw error;
+
+      if (accountError) throw accountError;
+      if (!count || count < 1) throw new Error('Não foi possível remover a conta (sem permissão ou já removida).');
+
       return { success: true };
     },
     onSuccess: () => {

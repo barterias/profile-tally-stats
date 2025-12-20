@@ -275,25 +275,37 @@ export const instagramApi = {
   // Delete an account and all related data
   async deleteAccount(accountId: string): Promise<{ success: boolean; error?: string }> {
     // Delete metrics history first
-    await supabase
+    const { error: metricsError } = await supabase
       .from('instagram_metrics_history')
       .delete()
       .eq('account_id', accountId);
 
+    if (metricsError) {
+      return { success: false, error: metricsError.message };
+    }
+
     // Delete posts
-    await supabase
+    const { error: postsError } = await supabase
       .from('instagram_posts')
       .delete()
       .eq('account_id', accountId);
 
-    // Delete the account
-    const { error } = await supabase
+    if (postsError) {
+      return { success: false, error: postsError.message };
+    }
+
+    // Delete the account (and ensure at least 1 row was affected)
+    const { error: accountError, count } = await supabase
       .from('instagram_accounts')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('id', accountId);
 
-    if (error) {
-      return { success: false, error: error.message };
+    if (accountError) {
+      return { success: false, error: accountError.message };
+    }
+
+    if (!count || count < 1) {
+      return { success: false, error: 'Não foi possível remover a conta (sem permissão ou já removida).' };
     }
 
     return { success: true };

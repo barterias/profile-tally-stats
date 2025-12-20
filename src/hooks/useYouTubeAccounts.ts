@@ -148,28 +148,34 @@ export function useSyncYouTubeAccount() {
 
 export function useDeleteYouTubeAccount() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (accountId: string) => {
       // Delete metrics history first
-      await supabase
+      const { error: metricsError } = await supabase
         .from('youtube_metrics_history')
         .delete()
         .eq('account_id', accountId);
 
+      if (metricsError) throw metricsError;
+
       // Delete videos
-      await supabase
+      const { error: videosError } = await supabase
         .from('youtube_videos')
         .delete()
         .eq('account_id', accountId);
 
-      // Delete the account
-      const { error } = await supabase
+      if (videosError) throw videosError;
+
+      // Delete the account (ensure affected rows)
+      const { error: accountError, count } = await supabase
         .from('youtube_accounts')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('id', accountId);
-      
-      if (error) throw error;
+
+      if (accountError) throw accountError;
+      if (!count || count < 1) throw new Error('Não foi possível remover o canal (sem permissão ou já removido).');
+
       return { success: true };
     },
     onSuccess: () => {

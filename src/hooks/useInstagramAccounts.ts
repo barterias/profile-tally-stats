@@ -86,10 +86,12 @@ export function useDeleteInstagramAccount() {
 
   return useMutation({
     mutationFn: (accountId: string) => instagramApi.deleteAccount(accountId),
-    onSuccess: (result) => {
+    onSuccess: (result, accountId) => {
       if (result.success) {
         toast.success('Conta removida com sucesso!');
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-accounts-all'] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-posts', accountId] });
         queryClient.invalidateQueries({ queryKey: ['instagram-metrics-summary'] });
         queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
       } else {
