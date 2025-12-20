@@ -13,6 +13,7 @@ import {
   useAllInstagramAccounts,
   useAddInstagramAccount,
   useSyncInstagramAccount,
+  useSyncAllInstagramAccounts,
   useDeleteInstagramAccount,
 } from '@/hooks/useInstagramAccounts';
 import { useInstagramVideos } from '@/hooks/useInstagramVideos';
@@ -47,6 +48,7 @@ export function InstagramTab() {
 
   const addAccount = useAddInstagramAccount();
   const syncAccount = useSyncInstagramAccount();
+  const syncAllAccounts = useSyncAllInstagramAccounts();
   const deleteAccount = useDeleteInstagramAccount();
   const approveAccount = useApproveAccount();
   const rejectAccount = useRejectAccount();
@@ -77,9 +79,8 @@ export function InstagramTab() {
   };
 
   const handleSyncAll = () => {
-    accounts.forEach((account) => {
-      syncAccount.mutate(account.id);
-    });
+    const accountIds = accounts.map(acc => acc.id);
+    syncAllAccounts.mutate(accountIds);
   };
 
   const handleApprove = (accountId: string) => {
@@ -122,8 +123,8 @@ export function InstagramTab() {
     <div className="space-y-6">
       <div className="flex justify-end gap-2">
         {(isAdmin || isClient) && (
-          <Button variant="outline" onClick={handleSyncAll} disabled={accounts.length === 0 || syncAccount.isPending}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${syncAccount.isPending ? 'animate-spin' : ''}`} />
+          <Button variant="outline" onClick={handleSyncAll} disabled={accounts.length === 0 || syncAllAccounts.isPending}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncAllAccounts.isPending ? 'animate-spin' : ''}`} />
             Atualizar Todas
           </Button>
         )}

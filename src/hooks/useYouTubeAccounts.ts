@@ -145,10 +145,48 @@ export function useSyncYouTubeAccount() {
       toast.success('Canal sincronizado!');
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['youtube-videos'] });
       queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao sincronizar canal');
+    },
+  });
+}
+
+export function useSyncAllYouTubeAccounts() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (accounts: { id: string; username: string }[]) => {
+      const results = await Promise.allSettled(
+        accounts.map(async (acc) => {
+          const { error } = await supabase.functions.invoke('youtube-scrape', {
+            body: { accountId: acc.id, username: acc.username },
+          });
+          if (error) throw error;
+          return { success: true };
+        })
+      );
+      
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = accounts.length - successCount;
+      
+      return { successCount, failCount, total: accounts.length };
+    },
+    onSuccess: (result) => {
+      if (result.failCount === 0) {
+        toast.success(`${result.successCount} canais sincronizados com sucesso!`);
+      } else {
+        toast.warning(`${result.successCount}/${result.total} canais sincronizados. ${result.failCount} falharam.`);
+      }
+      queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['youtube-videos'] });
+      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao sincronizar canais');
     },
   });
 }
