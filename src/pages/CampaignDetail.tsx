@@ -23,7 +23,6 @@ import {
   Instagram,
   Music,
   Youtube,
-  Hash,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -80,128 +79,24 @@ function CampaignDetailContent() {
       if (campaignError) throw campaignError;
       setCampaign(campaignData);
 
-      // Fetch all videos from external API and match by hashtags
-      const [allInstagramVideos, allTikTokVideos, allYoutubeVideos] = await Promise.all([
-        externalSupabase.getAllVideos(),
-        externalSupabase.getSocialVideos(),
-        externalSupabase.getYoutubeVideos(),
-      ]);
+      // Fetch videos submitted to this campaign
+      const { data: videosData } = await supabase
+        .from("campaign_videos")
+        .select("*")
+        .eq("campaign_id", id);
 
-      // Normalize campaign hashtags (remove # and lowercase)
-      const campaignHashtags = (campaignData.hashtags || []).map((h: string) => 
-        h.toLowerCase().replace('#', '').trim()
-      );
-      
-      console.log('Campaign hashtags:', campaignHashtags);
-      console.log('Sample Instagram video:', allInstagramVideos?.[0]);
-      console.log('Sample TikTok video:', allTikTokVideos?.[0]);
-      console.log('Sample YouTube video:', allYoutubeVideos?.[0]);
-      
-      if (campaignHashtags.length === 0) {
-        // If no hashtags configured, fall back to campaign_videos table
-        const { data: videosData } = await supabase
-          .from("campaign_videos")
-          .select("*")
-          .eq("campaign_id", id);
-
-        if (videosData && videosData.length > 0) {
-          const processedVideos = await processVideosWithMetrics(videosData, allInstagramVideos, allTikTokVideos, allYoutubeVideos);
-          setVideos(processedVideos);
-        } else {
-          setVideos([]);
-        }
-      } else {
-        // Match videos by hashtags from external API
-        const matchedVideos: CampaignVideo[] = [];
-
-        // Helper function to get all text content from a video
-        const getVideoTextContent = (video: any): string => {
-          return [
-            video.title,
-            video.caption,
-            video.description,
-            video.desc,
-            video.music_title,
-          ].filter(Boolean).join(' ');
-        };
-
-        // Process Instagram videos
-        allInstagramVideos?.forEach((video: any) => {
-          const textContent = getVideoTextContent(video);
-          const videoHashtags = extractHashtagsFromTitle(textContent);
-          console.log('Instagram video text:', textContent.substring(0, 100), 'Hashtags found:', videoHashtags);
-          
-          if (hasMatchingHashtag(videoHashtags, campaignHashtags)) {
-            matchedVideos.push({
-              id: video.id?.toString() || `ig-${Date.now()}-${Math.random()}`,
-              video_link: video.link || video.video_url || '',
-              platform: 'instagram',
-              views: video.views || 0,
-              likes: video.likes || 0,
-              comments: video.comments || 0,
-              shares: video.shares || 0,
-              submitted_at: video.inserted_at || video.collected_at || new Date().toISOString(),
-              submitted_by: video.creator_username || 'unknown',
-              verified: true,
-              username: video.creator_username || video.creator_nickname || 'Participante',
-              hashtags: videoHashtags,
-            });
-          }
-        });
-
-        // Process TikTok videos
-        allTikTokVideos?.forEach((video: any) => {
-          const textContent = getVideoTextContent(video);
-          const videoHashtags = extractHashtagsFromTitle(textContent);
-          console.log('TikTok video text:', textContent.substring(0, 100), 'Hashtags found:', videoHashtags);
-          
-          if (hasMatchingHashtag(videoHashtags, campaignHashtags)) {
-            matchedVideos.push({
-              id: video.id?.toString() || `tt-${Date.now()}-${Math.random()}`,
-              video_link: video.link || video.video_url || '',
-              platform: 'tiktok',
-              views: video.views || 0,
-              likes: video.likes || 0,
-              comments: video.comments || 0,
-              shares: video.shares || 0,
-              submitted_at: video.inserted_at || new Date().toISOString(),
-              submitted_by: video.creator_username || 'unknown',
-              verified: true,
-              username: video.creator_username || video.creator_nickname || 'Participante',
-              hashtags: videoHashtags,
-            });
-          }
-        });
-
-        // Process YouTube videos
-        allYoutubeVideos?.forEach((video: any) => {
-          const textContent = getVideoTextContent(video);
-          const videoHashtags = extractHashtagsFromTitle(textContent);
-          console.log('YouTube video text:', textContent.substring(0, 100), 'Hashtags found:', videoHashtags);
-          
-          if (hasMatchingHashtag(videoHashtags, campaignHashtags)) {
-            matchedVideos.push({
-              id: video.id?.toString() || `yt-${Date.now()}-${Math.random()}`,
-              video_link: video.link || `https://youtube.com/shorts/${video.youtube_id}`,
-              platform: 'youtube',
-              views: video.views || 0,
-              likes: video.likes || 0,
-              comments: video.comments || 0,
-              shares: video.shares || 0,
-              submitted_at: video.inserted_at || new Date().toISOString(),
-              submitted_by: video.channel_name || 'unknown',
-              verified: true,
-              username: video.channel_name || video.creator_nickname || 'Participante',
-              hashtags: videoHashtags,
-            });
-          }
-        });
-
-        console.log('Total matched videos:', matchedVideos.length);
+      if (videosData && videosData.length > 0) {
+        // Fetch external video metrics
+        const [allInstagramVideos, allTikTokVideos, allYoutubeVideos] = await Promise.all([
+          externalSupabase.getAllVideos(),
+          externalSupabase.getSocialVideos(),
+          externalSupabase.getYoutubeVideos(),
+        ]);
         
-        // Sort by views
-        matchedVideos.sort((a, b) => (b.views || 0) - (a.views || 0));
-        setVideos(matchedVideos);
+        const processedVideos = await processVideosWithMetrics(videosData, allInstagramVideos, allTikTokVideos, allYoutubeVideos);
+        setVideos(processedVideos);
+      } else {
+        setVideos([]);
       }
     } catch (error) {
       console.error("Error fetching campaign data:", error);
@@ -213,16 +108,6 @@ function CampaignDetailContent() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const extractHashtagsFromTitle = (title: string): string[] => {
-    const hashtagRegex = /#[\w\u00C0-\u017F]+/g;
-    const matches = title.match(hashtagRegex) || [];
-    return matches.map(h => h.toLowerCase().replace('#', ''));
-  };
-
-  const hasMatchingHashtag = (videoHashtags: string[], campaignHashtags: string[]): boolean => {
-    return videoHashtags.some(vh => campaignHashtags.includes(vh));
   };
 
   const processVideosWithMetrics = async (
@@ -431,20 +316,6 @@ function CampaignDetailContent() {
         </div>
 
         {/* Hashtags Badge */}
-        {campaign.hashtags && campaign.hashtags.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <Hash className="h-4 w-4" />
-              Hashtags:
-            </div>
-            {campaign.hashtags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="bg-primary/10 text-primary">
-                #{tag.replace('#', '')}
-              </Badge>
-            ))}
-          </div>
-        )}
-
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <GlowCard glowColor="green">
@@ -537,12 +408,10 @@ function CampaignDetailContent() {
               {videos.length === 0 ? (
                 <div className="text-center py-12">
                   <Video className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
-                  <p className="text-muted-foreground">Nenhum vídeo reconhecido ainda</p>
-                  {campaign.hashtags && campaign.hashtags.length > 0 && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Use as hashtags: {campaign.hashtags.map(h => `#${h.replace('#', '')}`).join(', ')}
-                    </p>
-                  )}
+                  <p className="text-muted-foreground">Nenhum vídeo submetido ainda</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Participe enviando o link do seu vídeo
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3">
