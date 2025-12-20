@@ -45,7 +45,9 @@ export function useAddInstagramAccount() {
       if (result.success) {
         toast.success('Conta do Instagram adicionada com sucesso!');
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-accounts-all'] });
         queryClient.invalidateQueries({ queryKey: ['instagram-metrics-summary'] });
+        queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
       } else {
         toast.error(result.error || 'Erro ao adicionar conta');
       }
@@ -65,8 +67,10 @@ export function useSyncInstagramAccount() {
       if (result.success) {
         toast.success('Métricas atualizadas com sucesso!');
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-accounts-all'] });
         queryClient.invalidateQueries({ queryKey: ['instagram-posts', accountId] });
         queryClient.invalidateQueries({ queryKey: ['instagram-metrics-summary'] });
+        queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
       } else {
         toast.error(result.error || 'Erro ao sincronizar');
       }

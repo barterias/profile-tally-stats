@@ -102,6 +102,8 @@ export function useAddTikTokAccount() {
       if (result.success) {
         toast.success(result.reactivated ? 'Conta reativada!' : 'Conta adicionada!');
         queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
+        queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
       } else {
         toast.error(result.error || 'Erro ao adicionar conta');
       }
@@ -135,6 +137,8 @@ export function useSyncTikTokAccount() {
     onSuccess: () => {
       toast.success('Conta sincronizada!');
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao sincronizar conta');
@@ -171,6 +175,7 @@ export function useDeleteTikTokAccount() {
     onSuccess: () => {
       toast.success('Conta removida!');
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: any) => {
