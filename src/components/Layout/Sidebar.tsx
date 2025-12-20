@@ -43,6 +43,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const clientNavigation = [
     { name: t("nav.dashboard"), href: "/dashboard/client", icon: LayoutDashboard },
     { name: t("nav.campaigns"), href: "/client/campaigns", icon: Trophy },
+    { name: "Enviar Vídeo", href: "/submit", icon: Upload },
     { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
   ];
 
