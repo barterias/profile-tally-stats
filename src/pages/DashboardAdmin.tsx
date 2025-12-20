@@ -4,9 +4,7 @@ import MainLayout from "@/components/Layout/MainLayout";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { MetricCardGlow } from "@/components/ui/MetricCardGlow";
 import { ChartPiePlatforms } from "@/components/Charts/ChartPiePlatforms";
-import { ClippersTable } from "@/components/Tables/ClippersTable";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import { useSocialMetrics } from "@/hooks/useSocialMetrics";
@@ -37,22 +35,11 @@ interface CampaignSummary {
   total_clippers: number;
 }
 
-interface PendingClipper {
-  id: string;
-  user_id: string;
-  username: string;
-  avatar_url?: string;
-  status: string;
-  applied_at: string;
-  campaign_name: string;
-}
-
 function DashboardAdminContent() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
-  const [pendingClippers, setPendingClippers] = useState<PendingClipper[]>([]);
 
   // Use social metrics hook - real data from API
   const { data: socialMetrics, isLoading: metricsLoading, refetch: refetchMetrics } = useSocialMetrics();
@@ -107,16 +94,6 @@ function DashboardAdminContent() {
           total_posts: Number(c.total_posts || 0),
           total_clippers: Number(c.total_clippers || 0),
         })));
-      }
-
-      // Fetch pending clippers from database
-      const { data: clippersData } = await supabase
-        .from('pending_campaign_participants')
-        .select('*')
-        .limit(10);
-      
-      if (clippersData) {
-        setPendingClippers(clippersData);
       }
 
     } catch (error) {
@@ -264,101 +241,104 @@ function DashboardAdminContent() {
           <GlowCard className="p-6">
             <h3 className="text-lg font-semibold mb-4">{t('socialMediaOverview')}</h3>
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-pink-500/10 to-pink-500/5 border border-pink-500/20">
-                <div className="flex items-center gap-3">
-                  <Instagram className="h-5 w-5 text-pink-500" />
-                  <span>Instagram</span>
+              {instagramAccounts.length > 0 && (
+                <div className="p-3 rounded-lg bg-gradient-to-r from-pink-500/10 to-pink-500/5 border border-pink-500/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <Instagram className="h-5 w-5 text-pink-500" />
+                      <span>Instagram</span>
+                    </div>
+                    <span className="font-semibold">{instagramAccounts.length} {t('accounts')}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {instagramAccounts.slice(0, 3).map((acc) => (
+                      <div key={acc.id} className="text-muted-foreground">
+                        @{acc.username} - {formatNumber(acc.followers_count || 0)} {t('followers')}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <span className="font-semibold">{instagramAccounts.length} {t('accounts')}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-purple-500/5 border border-purple-500/20">
-                <div className="flex items-center gap-3">
-                  <Video className="h-5 w-5 text-purple-500" />
-                  <span>TikTok</span>
+              )}
+              {tiktokAccounts.length > 0 && (
+                <div className="p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-purple-500/5 border border-purple-500/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <Video className="h-5 w-5 text-purple-500" />
+                      <span>TikTok</span>
+                    </div>
+                    <span className="font-semibold">{tiktokAccounts.length} {t('accounts')}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {tiktokAccounts.slice(0, 3).map((acc) => (
+                      <div key={acc.id} className="text-muted-foreground">
+                        @{acc.username} - {formatNumber(acc.followers_count || 0)} {t('followers')}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <span className="font-semibold">{tiktokAccounts.length} {t('accounts')}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-red-500/10 to-red-500/5 border border-red-500/20">
-                <div className="flex items-center gap-3">
-                  <Youtube className="h-5 w-5 text-red-500" />
-                  <span>YouTube</span>
+              )}
+              {youtubeAccounts.length > 0 && (
+                <div className="p-3 rounded-lg bg-gradient-to-r from-red-500/10 to-red-500/5 border border-red-500/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <Youtube className="h-5 w-5 text-red-500" />
+                      <span>YouTube</span>
+                    </div>
+                    <span className="font-semibold">{youtubeAccounts.length} {t('accounts')}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {youtubeAccounts.slice(0, 3).map((acc) => (
+                      <div key={acc.id} className="text-muted-foreground">
+                        @{acc.username} - {formatNumber(acc.subscribers_count || 0)} subs
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <span className="font-semibold">{youtubeAccounts.length} {t('accounts')}</span>
-              </div>
+              )}
+              {instagramAccounts.length === 0 && tiktokAccounts.length === 0 && youtubeAccounts.length === 0 && (
+                <p className="text-center text-muted-foreground py-4">
+                  {t('noAccountsAdded')}
+                </p>
+              )}
             </div>
           </GlowCard>
         </div>
 
-        {/* Tabs for Lists */}
-        <Tabs defaultValue="campaigns" className="space-y-4">
-          <TabsList className="glass-card p-1 border border-border/30">
-            <TabsTrigger value="campaigns" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-              <Trophy className="h-4 w-4 mr-2" />
-              {t('nav.campaigns')}
-            </TabsTrigger>
-            <TabsTrigger value="clippers" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-              <Users className="h-4 w-4 mr-2" />
-              {t('clippers.pending_clippers')}
-              {pendingClippers.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-yellow-500/20 text-yellow-400">
-                  {pendingClippers.length}
-                </span>
-              )}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="campaigns">
-            <GlowCard>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">{t('campaigns.title')}</h3>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/admin/campaigns')}>
-                  {t('common.view')}
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {campaigns.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">{t('campaigns.no_campaigns_found')}</p>
-                ) : (
-                  campaigns.slice(0, 5).map((campaign) => (
-                    <div 
-                      key={campaign.id} 
-                      className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors cursor-pointer"
-                      onClick={() => navigate(`/campaign/${campaign.id}`)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${campaign.is_active ? 'bg-green-500' : 'bg-gray-500'}`} />
-                        <div>
-                          <p className="font-medium">{campaign.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {formatNumber(campaign.total_views)} {t('views')} • {campaign.total_posts} posts
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-primary">{campaign.total_clippers} {t('clippers')}</p>
-                      </div>
+        {/* Campaigns List */}
+        <GlowCard>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">{t('campaigns.title')}</h3>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/admin/campaigns')}>
+              {t('common.view')}
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {campaigns.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">{t('campaigns.no_campaigns_found')}</p>
+            ) : (
+              campaigns.slice(0, 5).map((campaign) => (
+                <div 
+                  key={campaign.id} 
+                  className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/campaign/${campaign.id}`)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${campaign.is_active ? 'bg-green-500' : 'bg-gray-500'}`} />
+                    <div>
+                      <p className="font-medium">{campaign.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatNumber(campaign.total_views)} {t('views')} • {campaign.total_posts} posts
+                      </p>
                     </div>
-                  ))
-                )}
-              </div>
-            </GlowCard>
-          </TabsContent>
-
-          <TabsContent value="clippers">
-            <GlowCard>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">{t('pendingApproval')}</h3>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/admin/users')}>
-                  {t('common.view')}
-                </Button>
-              </div>
-              <ClippersTable 
-                clippers={pendingClippers} 
-                onRefresh={fetchData}
-              />
-            </GlowCard>
-          </TabsContent>
-        </Tabs>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-primary">{campaign.total_clippers} {t('clippers')}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </GlowCard>
       </div>
     </MainLayout>
   );
