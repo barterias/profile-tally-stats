@@ -37,20 +37,20 @@ export function useSocialMetrics() {
   return useQuery({
     queryKey: ['social-metrics-unified', user?.id, isAdmin],
     queryFn: async (): Promise<SocialMetricsSummary> => {
-      // Fetch all accounts
+      // Fetch all accounts - for clippers, include all their accounts regardless of approval status
       const instagramQuery = supabase
         .from('instagram_accounts')
-        .select('id, followers_count, posts_count')
+        .select('id, followers_count, posts_count, approval_status')
         .eq('is_active', true);
       
       const tiktokQuery = supabase
         .from('tiktok_accounts')
-        .select('id, followers_count, likes_count, videos_count')
+        .select('id, followers_count, likes_count, videos_count, approval_status')
         .eq('is_active', true);
       
       const youtubeQuery = supabase
         .from('youtube_accounts')
-        .select('id, subscribers_count, total_views, videos_count')
+        .select('id, subscribers_count, total_views, videos_count, approval_status')
         .eq('is_active', true);
 
       // Apply user filter if not admin
