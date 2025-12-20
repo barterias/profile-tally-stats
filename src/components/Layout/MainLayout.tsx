@@ -13,11 +13,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, Bell, Menu } from "lucide-react";
+import { User, LogOut, Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 import MobileNav from "./MobileNav";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -67,14 +66,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
             {/* Right Actions */}
             <div className="flex items-center gap-2">
-              {/* Notifications */}
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px]">
-                  3
-                </Badge>
-              </Button>
-
               <LanguageSelector />
 
               {/* User Menu */}
