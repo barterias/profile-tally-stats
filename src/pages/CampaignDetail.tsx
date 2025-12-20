@@ -86,8 +86,6 @@ function CampaignDetailContent() {
     setIsOwner(!!data);
   };
 
-  const canManage = isAdmin || isOwner;
-
   const handleToggleStatus = async () => {
     if (!campaign) return;
     try {
@@ -350,13 +348,13 @@ function CampaignDetailContent() {
             </div>
           </div>
           
-          {/* Admin/Owner Actions */}
-          {canManage && (
+          {/* Admin Actions - Only for admins */}
+          {isAdmin && (
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigate(isAdmin ? `/admin/edit-campaign/${campaign.id}` : `/client/edit-campaign/${campaign.id}`)}
+                onClick={() => navigate(`/admin/edit-campaign/${campaign.id}`)}
               >
                 <Edit className="h-4 w-4 mr-2" />
                 Editar
