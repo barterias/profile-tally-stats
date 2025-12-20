@@ -155,44 +155,54 @@ async function fetchInstagramPost(postId: string, apiKey: string): Promise<Video
 async function fetchYouTubeVideo(videoId: string, apiKey: string): Promise<VideoDetails | null> {
   console.log(`Fetching YouTube video: ${videoId}`);
   
-  const response = await fetch(
-    `https://api.scrapecreators.com/v1/youtube/video?video_id=${encodeURIComponent(videoId)}`,
-    {
-      method: 'GET',
-      headers: {
-        'x-api-key': apiKey,
-        'Content-Type': 'application/json',
-      },
-    }
-  );
+  try {
+    const response = await fetch(
+      `https://api.scrapecreators.com/v1/youtube/video?video_id=${encodeURIComponent(videoId)}`,
+      {
+        method: 'GET',
+        headers: {
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
-  if (!response.ok) {
-    console.error('YouTube video API error:', response.status);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('YouTube video API error:', response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log('YouTube raw response:', JSON.stringify(data).substring(0, 1000));
+    
+    const video = data.data || data;
+    
+    // Handle different response formats from ScrapeCreators
+    const channelHandle = video.channel?.handle || video.channel?.custom_url || video.channelHandle || '';
+    const cleanUsername = channelHandle.replace('@', '').replace('/', '');
+
+    return {
+      platform: 'youtube',
+      videoId: video.id || video.video_id || video.videoId || videoId,
+      videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+      title: video.title,
+      thumbnailUrl: video.thumbnail?.url || video.thumbnails?.high?.url || video.thumbnail,
+      viewsCount: parseInt(video.viewCountInt || video.view_count || video.viewCount || '0') || 0,
+      likesCount: parseInt(video.likeCountInt || video.like_count || video.likeCount || '0') || 0,
+      commentsCount: parseInt(video.commentCountInt || video.comment_count || video.commentCount || '0') || 0,
+      duration: video.duration || video.lengthSeconds,
+      publishedAt: video.published_at || video.publishedAt || video.upload_date || video.publishDate,
+      author: {
+        username: cleanUsername || video.channel?.title?.toLowerCase().replace(/\s+/g, ''),
+        displayName: video.channel?.title || video.channel?.name || video.channelTitle,
+        avatarUrl: video.channel?.thumbnail?.url || video.channel?.avatar,
+      },
+    };
+  } catch (error) {
+    console.error('YouTube fetch error:', error);
     return null;
   }
-
-  const data = await response.json();
-  const video = data.data || data;
-  
-  console.log('YouTube video data received:', JSON.stringify(video).substring(0, 500));
-
-  return {
-    platform: 'youtube',
-    videoId: video.video_id || video.videoId || videoId,
-    videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
-    title: video.title,
-    thumbnailUrl: video.thumbnail?.url || video.thumbnails?.high?.url,
-    viewsCount: parseInt(video.view_count || video.viewCount || '0') || 0,
-    likesCount: parseInt(video.like_count || video.likeCount || '0') || 0,
-    commentsCount: parseInt(video.comment_count || video.commentCount || '0') || 0,
-    duration: video.duration || video.lengthSeconds,
-    publishedAt: video.published_at || video.publishedAt || video.upload_date,
-    author: {
-      username: video.channel?.custom_url?.replace('@', '') || video.channel?.handle?.replace('@', ''),
-      displayName: video.channel?.title || video.channel?.name,
-      avatarUrl: video.channel?.thumbnail?.url,
-    },
-  };
 }
 
 Deno.serve(async (req) => {

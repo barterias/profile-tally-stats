@@ -139,9 +139,9 @@ export default function SubmitPost() {
   };
 
   const [validatingLinks, setValidatingLinks] = useState<Record<number, boolean>>({});
-  const [validatedLinks, setValidatedLinks] = useState<Record<number, { valid: boolean; username?: string }>>({});
+  const [validatedLinks, setValidatedLinks] = useState<Record<number, { valid: boolean; username?: string; apiError?: boolean }>>({});
 
-  const validateLinkViaAPI = async (link: string, platformId: string, index: number): Promise<{ valid: boolean; username?: string; error?: string }> => {
+  const validateLinkViaAPI = async (link: string, platformId: string, index: number): Promise<{ valid: boolean; username?: string; error?: string; apiError?: boolean }> => {
     const accounts = getAccountsForPlatform(platformId);
     
     if (accounts.length === 0) {
@@ -155,14 +155,54 @@ export default function SubmitPost() {
       });
 
       if (error || !data?.success) {
-        return { valid: false, error: data?.error || "Não foi possível verificar o vídeo" };
+        console.error('API validation error:', error || data?.error);
+        // If API fails, we'll do a basic URL pattern check instead
+        const normalizedLink = link.toLowerCase();
+        const accountUsernames = accounts.map(a => a.username.toLowerCase());
+        
+        // Try to extract username from URL for basic validation
+        let urlUsername = '';
+        if (platformId === 'tiktok') {
+          const match = normalizedLink.match(/@([^\/\?]+)/);
+          urlUsername = match ? match[1] : '';
+        } else if (platformId === 'youtube') {
+          // For YouTube shorts, we can't easily extract username from URL
+          // So we'll mark as API error but allow submission
+          return { 
+            valid: true, 
+            apiError: true,
+            error: "Não foi possível verificar automaticamente. O vídeo será validado manualmente." 
+          };
+        } else if (platformId === 'instagram') {
+          // Instagram URLs don't contain username, mark for manual validation
+          return { 
+            valid: true, 
+            apiError: true,
+            error: "Não foi possível verificar automaticamente. O vídeo será validado manualmente." 
+          };
+        }
+
+        if (urlUsername && accountUsernames.includes(urlUsername)) {
+          return { valid: true, username: urlUsername };
+        }
+        
+        return { 
+          valid: true, 
+          apiError: true,
+          error: "Não foi possível verificar automaticamente. O vídeo será validado manualmente." 
+        };
       }
 
       const videoDetails = data.data;
       const videoUsername = videoDetails.author?.username?.toLowerCase()?.replace('@', '');
 
       if (!videoUsername) {
-        return { valid: false, error: "Não foi possível identificar o autor do vídeo" };
+        // If no username in response, allow with warning
+        return { 
+          valid: true, 
+          apiError: true,
+          error: "Não foi possível identificar o autor. O vídeo será validado manualmente." 
+        };
       }
 
       // Check if the video author matches any registered account
@@ -180,7 +220,13 @@ export default function SubmitPost() {
         };
       }
     } catch (error: any) {
-      return { valid: false, error: error.message || "Erro ao verificar o vídeo" };
+      console.error('Validation exception:', error);
+      // On exception, allow with warning
+      return { 
+        valid: true, 
+        apiError: true,
+        error: "Erro de conexão. O vídeo será validado manualmente." 
+      };
     }
   };
 
@@ -284,12 +330,26 @@ export default function SubmitPost() {
 
     const result = await validateLinkViaAPI(link, formData.platform, index);
     
-    setValidatedLinks(prev => ({ ...prev, [index]: { valid: result.valid, username: result.username } }));
+    setValidatedLinks(prev => ({ 
+      ...prev, 
+      [index]: { 
+        valid: result.valid, 
+        username: result.username,
+        apiError: result.apiError 
+      } 
+    }));
     
     if (!result.valid) {
       setLinkErrors(prev => {
         const newErrors = [...prev];
         newErrors[index] = result.error || "Vídeo não pertence a uma conta cadastrada";
+        return newErrors;
+      });
+    } else if (result.apiError && result.error) {
+      // Show warning but don't block
+      setLinkErrors(prev => {
+        const newErrors = [...prev];
+        newErrors[index] = result.error;
         return newErrors;
       });
     }
@@ -578,21 +638,40 @@ export default function SubmitPost() {
                             }`}
                             value={link}
                             onChange={(e) => updateLink(index, e.target.value)}
-                            className={`flex-1 ${linkErrors[index] ? "border-destructive" : validatedLinks[index]?.valid ? "border-green-500" : ""}`}
+                            className={`flex-1 ${
+                              linkErrors[index] && !validatedLinks[index]?.valid 
+                                ? "border-destructive" 
+                                : validatedLinks[index]?.valid && !validatedLinks[index]?.apiError
+                                  ? "border-green-500" 
+                                  : validatedLinks[index]?.valid && validatedLinks[index]?.apiError
+                                    ? "border-yellow-500"
+                                    : ""
+                            }`}
                           />
                           <Button
                             type="button"
                             variant={validatedLinks[index]?.valid ? "outline" : "secondary"}
                             onClick={() => handleValidateLink(index)}
                             disabled={!link.trim() || validatingLinks[index]}
-                            className={`min-w-[100px] ${validatedLinks[index]?.valid ? "border-green-500 text-green-500" : ""}`}
+                            className={`min-w-[100px] ${
+                              validatedLinks[index]?.valid && !validatedLinks[index]?.apiError
+                                ? "border-green-500 text-green-500" 
+                                : validatedLinks[index]?.valid && validatedLinks[index]?.apiError
+                                  ? "border-yellow-500 text-yellow-500"
+                                  : ""
+                            }`}
                           >
                             {validatingLinks[index] ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : validatedLinks[index]?.valid ? (
+                            ) : validatedLinks[index]?.valid && !validatedLinks[index]?.apiError ? (
                               <>
                                 <Check className="h-4 w-4 mr-1" />
                                 Válido
+                              </>
+                            ) : validatedLinks[index]?.valid && validatedLinks[index]?.apiError ? (
+                              <>
+                                <AlertCircle className="h-4 w-4 mr-1" />
+                                Pendente
                               </>
                             ) : (
                               "Validar"
@@ -611,12 +690,15 @@ export default function SubmitPost() {
                         </Button>
                       )}
                     </div>
-                    {validatedLinks[index]?.valid && validatedLinks[index]?.username && (
+                    {validatedLinks[index]?.valid && validatedLinks[index]?.username && !validatedLinks[index]?.apiError && (
                       <p className="text-xs text-green-500">
                         ✓ Vídeo de @{validatedLinks[index].username} verificado
                       </p>
                     )}
-                    {linkErrors[index] && (
+                    {validatedLinks[index]?.valid && validatedLinks[index]?.apiError && linkErrors[index] && (
+                      <p className="text-xs text-yellow-500">⚠ {linkErrors[index]}</p>
+                    )}
+                    {!validatedLinks[index]?.valid && linkErrors[index] && (
                       <p className="text-xs text-destructive">{linkErrors[index]}</p>
                     )}
                   </div>
