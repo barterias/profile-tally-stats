@@ -151,25 +151,13 @@ export function useDeleteYouTubeAccount() {
 
   return useMutation({
     mutationFn: async (accountId: string) => {
-      // Delete metrics history first (ignore errors - data may not exist)
-      await supabase
-        .from('youtube_metrics_history')
-        .delete()
-        .eq('account_id', accountId);
+      // Use the security definer function to delete account and all related data
+      const { error } = await supabase.rpc('delete_social_account', {
+        p_account_id: accountId,
+        p_platform: 'youtube'
+      });
 
-      // Delete videos (ignore errors - data may not exist)
-      await supabase
-        .from('youtube_videos')
-        .delete()
-        .eq('account_id', accountId);
-
-      // Delete the account (ignore errors - may already be deleted)
-      await supabase
-        .from('youtube_accounts')
-        .delete()
-        .eq('id', accountId);
-
-      // Always return success - if data was already deleted, that's fine
+      if (error) throw error;
       return { success: true };
     },
     onSuccess: () => {

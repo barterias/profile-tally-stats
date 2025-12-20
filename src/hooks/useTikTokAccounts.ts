@@ -151,25 +151,13 @@ export function useDeleteTikTokAccount() {
 
   return useMutation({
     mutationFn: async (accountId: string) => {
-      // Delete metrics history first (ignore errors - data may not exist)
-      await supabase
-        .from('tiktok_metrics_history')
-        .delete()
-        .eq('account_id', accountId);
+      // Use the security definer function to delete account and all related data
+      const { error } = await supabase.rpc('delete_social_account', {
+        p_account_id: accountId,
+        p_platform: 'tiktok'
+      });
 
-      // Delete videos (ignore errors - data may not exist)
-      await supabase
-        .from('tiktok_videos')
-        .delete()
-        .eq('account_id', accountId);
-
-      // Delete the account (ignore errors - may already be deleted)
-      await supabase
-        .from('tiktok_accounts')
-        .delete()
-        .eq('id', accountId);
-
-      // Always return success - if data was already deleted, that's fine
+      if (error) throw error;
       return { success: true };
     },
     onSuccess: () => {

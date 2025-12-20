@@ -274,25 +274,16 @@ export const instagramApi = {
 
   // Delete an account and all related data
   async deleteAccount(accountId: string): Promise<{ success: boolean; error?: string }> {
-    // Delete metrics history first (ignore errors - data may not exist)
-    await supabase
-      .from('instagram_metrics_history')
-      .delete()
-      .eq('account_id', accountId);
+    // Use the security definer function to delete account and all related data
+    const { error } = await supabase.rpc('delete_social_account', {
+      p_account_id: accountId,
+      p_platform: 'instagram'
+    });
 
-    // Delete posts (ignore errors - data may not exist)
-    await supabase
-      .from('instagram_posts')
-      .delete()
-      .eq('account_id', accountId);
+    if (error) {
+      return { success: false, error: error.message };
+    }
 
-    // Delete the account
-    await supabase
-      .from('instagram_accounts')
-      .delete()
-      .eq('id', accountId);
-
-    // Always return success - if data was already deleted, that's fine
     return { success: true };
   },
 
