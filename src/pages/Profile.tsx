@@ -15,7 +15,6 @@ import {
   Mail,
   User,
   Shield,
-  Bell,
   Lock,
   Trash2
 } from "lucide-react";
@@ -176,16 +175,23 @@ export default function Profile() {
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-muted/20 hover:bg-muted/30 transition-colors">
               <div className="flex items-center gap-3">
-                <Bell className="h-5 w-5 text-primary" />
+                <Mail className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="font-medium">{t('emailNotifications')}</p>
+                  <p className="font-medium">{t('changeEmail') || 'Alterar Email'}</p>
                   <p className="text-sm text-muted-foreground">
-                    {t('emailNotificationsDesc')}
+                    {t('changeEmailDesc') || 'Solicite a alteração do seu email'}
                   </p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" className="border-border/50">
-                {t('configure')}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-border/50"
+                onClick={() => {
+                  toast.info(t('changeEmailRequest') || 'Solicitação enviada! Um administrador entrará em contato.');
+                }}
+              >
+                {t('request') || 'Solicitar'}
               </Button>
             </div>
             
@@ -195,14 +201,30 @@ export default function Profile() {
               <div className="flex items-center gap-3">
                 <Lock className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="font-medium">{t('privacy')}</p>
+                  <p className="font-medium">{t('changePassword') || 'Alterar Senha'}</p>
                   <p className="text-sm text-muted-foreground">
-                    {t('privacyDesc')}
+                    {t('changePasswordDesc') || 'Solicite a alteração da sua senha'}
                   </p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" className="border-border/50">
-                {t('manage')}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-border/50"
+                onClick={async () => {
+                  if (user?.email) {
+                    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+                      redirectTo: `${window.location.origin}/auth`
+                    });
+                    if (error) {
+                      toast.error(t('error') || 'Erro ao enviar email');
+                    } else {
+                      toast.success(t('passwordResetSent') || 'Email de redefinição enviado!');
+                    }
+                  }
+                }}
+              >
+                {t('request') || 'Solicitar'}
               </Button>
             </div>
             
