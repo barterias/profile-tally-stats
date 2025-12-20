@@ -207,12 +207,23 @@ function CampaignDetailContent() {
             shares: data.data.sharesCount || 0,
           };
           
-          await supabase
+          const { error: updateError } = await supabase
             .from("campaign_videos")
             .update(updatedMetrics)
             .eq("id", video.id);
-            
-          successCount++;
+          
+          if (updateError) {
+            console.error(`Error updating video ${video.id}:`, updateError);
+            errorCount++;
+          } else {
+            // Update local state immediately
+            setVideos(prev => prev.map(v => 
+              v.id === video.id 
+                ? { ...v, ...updatedMetrics }
+                : v
+            ));
+            successCount++;
+          }
         } else if (data?.invalidUrl) {
           // URL is invalid (e.g., profile URL instead of video URL)
           invalidUrlCount++;
