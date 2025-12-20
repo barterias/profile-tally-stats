@@ -72,9 +72,8 @@ export function YouTubeTab() {
     });
   };
 
-  const visibleAccounts = isClipper 
-    ? accounts 
-    : accounts.filter((acc: any) => acc.approval_status === 'approved' || !acc.approval_status);
+  // All accounts are visible - clippers see theirs, admins/clients see all
+  const visibleAccounts = accounts;
 
   const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.total_views || 0) - Number(a.total_views || 0));
   const totalSubscribers = visibleAccounts.reduce((sum, acc) => sum + (acc.subscribers_count || 0), 0);

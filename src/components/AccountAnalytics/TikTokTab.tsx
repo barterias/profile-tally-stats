@@ -61,9 +61,8 @@ export function TikTokTab() {
 
   const handleSyncAll = () => accounts.forEach((account) => syncAccount.mutate(account.id));
 
-  const visibleAccounts = isClipper 
-    ? accounts 
-    : accounts.filter((acc: any) => acc.approval_status === 'approved' || !acc.approval_status);
+  // All accounts are visible - clippers see theirs, admins/clients see all
+  const visibleAccounts = accounts;
 
   const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.likes_count || 0) - Number(a.likes_count || 0));
   const totalFollowers = visibleAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);

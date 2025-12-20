@@ -72,10 +72,9 @@ export function InstagramTab() {
     });
   };
 
-  // Filter accounts based on approval status for clippers
-  const visibleAccounts = isClipper 
-    ? accounts 
-    : accounts.filter((acc: any) => acc.approval_status === 'approved' || !acc.approval_status);
+  // Clippers see all their accounts (with approval status)
+  // Admins and Clients see ALL accounts (including pending ones they need to approve)
+  const visibleAccounts = accounts;
 
   // Calculate totals and sort by followers
   const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.followers_count || 0) - Number(a.followers_count || 0));
