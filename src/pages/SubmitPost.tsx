@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { n8nWebhook } from "@/lib/externalSupabase";
 import MainLayout from "@/components/Layout/MainLayout";
@@ -17,17 +18,35 @@ import {
   Youtube,
   Upload,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const STEPS = ["Competição", "Plataforma", "Links"];
 
+interface SocialAccount {
+  username: string;
+  profile_url: string;
+}
+
 export default function SubmitPost() {
   const { user } = useAuth();
+  const { role, ownedCampaigns } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [userAccounts, setUserAccounts] = useState<{
+    tiktok: SocialAccount[];
+    instagram: SocialAccount[];
+    youtube: SocialAccount[];
+  }>({
+    tiktok: [],
+    instagram: [],
+    youtube: [],
+  });
+  const [linkErrors, setLinkErrors] = useState<string[]>([]);
   
   const [formData, setFormData] = useState({
     campaignId: "",
@@ -37,15 +56,67 @@ export default function SubmitPost() {
 
   useEffect(() => {
     fetchActiveCampaigns();
-  }, []);
+    fetchUserAccounts();
+  }, [user, role, ownedCampaigns]);
 
   const fetchActiveCampaigns = async () => {
-    const { data } = await supabase
-      .from("campaigns")
-      .select("*")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
-    setCampaigns(data || []);
+    if (!user) return;
+
+    // If user is a client, only show campaigns they own
+    if (role === 'client' && ownedCampaigns.length > 0) {
+      const { data } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("is_active", true)
+        .in("id", ownedCampaigns)
+        .order("created_at", { ascending: false });
+      setCampaigns(data || []);
+    } else if (role === 'admin') {
+      // Admins can see all active campaigns
+      const { data } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      setCampaigns(data || []);
+    } else {
+      // Regular users can see all active campaigns
+      const { data } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      setCampaigns(data || []);
+    }
+  };
+
+  const fetchUserAccounts = async () => {
+    if (!user) return;
+
+    // Fetch all social accounts for the user
+    const [tiktokRes, instagramRes, youtubeRes] = await Promise.all([
+      supabase
+        .from("tiktok_accounts")
+        .select("username, profile_url")
+        .eq("user_id", user.id)
+        .eq("is_active", true),
+      supabase
+        .from("instagram_accounts")
+        .select("username, profile_url")
+        .eq("user_id", user.id)
+        .eq("is_active", true),
+      supabase
+        .from("youtube_accounts")
+        .select("username, profile_url")
+        .eq("user_id", user.id)
+        .eq("is_active", true),
+    ]);
+
+    setUserAccounts({
+      tiktok: tiktokRes.data || [],
+      instagram: instagramRes.data || [],
+      youtube: youtubeRes.data || [],
+    });
   };
 
   const platforms = [
@@ -53,6 +124,59 @@ export default function SubmitPost() {
     { id: "instagram", name: "Instagram", icon: Instagram, color: "text-purple-500" },
     { id: "youtube", name: "YouTube Shorts", icon: Youtube, color: "text-red-500" },
   ];
+
+  const getAccountsForPlatform = (platformId: string): SocialAccount[] => {
+    switch (platformId) {
+      case 'tiktok':
+        return userAccounts.tiktok;
+      case 'instagram':
+        return userAccounts.instagram;
+      case 'youtube':
+        return userAccounts.youtube;
+      default:
+        return [];
+    }
+  };
+
+  const validateLinkAgainstAccounts = (link: string, platformId: string): boolean => {
+    const accounts = getAccountsForPlatform(platformId);
+    
+    if (accounts.length === 0) {
+      return false;
+    }
+
+    const normalizedLink = link.toLowerCase().trim();
+
+    // Check if the link contains any of the user's usernames
+    for (const account of accounts) {
+      const username = account.username.toLowerCase();
+      
+      // Different URL patterns for each platform
+      if (platformId === 'tiktok') {
+        // TikTok URLs: tiktok.com/@username/video/...
+        if (normalizedLink.includes(`tiktok.com/@${username}`) || 
+            normalizedLink.includes(`vm.tiktok.com`)) {
+          return true;
+        }
+      } else if (platformId === 'instagram') {
+        // Instagram URLs: instagram.com/reel/... or instagram.com/p/...
+        // We can't easily verify Instagram URLs without the username in URL
+        // So we'll check if they have any Instagram account registered
+        if (normalizedLink.includes('instagram.com') && accounts.length > 0) {
+          return true;
+        }
+      } else if (platformId === 'youtube') {
+        // YouTube URLs: youtube.com/shorts/... or youtu.be/...
+        // Similar to Instagram, YouTube short URLs don't always contain username
+        if ((normalizedLink.includes('youtube.com') || normalizedLink.includes('youtu.be')) && 
+            accounts.length > 0) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
 
   const handleNext = () => {
     if (currentStep === 0 && !formData.campaignId) {
@@ -69,6 +193,20 @@ export default function SubmitPost() {
       });
       return;
     }
+
+    // Check if user has accounts for the selected platform
+    if (currentStep === 1) {
+      const accounts = getAccountsForPlatform(formData.platform);
+      if (accounts.length === 0) {
+        toast({
+          title: "Conta não cadastrada",
+          description: `Você precisa cadastrar uma conta de ${platforms.find(p => p.id === formData.platform)?.name} em Account Analytics antes de enviar vídeos.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -87,18 +225,30 @@ export default function SubmitPost() {
       ...formData,
       links: [...formData.links, ""],
     });
+    setLinkErrors([...linkErrors, ""]);
   };
 
   const updateLink = (index: number, value: string) => {
     const newLinks = [...formData.links];
     newLinks[index] = value;
     setFormData({ ...formData, links: newLinks });
+
+    // Validate link in real-time
+    const newErrors = [...linkErrors];
+    if (value.trim() && !validateLinkAgainstAccounts(value, formData.platform)) {
+      newErrors[index] = "Este link não corresponde a nenhuma conta cadastrada";
+    } else {
+      newErrors[index] = "";
+    }
+    setLinkErrors(newErrors);
   };
 
   const removeLink = (index: number) => {
     if (formData.links.length > 1) {
       const newLinks = formData.links.filter((_, i) => i !== index);
+      const newErrors = linkErrors.filter((_, i) => i !== index);
       setFormData({ ...formData, links: newLinks });
+      setLinkErrors(newErrors);
     }
   };
 
@@ -109,6 +259,17 @@ export default function SubmitPost() {
       
       if (validLinks.length === 0) {
         throw new Error("Adicione pelo menos um link");
+      }
+
+      // Validate all links against user's accounts
+      const invalidLinks = validLinks.filter(
+        (link) => !validateLinkAgainstAccounts(link, formData.platform)
+      );
+
+      if (invalidLinks.length > 0) {
+        throw new Error(
+          `Os seguintes links não correspondem às suas contas cadastradas. Cadastre a conta em Account Analytics primeiro.`
+        );
       }
 
       // Insert videos
@@ -143,6 +304,8 @@ export default function SubmitPost() {
       setLoading(false);
     }
   };
+
+  const selectedPlatformAccounts = getAccountsForPlatform(formData.platform);
 
   return (
     <MainLayout>
@@ -198,7 +361,9 @@ export default function SubmitPost() {
               <div className="grid gap-4">
                 {campaigns.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">
-                    Nenhuma competição ativa no momento
+                    {role === 'client' 
+                      ? "Você não possui campanhas ativas no momento" 
+                      : "Nenhuma competição ativa no momento"}
                   </p>
                 ) : (
                   campaigns.map((campaign) => (
@@ -252,6 +417,7 @@ export default function SubmitPost() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {platforms.map((platform) => {
                   const Icon = platform.icon;
+                  const accountCount = getAccountsForPlatform(platform.id).length;
                   return (
                     <Card
                       key={platform.id}
@@ -259,7 +425,7 @@ export default function SubmitPost() {
                         formData.platform === platform.id
                           ? "neon-border bg-primary/5"
                           : "hover:border-primary/50"
-                      }`}
+                      } ${accountCount === 0 ? "opacity-50" : ""}`}
                       onClick={() =>
                         setFormData({ ...formData, platform: platform.id })
                       }
@@ -267,6 +433,11 @@ export default function SubmitPost() {
                       <div className="flex flex-col items-center text-center space-y-4">
                         <Icon className={`h-12 w-12 ${platform.color}`} />
                         <h3 className="font-semibold">{platform.name}</h3>
+                        <p className="text-xs text-muted-foreground">
+                          {accountCount === 0 
+                            ? "Nenhuma conta cadastrada" 
+                            : `${accountCount} conta${accountCount > 1 ? 's' : ''} cadastrada${accountCount > 1 ? 's' : ''}`}
+                        </p>
                         {formData.platform === platform.id && (
                           <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
                             <Check className="h-4 w-4 text-primary-foreground" />
@@ -277,6 +448,23 @@ export default function SubmitPost() {
                   );
                 })}
               </div>
+
+              {formData.platform && getAccountsForPlatform(formData.platform).length === 0 && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Você precisa cadastrar uma conta de {platforms.find(p => p.id === formData.platform)?.name} em{" "}
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto text-destructive underline"
+                      onClick={() => navigate("/account-analytics")}
+                    >
+                      Account Analytics
+                    </Button>{" "}
+                    antes de enviar vídeos.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
 
@@ -289,31 +477,46 @@ export default function SubmitPost() {
                 </p>
               </div>
 
+              {selectedPlatformAccounts.length > 0 && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Contas cadastradas: {selectedPlatformAccounts.map(a => `@${a.username}`).join(', ')}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="space-y-4">
                 {formData.links.map((link, index) => (
-                  <div key={index} className="flex gap-2">
-                    <div className="flex-1">
-                      <Label htmlFor={`link-${index}`}>
-                        Link {index + 1}
-                      </Label>
-                      <Input
-                        id={`link-${index}`}
-                        placeholder={`Cole o link do ${
-                          platforms.find((p) => p.id === formData.platform)?.name
-                        }`}
-                        value={link}
-                        onChange={(e) => updateLink(index, e.target.value)}
-                      />
+                  <div key={index} className="space-y-1">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Label htmlFor={`link-${index}`}>
+                          Link {index + 1}
+                        </Label>
+                        <Input
+                          id={`link-${index}`}
+                          placeholder={`Cole o link do ${
+                            platforms.find((p) => p.id === formData.platform)?.name
+                          }`}
+                          value={link}
+                          onChange={(e) => updateLink(index, e.target.value)}
+                          className={linkErrors[index] ? "border-destructive" : ""}
+                        />
+                      </div>
+                      {formData.links.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeLink(index)}
+                          className="mt-6"
+                        >
+                          ×
+                        </Button>
+                      )}
                     </div>
-                    {formData.links.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeLink(index)}
-                        className="mt-6"
-                      >
-                        ×
-                      </Button>
+                    {linkErrors[index] && (
+                      <p className="text-xs text-destructive">{linkErrors[index]}</p>
                     )}
                   </div>
                 ))}
