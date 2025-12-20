@@ -41,10 +41,12 @@ export function useAllTikTokAccounts() {
 
 export function useAddTikTokAccount() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   
   return useMutation({
-    mutationFn: async (username: string) => {
+    mutationFn: async ({ username, isClientOrAdmin }: { username: string; isClientOrAdmin?: boolean }) => {
+      const autoApprove = isClientOrAdmin || isAdmin;
+      
       // Check if account already exists (even if inactive)
       const { data: existing } = await supabase
         .from('tiktok_accounts')
@@ -58,7 +60,11 @@ export function useAddTikTokAccount() {
         if (!existing.is_active) {
           const { error: updateError } = await supabase
             .from('tiktok_accounts')
-            .update({ is_active: true, updated_at: new Date().toISOString() })
+            .update({ 
+              is_active: true, 
+              updated_at: new Date().toISOString(),
+              ...(autoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
+            })
             .eq('id', existing.id);
           
           if (updateError) throw updateError;
@@ -74,13 +80,14 @@ export function useAddTikTokAccount() {
         return { success: false, error: 'Conta já existe' };
       }
       
-      // Insert new account
+      // Insert new account - auto-approve for clients/admins
       const { data: newAccount, error: insertError } = await supabase
         .from('tiktok_accounts')
         .insert({
           user_id: user?.id,
           username,
           profile_url: `https://tiktok.com/@${username}`,
+          ...(autoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
         })
         .select()
         .single();

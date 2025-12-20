@@ -45,7 +45,7 @@ export function InstagramTab() {
   const rejectAccount = useRejectAccount();
 
   const handleAddAccount = (username: string) => {
-    addAccount.mutate(username, {
+    addAccount.mutate({ username, isClientOrAdmin: isAdmin || isClient }, {
       onSuccess: (result) => {
         if (result.success) {
           setAddModalOpen(false);

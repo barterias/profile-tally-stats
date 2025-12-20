@@ -71,7 +71,7 @@ export const instagramApi = {
   },
 
   // Add a new Instagram account to monitor
-  async addAccount(username: string, userId: string): Promise<{ success: boolean; account?: InstagramAccount; error?: string }> {
+  async addAccount(username: string, userId: string, isClientOrAdmin: boolean = false): Promise<{ success: boolean; account?: InstagramAccount; error?: string }> {
     const cleanUsername = username.replace('@', '');
     const profileUrl = `https://www.instagram.com/${cleanUsername}/`;
     
@@ -100,6 +100,8 @@ export const instagramApi = {
           bio: scrapeResult.data?.bio || existingAccount.bio,
           last_synced_at: scrapeResult.success ? new Date().toISOString() : existingAccount.last_synced_at,
           updated_at: new Date().toISOString(),
+          // Auto-approve for clients/admins
+          ...(isClientOrAdmin ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: userId } : {}),
         })
         .eq('id', existingAccount.id)
         .select()
@@ -112,7 +114,7 @@ export const instagramApi = {
       return { success: true, account: data as InstagramAccount };
     }
 
-    // Insert new account
+    // Insert new account - auto-approve for clients/admins
     const { data, error } = await supabase
       .from('instagram_accounts')
       .insert({
@@ -126,6 +128,7 @@ export const instagramApi = {
         posts_count: scrapeResult.data?.postsCount || 0,
         bio: scrapeResult.data?.bio || null,
         last_synced_at: scrapeResult.success ? new Date().toISOString() : null,
+        ...(isClientOrAdmin ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: userId } : {}),
       })
       .select()
       .single();
