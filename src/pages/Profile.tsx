@@ -187,8 +187,21 @@ export default function Profile() {
                 variant="outline" 
                 size="sm" 
                 className="border-border/50"
-                onClick={() => {
-                  toast.info(t('changeEmailRequest') || 'Solicitação enviada! Um administrador entrará em contato.');
+                onClick={async () => {
+                  if (!user?.id) return;
+                  const { error } = await supabase
+                    .from("profile_change_requests")
+                    .insert({ user_id: user.id, request_type: "email" });
+                  
+                  if (error) {
+                    if (error.code === "23505") {
+                      toast.info(t('requestAlreadyExists') || 'Você já possui uma solicitação pendente');
+                    } else {
+                      toast.error(t('error') || 'Erro ao enviar solicitação');
+                    }
+                  } else {
+                    toast.success(t('changeEmailRequest') || 'Solicitação enviada! Um administrador irá autorizar a alteração.');
+                  }
                 }}
               >
                 {t('request') || 'Solicitar'}
@@ -211,8 +224,21 @@ export default function Profile() {
                 variant="outline" 
                 size="sm" 
                 className="border-border/50"
-                onClick={() => {
-                  toast.info(t('changePasswordRequest') || 'Solicitação enviada! Um administrador irá autorizar a alteração.');
+                onClick={async () => {
+                  if (!user?.id) return;
+                  const { error } = await supabase
+                    .from("profile_change_requests")
+                    .insert({ user_id: user.id, request_type: "password" });
+                  
+                  if (error) {
+                    if (error.code === "23505") {
+                      toast.info(t('requestAlreadyExists') || 'Você já possui uma solicitação pendente');
+                    } else {
+                      toast.error(t('error') || 'Erro ao enviar solicitação');
+                    }
+                  } else {
+                    toast.success(t('changePasswordRequest') || 'Solicitação enviada! Um administrador irá autorizar a alteração.');
+                  }
                 }}
               >
                 {t('request') || 'Solicitar'}

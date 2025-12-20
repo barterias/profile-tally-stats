@@ -937,6 +937,45 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_change_requests: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          id: string
+          new_value: string | null
+          processed_at: string | null
+          processed_by: string | null
+          request_type: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          request_type: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          request_type?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1929,6 +1968,15 @@ export type Database = {
       is_campaign_owner: {
         Args: { _campaign_id: string; _user_id: string }
         Returns: boolean
+      }
+      process_profile_change_request: {
+        Args: {
+          p_action: string
+          p_admin_notes?: string
+          p_new_password?: string
+          p_request_id: string
+        }
+        Returns: undefined
       }
       reject_participant: {
         Args: { p_participant_id: string }

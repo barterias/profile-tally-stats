@@ -53,6 +53,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { format } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { ClientCampaignModal } from "@/components/Admin/ClientCampaignModal";
+import { ProfileChangeRequestsCard } from "@/components/Admin/ProfileChangeRequestsCard";
 
 interface AdminUser {
   id: string;
@@ -241,6 +242,9 @@ function AdminUsersContent() {
             </div>
           </div>
         </div>
+
+        {/* Profile Change Requests */}
+        <ProfileChangeRequestsCard />
 
         {/* Search */}
         <div className="relative max-w-md">
