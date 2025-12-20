@@ -258,8 +258,23 @@ Deno.serve(async (req) => {
       
       videoId = extractVideoId(videoUrl, platform);
       if (!videoId) {
+        // Provide more specific error message based on URL pattern
+        let errorMessage = 'Could not extract video ID from URL';
+        if (platform === 'instagram') {
+          if (!videoUrl.includes('/p/') && !videoUrl.includes('/reel')) {
+            errorMessage = 'URL deve ser de um post ou reel do Instagram (não perfil)';
+          }
+        } else if (platform === 'tiktok') {
+          if (!videoUrl.includes('/video/')) {
+            errorMessage = 'URL deve ser de um vídeo do TikTok (não perfil)';
+          }
+        } else if (platform === 'youtube') {
+          if (!videoUrl.includes('/shorts/') && !videoUrl.includes('watch?v=') && !videoUrl.includes('youtu.be/')) {
+            errorMessage = 'URL deve ser de um vídeo ou short do YouTube';
+          }
+        }
         return new Response(
-          JSON.stringify({ success: false, error: 'Could not extract video ID from URL' }),
+          JSON.stringify({ success: false, error: errorMessage, invalidUrl: true }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

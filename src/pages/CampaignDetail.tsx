@@ -189,6 +189,7 @@ function CampaignDetailContent() {
     setSyncingMetrics(true);
     let successCount = 0;
     let errorCount = 0;
+    let invalidUrlCount = 0;
 
     for (const video of videos) {
       try {
@@ -212,6 +213,10 @@ function CampaignDetailContent() {
             .eq("id", video.id);
             
           successCount++;
+        } else if (data?.invalidUrl) {
+          // URL is invalid (e.g., profile URL instead of video URL)
+          invalidUrlCount++;
+          console.warn(`Invalid URL for video ${video.id}: ${video.video_link}`);
         } else {
           errorCount++;
         }
@@ -226,6 +231,9 @@ function CampaignDetailContent() {
     
     if (successCount > 0) {
       toast.success(`${successCount} vídeo(s) atualizados`);
+    }
+    if (invalidUrlCount > 0) {
+      toast.warning(`${invalidUrlCount} link(s) inválidos (URLs de perfil não são permitidas)`);
     }
     if (errorCount > 0) {
       toast.error(`${errorCount} vídeo(s) com erro`);
