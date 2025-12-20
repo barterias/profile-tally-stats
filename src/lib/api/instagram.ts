@@ -272,11 +272,24 @@ export const instagramApi = {
     return { success: true };
   },
 
-  // Delete an account
+  // Delete an account and all related data
   async deleteAccount(accountId: string): Promise<{ success: boolean; error?: string }> {
+    // Delete metrics history first
+    await supabase
+      .from('instagram_metrics_history')
+      .delete()
+      .eq('account_id', accountId);
+
+    // Delete posts
+    await supabase
+      .from('instagram_posts')
+      .delete()
+      .eq('account_id', accountId);
+
+    // Delete the account
     const { error } = await supabase
       .from('instagram_accounts')
-      .update({ is_active: false })
+      .delete()
       .eq('id', accountId);
 
     if (error) {
