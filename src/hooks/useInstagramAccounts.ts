@@ -37,10 +37,11 @@ export function useInstagramMetricsSummary(userId?: string) {
 
 export function useAddInstagramAccount() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   return useMutation({
-    mutationFn: (username: string) => instagramApi.addAccount(username, user?.id || ''),
+    mutationFn: ({ username, isClientOrAdmin }: { username: string; isClientOrAdmin?: boolean }) => 
+      instagramApi.addAccount(username, user?.id || '', isClientOrAdmin || isAdmin),
     onSuccess: (result) => {
       if (result.success) {
         toast.success('Conta do Instagram adicionada com sucesso!');

@@ -20,7 +20,7 @@ import MainLayout from '@/components/Layout/MainLayout';
 export default function InstagramDashboard() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const { user } = useAuth();
-  const { role } = useUserRole();
+  const { role, isClient } = useUserRole();
   const isAdmin = role === 'admin';
 
   // Use appropriate query based on role
@@ -37,7 +37,7 @@ export default function InstagramDashboard() {
   const deleteAccount = useDeleteInstagramAccount();
 
   const handleAddAccount = (username: string) => {
-    addAccount.mutate(username, {
+    addAccount.mutate({ username, isClientOrAdmin: isAdmin || isClient }, {
       onSuccess: (result) => {
         if (result.success) {
           setAddModalOpen(false);
