@@ -112,44 +112,55 @@ async function fetchTikTokVideo(videoId: string, apiKey: string): Promise<VideoD
 async function fetchInstagramPost(postId: string, apiKey: string): Promise<VideoDetails | null> {
   console.log(`Fetching Instagram post: ${postId}`);
   
-  const response = await fetch(
-    `https://api.scrapecreators.com/v1/instagram/post?shortcode=${encodeURIComponent(postId)}`,
-    {
-      method: 'GET',
-      headers: {
-        'x-api-key': apiKey,
-        'Content-Type': 'application/json',
-      },
-    }
-  );
+  try {
+    const response = await fetch(
+      `https://api.scrapecreators.com/v1/instagram/post?shortcode=${encodeURIComponent(postId)}`,
+      {
+        method: 'GET',
+        headers: {
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
-  if (!response.ok) {
-    console.error('Instagram post API error:', response.status);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Instagram post API error:', response.status, errorText);
+      
+      // Return null with more context logged
+      if (response.status === 400) {
+        console.error('Instagram API 400 error - post may be private, deleted, or API rate limited');
+      }
+      return null;
+    }
+
+    const data = await response.json();
+    const post = data.data || data;
+    
+    console.log('Instagram post data received:', JSON.stringify(post).substring(0, 500));
+
+    return {
+      platform: 'instagram',
+      videoId: post.shortcode || post.id || postId,
+      videoUrl: post.url || `https://www.instagram.com/p/${postId}/`,
+      caption: post.edge_media_to_caption?.edges?.[0]?.node?.text || post.caption,
+      thumbnailUrl: post.display_url || post.thumbnail_url || post.thumbnail_src,
+      viewsCount: post.video_view_count || post.play_count || 0,
+      likesCount: post.edge_media_preview_like?.count || post.edge_liked_by?.count || post.like_count || 0,
+      commentsCount: post.edge_media_to_comment?.count || post.comment_count || 0,
+      sharesCount: post.share_count || 0,
+      publishedAt: post.taken_at_timestamp ? new Date(post.taken_at_timestamp * 1000).toISOString() : undefined,
+      author: {
+        username: post.owner?.username,
+        displayName: post.owner?.full_name,
+        avatarUrl: post.owner?.profile_pic_url,
+      },
+    };
+  } catch (error) {
+    console.error('Instagram fetch error:', error);
     return null;
   }
-
-  const data = await response.json();
-  const post = data.data || data;
-  
-  console.log('Instagram post data received:', JSON.stringify(post).substring(0, 500));
-
-  return {
-    platform: 'instagram',
-    videoId: post.shortcode || post.id || postId,
-    videoUrl: post.url || `https://www.instagram.com/p/${postId}/`,
-    caption: post.edge_media_to_caption?.edges?.[0]?.node?.text || post.caption,
-    thumbnailUrl: post.display_url || post.thumbnail_url || post.thumbnail_src,
-    viewsCount: post.video_view_count || post.play_count || 0,
-    likesCount: post.edge_media_preview_like?.count || post.edge_liked_by?.count || post.like_count || 0,
-    commentsCount: post.edge_media_to_comment?.count || post.comment_count || 0,
-    sharesCount: post.share_count || 0,
-    publishedAt: post.taken_at_timestamp ? new Date(post.taken_at_timestamp * 1000).toISOString() : undefined,
-    author: {
-      username: post.owner?.username,
-      displayName: post.owner?.full_name,
-      avatarUrl: post.owner?.profile_pic_url,
-    },
-  };
 }
 
 async function fetchYouTubeVideo(videoId: string, apiKey: string): Promise<VideoDetails | null> {
@@ -276,8 +287,11 @@ Deno.serve(async (req) => {
     }
 
     if (!videoDetails) {
+      const errorMsg = platform === 'instagram' 
+        ? 'Não foi possível obter detalhes do vídeo. O post pode ser privado, deletado ou a API está temporariamente indisponível.'
+        : 'Failed to fetch video details';
       return new Response(
-        JSON.stringify({ success: false, error: 'Failed to fetch video details' }),
+        JSON.stringify({ success: false, error: errorMsg }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
