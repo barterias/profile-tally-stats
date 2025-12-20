@@ -19,12 +19,16 @@ import {
   Upload,
   Loader2,
   AlertCircle,
+  Users,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const STEPS = ["Competição", "Plataforma", "Links"];
 
 interface SocialAccount {
+  id: string;
   username: string;
   profile_url: string;
 }
@@ -47,6 +51,9 @@ export default function SubmitPost() {
     youtube: [],
   });
   const [linkErrors, setLinkErrors] = useState<string[]>([]);
+  const [importMode, setImportMode] = useState<"links" | "account">("links");
+  const [selectedAccount, setSelectedAccount] = useState("");
+  const [loadingAccountVideos, setLoadingAccountVideos] = useState(false);
   
   const [formData, setFormData] = useState({
     campaignId: "",
@@ -93,21 +100,21 @@ export default function SubmitPost() {
   const fetchUserAccounts = async () => {
     if (!user) return;
 
-    // Fetch all social accounts for the user
+    // Fetch all social accounts for the user with IDs
     const [tiktokRes, instagramRes, youtubeRes] = await Promise.all([
       supabase
         .from("tiktok_accounts")
-        .select("username, profile_url")
+        .select("id, username, profile_url")
         .eq("user_id", user.id)
         .eq("is_active", true),
       supabase
         .from("instagram_accounts")
-        .select("username, profile_url")
+        .select("id, username, profile_url")
         .eq("user_id", user.id)
         .eq("is_active", true),
       supabase
         .from("youtube_accounts")
-        .select("username, profile_url")
+        .select("id, username, profile_url")
         .eq("user_id", user.id)
         .eq("is_active", true),
     ]);
@@ -285,6 +292,94 @@ export default function SubmitPost() {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
+  };
+
+  const importVideosFromAccount = async () => {
+    if (!selectedAccount || !formData.platform) return;
+    
+    setLoadingAccountVideos(true);
+    try {
+      let videos: { video_url: string }[] = [];
+      
+      if (formData.platform === 'tiktok') {
+        const { data } = await supabase
+          .from('tiktok_videos')
+          .select('video_url')
+          .eq('account_id', selectedAccount);
+        videos = data || [];
+      } else if (formData.platform === 'instagram') {
+        const { data } = await supabase
+          .from('instagram_posts')
+          .select('post_url')
+          .eq('account_id', selectedAccount);
+        videos = (data || []).map(p => ({ video_url: p.post_url }));
+      } else if (formData.platform === 'youtube') {
+        const { data } = await supabase
+          .from('youtube_videos')
+          .select('video_url')
+          .eq('account_id', selectedAccount);
+        videos = data || [];
+      }
+      
+      if (videos.length === 0) {
+        toast({
+          title: "Nenhum vídeo encontrado",
+          description: "Esta conta não possui vídeos sincronizados. Sincronize a conta primeiro.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Check which videos are already submitted for this campaign
+      const videoUrls = videos.map(v => v.video_url);
+      const { data: existingVideos } = await supabase
+        .from('campaign_videos')
+        .select('video_link')
+        .eq('campaign_id', formData.campaignId)
+        .in('video_link', videoUrls);
+      
+      const existingUrls = new Set((existingVideos || []).map(v => v.video_link));
+      const newVideos = videos.filter(v => !existingUrls.has(v.video_url));
+      
+      if (newVideos.length === 0) {
+        toast({
+          title: "Todos os vídeos já foram enviados",
+          description: "Todos os vídeos desta conta já estão cadastrados nesta campanha.",
+        });
+        return;
+      }
+      
+      const newLinks = newVideos.map(v => v.video_url);
+      setFormData(prev => ({ ...prev, links: newLinks }));
+      
+      // Pre-validate all imported links
+      const newValidatedLinks: Record<number, { valid: boolean; username?: string; apiError?: boolean }> = {};
+      newLinks.forEach((_, index) => {
+        newValidatedLinks[index] = { valid: true, username: selectedAccount };
+      });
+      setValidatedLinks(newValidatedLinks);
+      setLinkErrors(new Array(newLinks.length).fill(""));
+      
+      toast({
+        title: `${newLinks.length} vídeo(s) importado(s)`,
+        description: `${existingUrls.size > 0 ? `${existingUrls.size} já estavam cadastrados.` : ''}`,
+      });
+    } catch (error) {
+      console.error('Error importing videos:', error);
+      toast({
+        title: "Erro ao importar vídeos",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAccountVideos(false);
+    }
+  };
+
+  const getAccountsWithIds = () => {
+    if (!formData.platform || !user) return [];
+    
+    // We need to fetch accounts with IDs
+    return [];
   };
 
   const addLinkField = () => {
@@ -607,111 +702,168 @@ export default function SubmitPost() {
           {currentStep === 2 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold mb-2">Cole os Links</h2>
+                <h2 className="text-2xl font-bold mb-2">Adicionar Vídeos</h2>
                 <p className="text-muted-foreground">
-                  Adicione os links dos seus vídeos (você pode adicionar múltiplos)
+                  Adicione links individualmente ou importe todos os vídeos de uma conta
                 </p>
               </div>
 
-              {selectedPlatformAccounts.length > 0 && (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Contas cadastradas: {selectedPlatformAccounts.map(a => `@${a.username}`).join(', ')}
-                  </AlertDescription>
-                </Alert>
-              )}
+              <Tabs value={importMode} onValueChange={(v) => setImportMode(v as "links" | "account")}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="links">Links Individuais</TabsTrigger>
+                  <TabsTrigger value="account">
+                    <Users className="h-4 w-4 mr-2" />
+                    Importar da Conta
+                  </TabsTrigger>
+                </TabsList>
 
-              <div className="space-y-4">
-                {formData.links.map((link, index) => (
-                  <div key={index} className="space-y-1">
-                    <div className="flex gap-2">
-                      <div className="flex-1">
-                        <Label htmlFor={`link-${index}`}>
-                          Link {index + 1}
-                        </Label>
-                        <div className="flex gap-2">
-                          <Input
-                            id={`link-${index}`}
-                            placeholder={`Cole o link do ${
-                              platforms.find((p) => p.id === formData.platform)?.name
-                            }`}
-                            value={link}
-                            onChange={(e) => updateLink(index, e.target.value)}
-                            className={`flex-1 ${
-                              linkErrors[index] && !validatedLinks[index]?.valid 
-                                ? "border-destructive" 
-                                : validatedLinks[index]?.valid && !validatedLinks[index]?.apiError
-                                  ? "border-green-500" 
-                                  : validatedLinks[index]?.valid && validatedLinks[index]?.apiError
-                                    ? "border-yellow-500"
-                                    : ""
-                            }`}
-                          />
-                          <Button
-                            type="button"
-                            variant={validatedLinks[index]?.valid ? "outline" : "secondary"}
-                            onClick={() => handleValidateLink(index)}
-                            disabled={!link.trim() || validatingLinks[index]}
-                            className={`min-w-[100px] ${
-                              validatedLinks[index]?.valid && !validatedLinks[index]?.apiError
-                                ? "border-green-500 text-green-500" 
-                                : validatedLinks[index]?.valid && validatedLinks[index]?.apiError
-                                  ? "border-yellow-500 text-yellow-500"
-                                  : ""
-                            }`}
-                          >
-                            {validatingLinks[index] ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : validatedLinks[index]?.valid && !validatedLinks[index]?.apiError ? (
-                              <>
-                                <Check className="h-4 w-4 mr-1" />
-                                Válido
-                              </>
-                            ) : validatedLinks[index]?.valid && validatedLinks[index]?.apiError ? (
-                              <>
-                                <AlertCircle className="h-4 w-4 mr-1" />
-                                Pendente
-                              </>
-                            ) : (
-                              "Validar"
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                      {formData.links.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeLink(index)}
-                          className="mt-6"
-                        >
-                          ×
-                        </Button>
-                      )}
-                    </div>
-                    {validatedLinks[index]?.valid && validatedLinks[index]?.username && !validatedLinks[index]?.apiError && (
-                      <p className="text-xs text-green-500">
-                        ✓ Vídeo de @{validatedLinks[index].username} verificado
-                      </p>
-                    )}
-                    {validatedLinks[index]?.valid && validatedLinks[index]?.apiError && linkErrors[index] && (
-                      <p className="text-xs text-yellow-500">⚠ {linkErrors[index]}</p>
-                    )}
-                    {!validatedLinks[index]?.valid && linkErrors[index] && (
-                      <p className="text-xs text-destructive">{linkErrors[index]}</p>
-                    )}
+                <TabsContent value="account" className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <Label>Selecione a conta para importar todos os vídeos</Label>
+                    <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Escolha uma conta cadastrada" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedPlatformAccounts.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            @{account.username}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                ))}
-              </div>
+                  
+                  <Button
+                    onClick={importVideosFromAccount}
+                    disabled={!selectedAccount || loadingAccountVideos}
+                    className="w-full"
+                  >
+                    {loadingAccountVideos ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Importando...
+                      </>
+                    ) : (
+                      <>
+                        <Users className="h-4 w-4 mr-2" />
+                        Importar Todos os Vídeos
+                      </>
+                    )}
+                  </Button>
 
-              <Button
-                variant="outline"
-                onClick={addLinkField}
-                className="w-full"
-              >
-                + Adicionar outro link
-              </Button>
+                  {formData.links.length > 0 && formData.links[0] !== "" && (
+                    <Alert>
+                      <Check className="h-4 w-4 text-green-500" />
+                      <AlertDescription>
+                        {formData.links.length} vídeo(s) importado(s) e pronto(s) para enviar
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="links" className="space-y-4 mt-4">
+                  {selectedPlatformAccounts.length > 0 && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Contas cadastradas: {selectedPlatformAccounts.map(a => `@${a.username}`).join(', ')}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-4">
+                    {formData.links.map((link, index) => (
+                      <div key={index} className="space-y-1">
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <Label htmlFor={`link-${index}`}>
+                              Link {index + 1}
+                            </Label>
+                            <div className="flex gap-2">
+                              <Input
+                                id={`link-${index}`}
+                                placeholder={`Cole o link do ${
+                                  platforms.find((p) => p.id === formData.platform)?.name
+                                }`}
+                                value={link}
+                                onChange={(e) => updateLink(index, e.target.value)}
+                                className={`flex-1 ${
+                                  linkErrors[index] && !validatedLinks[index]?.valid 
+                                    ? "border-destructive" 
+                                    : validatedLinks[index]?.valid && !validatedLinks[index]?.apiError
+                                      ? "border-green-500" 
+                                      : validatedLinks[index]?.valid && validatedLinks[index]?.apiError
+                                        ? "border-yellow-500"
+                                        : ""
+                                }`}
+                              />
+                              <Button
+                                type="button"
+                                variant={validatedLinks[index]?.valid ? "outline" : "secondary"}
+                                onClick={() => handleValidateLink(index)}
+                                disabled={!link.trim() || validatingLinks[index]}
+                                className={`min-w-[100px] ${
+                                  validatedLinks[index]?.valid && !validatedLinks[index]?.apiError
+                                    ? "border-green-500 text-green-500" 
+                                    : validatedLinks[index]?.valid && validatedLinks[index]?.apiError
+                                      ? "border-yellow-500 text-yellow-500"
+                                      : ""
+                                }`}
+                              >
+                                {validatingLinks[index] ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : validatedLinks[index]?.valid && !validatedLinks[index]?.apiError ? (
+                                  <>
+                                    <Check className="h-4 w-4 mr-1" />
+                                    Válido
+                                  </>
+                                ) : validatedLinks[index]?.valid && validatedLinks[index]?.apiError ? (
+                                  <>
+                                    <AlertCircle className="h-4 w-4 mr-1" />
+                                    Pendente
+                                  </>
+                                ) : (
+                                  "Validar"
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                          {formData.links.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeLink(index)}
+                              className="mt-6"
+                            >
+                              ×
+                            </Button>
+                          )}
+                        </div>
+                        {validatedLinks[index]?.valid && validatedLinks[index]?.username && !validatedLinks[index]?.apiError && (
+                          <p className="text-xs text-green-500">
+                            ✓ Vídeo de @{validatedLinks[index].username} verificado
+                          </p>
+                        )}
+                        {validatedLinks[index]?.valid && validatedLinks[index]?.apiError && linkErrors[index] && (
+                          <p className="text-xs text-yellow-500">⚠ {linkErrors[index]}</p>
+                        )}
+                        {!validatedLinks[index]?.valid && linkErrors[index] && (
+                          <p className="text-xs text-destructive">{linkErrors[index]}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    onClick={addLinkField}
+                    className="w-full"
+                  >
+                    + Adicionar outro link
+                  </Button>
+                </TabsContent>
+              </Tabs>
             </div>
           )}
 
