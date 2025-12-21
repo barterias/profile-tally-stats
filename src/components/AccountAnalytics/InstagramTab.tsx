@@ -20,6 +20,7 @@ import { useInstagramVideos } from '@/hooks/useInstagramVideos';
 import { useApproveAccount, useRejectAccount } from '@/hooks/usePendingAccounts';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export function InstagramTab() {
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -27,6 +28,7 @@ export function InstagramTab() {
   const [selectedAccount, setSelectedAccount] = useState<{ id: string; username: string } | null>(null);
   const { user } = useAuth();
   const { role, isClipper, isAdmin, isClient } = useUserRole();
+  const { t } = useLanguage();
 
   // Always call both hooks to respect Rules of Hooks
   const userAccountsQuery = useInstagramAccounts();
@@ -68,7 +70,7 @@ export function InstagramTab() {
   };
 
   const handleDeleteAccount = (accountId: string) => {
-    if (confirm('Tem certeza que deseja remover esta conta?')) {
+    if (confirm(t('analytics.confirm_remove_account'))) {
       deleteAccount.mutate(accountId);
     }
   };
@@ -88,7 +90,7 @@ export function InstagramTab() {
   };
 
   const handleReject = (accountId: string) => {
-    if (confirm('Tem certeza que deseja rejeitar esta conta?')) {
+    if (confirm(t('analytics.confirm_reject_account'))) {
       rejectAccount.mutate({ accountId, platform: 'instagram' });
     }
   };
@@ -111,12 +113,12 @@ export function InstagramTab() {
 
   const getApprovalBadge = (status: string | undefined) => {
     if (!status || status === 'approved') {
-      return <Badge className="bg-success/15 text-success border-success/30"><CheckCircle className="h-3 w-3 mr-1" />Aprovada</Badge>;
+      return <Badge className="bg-success/15 text-success border-success/30"><CheckCircle className="h-3 w-3 mr-1" />{t('badge.approved')}</Badge>;
     }
     if (status === 'pending') {
-      return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Pendente</Badge>;
+      return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />{t('badge.pending')}</Badge>;
     }
-    return <Badge variant="destructive">Rejeitada</Badge>;
+    return <Badge variant="destructive">{t('badge.rejected')}</Badge>;
   };
 
   return (
@@ -125,20 +127,20 @@ export function InstagramTab() {
         {(isAdmin || isClient) && (
           <Button variant="outline" onClick={handleSyncAll} disabled={accounts.length === 0 || syncAllAccounts.isPending}>
             <RefreshCw className={`h-4 w-4 mr-2 ${syncAllAccounts.isPending ? 'animate-spin' : ''}`} />
-            Atualizar Todas
+            {t('analytics.update_all_fem')}
           </Button>
         )}
         <Button onClick={() => setAddModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          Adicionar Conta
+          {t('analytics.add_account')}
         </Button>
       </div>
 
-      {isClipper && accounts.length > 0 && (
+        {isClipper && accounts.length > 0 && (
         <Card className="bg-muted/50 border-dashed">
           <CardContent className="pt-4">
             <p className="text-sm text-muted-foreground text-center">
-              Suas contas precisam ser aprovadas por um administrador antes de aparecerem nos relatórios.
+              {t('analytics.approval_pending')}
             </p>
           </CardContent>
         </Card>
@@ -150,18 +152,18 @@ export function InstagramTab() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <MetricCardGlow title="Seguidores" value={formatNumber(totalFollowers)} icon={Users} trend={{ value: 0, isPositive: true }} />
-          <MetricCardGlow title="Posts" value={formatNumber(totalPosts)} icon={Video} trend={{ value: 0, isPositive: true }} />
-          <MetricCardGlow title="Visualizações Est." value={formatNumber(totalViews)} icon={Eye} trend={{ value: 0, isPositive: true }} />
-          <MetricCardGlow title="Contas" value={visibleAccounts.length.toString()} icon={ThumbsUp} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title={t('analytics.followers')} value={formatNumber(totalFollowers)} icon={Users} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title={t('analytics.posts')} value={formatNumber(totalPosts)} icon={Video} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title={t('analytics.estimated_views')} value={formatNumber(totalViews)} icon={Eye} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title={t('analytics.accounts')} value={visibleAccounts.length.toString()} icon={ThumbsUp} trend={{ value: 0, isPositive: true }} />
         </div>
       )}
 
       <Card>
         <CardHeader>
-          <CardTitle>Contas Monitoradas</CardTitle>
+          <CardTitle>{t('analytics.monitored_accounts')}</CardTitle>
           <CardDescription>
-            {isClipper ? 'Suas contas do Instagram' : 'Ordenadas por seguidores'}
+            {isClipper ? t('analytics.your_instagram') : t('analytics.sorted_by_followers')}
           </CardDescription>
         </CardHeader>
         <CardContent>

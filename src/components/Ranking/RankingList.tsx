@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Crown, Medal, Trophy, Flame, TrendingUp } from "lucide-react";
 import { RankingItem } from "@/types/campaign";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface RankingListProps {
   ranking: RankingItem[];
@@ -15,9 +16,11 @@ export function RankingList({
   ranking, 
   showEarnings = false, 
   title,
-  emptyMessage = "Nenhum clipador no ranking ainda.",
+  emptyMessage,
   maxItems = 10
 }: RankingListProps) {
+  const { t } = useLanguage();
+  
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
@@ -48,8 +51,8 @@ export function RankingList({
     return (
       <div className="text-center py-12 text-muted-foreground">
         <Trophy className="h-16 w-16 mx-auto mb-4 opacity-30" />
-        <p className="text-lg">{emptyMessage}</p>
-        <p className="text-sm mt-1">Os clipadores aparecerão aqui conforme enviarem vídeos.</p>
+        <p className="text-lg">{emptyMessage || t('ranking.empty_message')}</p>
+        <p className="text-sm mt-1">{t('ranking.clippers_appear')}</p>
       </div>
     );
   }
@@ -86,7 +89,7 @@ export function RankingList({
                 <p className="font-semibold">{item.username}</p>
                 <p className="text-sm text-muted-foreground flex items-center gap-1">
                   <Flame className="h-3 w-3" />
-                  {item.total_videos} vídeos
+                  {item.total_videos} {t('ranking.videos_count')}
                 </p>
               </div>
             </div>

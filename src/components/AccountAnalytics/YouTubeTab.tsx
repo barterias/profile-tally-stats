@@ -20,6 +20,7 @@ import { useYouTubeVideos } from '@/hooks/useYouTubeVideos';
 import { useApproveAccount, useRejectAccount } from '@/hooks/usePendingAccounts';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export function YouTubeTab() {
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -27,6 +28,7 @@ export function YouTubeTab() {
   const [selectedAccount, setSelectedAccount] = useState<{ id: string; username: string } | null>(null);
   const { user } = useAuth();
   const { isClipper, isAdmin, isClient } = useUserRole();
+  const { t } = useLanguage();
 
   // Always call both hooks to respect Rules of Hooks
   const userAccountsQuery = useYouTubeAccounts();
@@ -68,7 +70,7 @@ export function YouTubeTab() {
   };
 
   const handleDeleteAccount = (accountId: string) => {
-    if (confirm('Tem certeza que deseja remover este canal?')) {
+    if (confirm(t('analytics.confirm_remove_channel'))) {
       deleteAccount.mutate(accountId);
     }
   };
@@ -88,7 +90,7 @@ export function YouTubeTab() {
   };
 
   const handleReject = (accountId: string) => {
-    if (confirm('Tem certeza que deseja rejeitar este canal?')) {
+    if (confirm(t('analytics.confirm_reject_channel'))) {
       rejectAccount.mutate({ accountId, platform: 'youtube' });
     }
   };
@@ -109,12 +111,12 @@ export function YouTubeTab() {
 
   const getApprovalBadge = (status: string | undefined) => {
     if (!status || status === 'approved') {
-      return <Badge className="bg-success/15 text-success border-success/30"><CheckCircle className="h-3 w-3 mr-1" />Aprovada</Badge>;
+      return <Badge className="bg-success/15 text-success border-success/30"><CheckCircle className="h-3 w-3 mr-1" />{t('badge.approved')}</Badge>;
     }
     if (status === 'pending') {
-      return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Pendente</Badge>;
+      return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />{t('badge.pending')}</Badge>;
     }
-    return <Badge variant="destructive">Rejeitada</Badge>;
+    return <Badge variant="destructive">{t('badge.rejected')}</Badge>;
   };
 
   return (
@@ -123,20 +125,20 @@ export function YouTubeTab() {
         {(isAdmin || isClient) && (
           <Button variant="outline" onClick={handleSyncAll} disabled={accounts.length === 0 || syncAllAccounts.isPending}>
             <RefreshCw className={`h-4 w-4 mr-2 ${syncAllAccounts.isPending ? 'animate-spin' : ''}`} />
-            Atualizar Todos
+            {t('analytics.update_all')}
           </Button>
         )}
         <Button onClick={() => setAddModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          Adicionar Canal
+          {t('analytics.add_channel')}
         </Button>
       </div>
 
-      {isClipper && accounts.length > 0 && (
+        {isClipper && accounts.length > 0 && (
         <Card className="bg-muted/50 border-dashed">
           <CardContent className="pt-4">
             <p className="text-sm text-muted-foreground text-center">
-              Seus canais precisam ser aprovados por um administrador antes de aparecerem nos relatórios.
+              {t('analytics.approval_pending_channel')}
             </p>
           </CardContent>
         </Card>
@@ -148,18 +150,18 @@ export function YouTubeTab() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <MetricCardGlow title="Inscritos" value={formatNumber(totalSubscribers)} icon={Users} trend={{ value: 0, isPositive: true }} />
-          <MetricCardGlow title="Visualizações Totais" value={formatNumber(totalViews)} icon={Eye} trend={{ value: 0, isPositive: true }} />
-          <MetricCardGlow title="Vídeos" value={formatNumber(totalVideos)} icon={Video} trend={{ value: 0, isPositive: true }} />
-          <MetricCardGlow title="Canais" value={visibleAccounts.length.toString()} icon={ThumbsUp} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title={t('analytics.subscribers')} value={formatNumber(totalSubscribers)} icon={Users} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title={t('analytics.total_views')} value={formatNumber(totalViews)} icon={Eye} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title={t('analytics.videos')} value={formatNumber(totalVideos)} icon={Video} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title={t('analytics.channels')} value={visibleAccounts.length.toString()} icon={ThumbsUp} trend={{ value: 0, isPositive: true }} />
         </div>
       )}
 
       <Card>
         <CardHeader>
-          <CardTitle>Canais Monitorados</CardTitle>
+          <CardTitle>{t('analytics.monitored_channels')}</CardTitle>
           <CardDescription>
-            {isClipper ? 'Seus canais do YouTube' : 'Ordenados por visualizações totais'}
+            {isClipper ? t('analytics.your_youtube') : t('analytics.sorted_by_views')}
           </CardDescription>
         </CardHeader>
         <CardContent>
