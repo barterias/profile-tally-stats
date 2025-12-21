@@ -82,6 +82,18 @@ export default function MainLayout({ children }: MainLayoutProps) {
               <Menu className="h-5 w-5" />
             </Button>
 
+            {/* Desktop Sidebar Toggle - Only visible when collapsed */}
+            {sidebarCollapsed && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hidden md:flex"
+                onClick={() => setSidebarCollapsed(false)}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            )}
+
             {/* Page Title - Can be dynamic */}
             <div className="flex-1" />
 
