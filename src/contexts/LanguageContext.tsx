@@ -563,6 +563,79 @@ const translations: Translations = {
   "dashboard.client_subtitle": { pt: "Métricas dos clippers das suas campanhas", en: "Metrics from your campaigns' clippers" },
   "dashboard.no_clipper_metrics": { pt: "Nenhum clipper com métricas ainda", en: "No clippers with metrics yet" },
   "dashboard.accounts": { pt: "contas", en: "accounts" },
+
+  // Account Analytics
+  "analytics.subscribers": { pt: "Inscritos", en: "Subscribers" },
+  "analytics.total_views": { pt: "Visualizações Totais", en: "Total Views" },
+  "analytics.videos": { pt: "Vídeos", en: "Videos" },
+  "analytics.channels": { pt: "Canais", en: "Channels" },
+  "analytics.followers": { pt: "Seguidores", en: "Followers" },
+  "analytics.posts": { pt: "Posts", en: "Posts" },
+  "analytics.estimated_views": { pt: "Visualizações Est.", en: "Est. Views" },
+  "analytics.accounts": { pt: "Contas", en: "Accounts" },
+  "analytics.total_likes": { pt: "Curtidas Totais", en: "Total Likes" },
+  "analytics.update_all": { pt: "Atualizar Todos", en: "Update All" },
+  "analytics.update_all_fem": { pt: "Atualizar Todas", en: "Update All" },
+  "analytics.add_channel": { pt: "Adicionar Canal", en: "Add Channel" },
+  "analytics.add_account": { pt: "Adicionar Conta", en: "Add Account" },
+  "analytics.monitored_channels": { pt: "Canais Monitorados", en: "Monitored Channels" },
+  "analytics.monitored_accounts": { pt: "Contas Monitoradas", en: "Monitored Accounts" },
+  "analytics.approval_pending": { pt: "Suas contas precisam ser aprovadas por um administrador antes de aparecerem nos relatórios.", en: "Your accounts need to be approved by an administrator before appearing in reports." },
+  "analytics.approval_pending_channel": { pt: "Seus canais precisam ser aprovados por um administrador antes de aparecerem nos relatórios.", en: "Your channels need to be approved by an administrator before appearing in reports." },
+  "analytics.sorted_by_views": { pt: "Ordenados por views totais", en: "Sorted by total views" },
+  "analytics.sorted_by_followers": { pt: "Ordenadas por seguidores", en: "Sorted by followers" },
+  "analytics.sorted_by_likes": { pt: "Ordenadas por curtidas totais", en: "Sorted by total likes" },
+  "analytics.your_tiktok": { pt: "Suas contas do TikTok", en: "Your TikTok accounts" },
+  "analytics.your_instagram": { pt: "Suas contas do Instagram", en: "Your Instagram accounts" },
+  "analytics.your_youtube": { pt: "Seus canais do YouTube", en: "Your YouTube channels" },
+  "analytics.confirm_remove_channel": { pt: "Tem certeza que deseja remover este canal?", en: "Are you sure you want to remove this channel?" },
+  "analytics.confirm_remove_account": { pt: "Tem certeza que deseja remover esta conta?", en: "Are you sure you want to remove this account?" },
+  "analytics.confirm_reject_channel": { pt: "Tem certeza que deseja rejeitar este canal?", en: "Are you sure you want to reject this channel?" },
+  "analytics.confirm_reject_account": { pt: "Tem certeza que deseja rejeitar esta conta?", en: "Are you sure you want to reject this account?" },
+
+  // Status Badge
+  "badge.pending": { pt: "Pendente", en: "Pending" },
+  "badge.approved": { pt: "Aprovado", en: "Approved" },
+  "badge.rejected": { pt: "Rejeitado", en: "Rejected" },
+  "badge.paid": { pt: "Pago", en: "Paid" },
+  "badge.active": { pt: "Ativo", en: "Active" },
+  "badge.inactive": { pt: "Inativo", en: "Inactive" },
+  "badge.requested": { pt: "Solicitado", en: "Requested" },
+
+  // Ranking List
+  "ranking.empty_message": { pt: "Nenhum clipador no ranking ainda.", en: "No clippers in the ranking yet." },
+  "ranking.clippers_appear": { pt: "Os clipadores aparecerão aqui conforme enviarem vídeos.", en: "Clippers will appear here as they submit videos." },
+  "ranking.videos_count": { pt: "vídeos", en: "videos" },
+
+  // Admin
+  "admin.manage_competitions": { pt: "Gerenciar Competições", en: "Manage Competitions" },
+  "admin.manage_competitions_desc": { pt: "Editar, pausar ou encerrar competições", en: "Edit, pause or end competitions" },
+  "admin.manage_users": { pt: "Gerenciar Usuários", en: "Manage Users" },
+  "admin.manage_users_desc": { pt: "Aprovar, banir ou gerenciar usuários", en: "Approve, ban or manage users" },
+  "admin.manage_payouts": { pt: "Gerenciar Saques", en: "Manage Withdrawals" },
+  "admin.manage_payouts_desc": { pt: "Aprovar ou rejeitar solicitações de saque", en: "Approve or reject withdrawal requests" },
+
+  // Toast Messages
+  "toast.clipper_approved": { pt: "Clipador aprovado com sucesso!", en: "Clipper approved successfully!" },
+  "toast.error_approve": { pt: "Erro ao aprovar", en: "Error approving" },
+  "toast.error_reject": { pt: "Erro ao rejeitar", en: "Error rejecting" },
+  "toast.video_approved": { pt: "Vídeo aprovado!", en: "Video approved!" },
+  "toast.error_approve_video": { pt: "Erro ao aprovar vídeo", en: "Error approving video" },
+  "toast.image_uploaded": { pt: "Imagem enviada com sucesso!", en: "Image uploaded successfully!" },
+  "toast.error_upload": { pt: "Erro ao enviar imagem", en: "Error uploading image" },
+  "toast.request_sent": { pt: "Solicitação enviada! Um administrador irá autorizar a alteração.", en: "Request sent! An administrator will authorize the change." },
+  "toast.request_exists": { pt: "Você já possui uma solicitação pendente", en: "You already have a pending request" },
+
+  // Videos List
+  "videos.no_videos": { pt: "Nenhum vídeo encontrado", en: "No videos found" },
+  "videos.no_videos_yet": { pt: "Ainda não há vídeos no sistema.", en: "There are no videos in the system yet." },
+  "videos.add_link_to_start": { pt: "Adicione um link de vídeo para começar a análise.", en: "Add a video link to start the analysis." },
+
+  // Submit Post
+  "submit_post.choose_competition": { pt: "Escolha a Competição", en: "Choose Competition" },
+  "submit_post.select_competition": { pt: "Selecione em qual competição você deseja participar", en: "Select which competition you want to participate in" },
+  "submit_post.individual_links": { pt: "Links Individuais", en: "Individual Links" },
+  "submit_post.import_from_account": { pt: "Importar da Conta", en: "Import from Account" },
 };
 
 interface LanguageContextType {
