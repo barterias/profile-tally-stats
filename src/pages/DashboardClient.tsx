@@ -89,14 +89,14 @@ function DashboardClientContent() {
             <Target className="h-16 w-16 text-primary" />
           </div>
           <h2 className="text-3xl font-bold mb-3 text-glow">
-            Nenhuma Campanha Encontrada
+            {t('dashboard.no_campaigns_found')}
           </h2>
           <p className="text-muted-foreground mb-6 max-w-md">
-            Você ainda não possui campanhas. Crie uma campanha para começar a acompanhar o desempenho dos seus clippers.
+            {t('dashboard.no_campaigns_desc')}
           </p>
           <Button onClick={() => navigate('/client/campaigns')} className="premium-gradient">
             <Target className="h-4 w-4 mr-2" />
-            Gerenciar Campanhas
+            {t('dashboard.manage_campaigns')}
           </Button>
         </div>
       </MainLayout>
@@ -110,10 +110,10 @@ function DashboardClientContent() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-glow">
-              Dashboard do Cliente
+              {t('dashboard.client_title')}
             </h1>
             <p className="text-muted-foreground mt-1">
-              Métricas dos clippers das suas campanhas
+              {t('dashboard.client_subtitle')}
             </p>
           </div>
           
@@ -131,7 +131,7 @@ function DashboardClientContent() {
               className="premium-gradient"
             >
               <Target className="h-4 w-4 mr-2" />
-              Campanhas
+              {t('nav.campaigns')}
             </Button>
           </div>
         </div>
@@ -139,13 +139,13 @@ function DashboardClientContent() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <MetricCardGlow
-            title="Campanhas"
+            title={t('nav.campaigns')}
             value={clientMetrics?.totalCampaigns || 0}
             icon={Target}
             glowColor="orange"
           />
           <MetricCardGlow
-            title="Clippers"
+            title={t('clippers')}
             value={clientMetrics?.totalClippers || 0}
             icon={Users}
             glowColor="blue"
@@ -205,14 +205,14 @@ function DashboardClientContent() {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold">{formatNumber(clipper.totalViews)}</p>
-                      <p className="text-xs text-muted-foreground">views</p>
+                      <p className="text-xs text-muted-foreground">{t('views')}</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <p className="text-muted-foreground text-center py-8">
-                Nenhum clipper com métricas ainda
+                {t('dashboard.no_clipper_metrics')}
               </p>
             )}
           </GlowCard>
@@ -228,12 +228,12 @@ function DashboardClientContent() {
                 <div className="flex-1">
                   <h3 className="font-semibold">Instagram</h3>
                   <p className="text-xs text-muted-foreground">
-                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.accounts || 0} contas
+                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.accounts || 0} {t('dashboard.accounts')}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.views || 0)}</p>
-                  <p className="text-xs text-muted-foreground">views</p>
+                  <p className="text-xs text-muted-foreground">{t('views')}</p>
                 </div>
               </div>
             </GlowCard>
@@ -247,12 +247,12 @@ function DashboardClientContent() {
                 <div className="flex-1">
                   <h3 className="font-semibold">TikTok</h3>
                   <p className="text-xs text-muted-foreground">
-                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.accounts || 0} contas
+                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.accounts || 0} {t('dashboard.accounts')}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.views || 0)}</p>
-                  <p className="text-xs text-muted-foreground">views</p>
+                  <p className="text-xs text-muted-foreground">{t('views')}</p>
                 </div>
               </div>
             </GlowCard>
@@ -266,12 +266,12 @@ function DashboardClientContent() {
                 <div className="flex-1">
                   <h3 className="font-semibold">YouTube</h3>
                   <p className="text-xs text-muted-foreground">
-                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.accounts || 0} contas
+                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.accounts || 0} {t('dashboard.accounts')}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.views || 0)}</p>
-                  <p className="text-xs text-muted-foreground">views</p>
+                  <p className="text-xs text-muted-foreground">{t('views')}</p>
                 </div>
               </div>
             </GlowCard>
@@ -288,7 +288,7 @@ function DashboardClientContent() {
               onClick={() => navigate('/client/campaigns')}
             >
               <Target className="h-6 w-6" />
-              <span>Gerenciar Campanhas</span>
+              <span>{t('dashboard.manage_campaigns')}</span>
             </Button>
             <Button 
               variant="outline" 
