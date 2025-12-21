@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +42,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { ptBR, enUS } from "date-fns/locale";
 import { toast } from "sonner";
 
 interface Campaign {
@@ -79,12 +80,15 @@ function CampaignDetailContent() {
   const location = useLocation();
   const { toast: toastHook } = useToast();
   const { user, isAdmin } = useAuth();
+  const { t, language } = useLanguage();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [videos, setVideos] = useState<CampaignVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
   const [syncingMetrics, setSyncingMetrics] = useState(false);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
+  
+  const dateLocale = language === 'pt' ? ptBR : enUS;
 
   // Determine the correct back navigation path
   const getBackPath = () => {
@@ -120,10 +124,10 @@ function CampaignDetailContent() {
         .eq("id", campaign.id);
 
       if (error) throw error;
-      toast.success(campaign.is_active ? "Campanha pausada" : "Campanha ativada");
+      toast.success(campaign.is_active ? t('campaign.paused') : t('campaign.activated'));
       setCampaign({ ...campaign, is_active: !campaign.is_active });
     } catch (error: any) {
-      toast.error(error.message || "Erro ao atualizar status");
+      toast.error(error.message || t('campaign.error_update_status'));
     }
   };
 
@@ -138,9 +142,9 @@ function CampaignDetailContent() {
       if (error) throw error;
       
       setVideos(videos.filter(v => v.id !== videoId));
-      toast.success("Vídeo removido do ranking");
+      toast.success(t('campaign.video_removed'));
     } catch (error: any) {
-      toast.error(error.message || "Erro ao remover vídeo");
+      toast.error(error.message || t('campaign.error_remove_video'));
     } finally {
       setDeletingVideoId(null);
     }
@@ -177,11 +181,11 @@ function CampaignDetailContent() {
           .update(updatedMetrics)
           .eq("id", video.id);
           
-        toast.success("Métricas atualizadas!");
+        toast.success(t('campaign.metrics_updated'));
       }
     } catch (error: any) {
       console.error("Error syncing metrics:", error);
-      toast.error("Erro ao sincronizar métricas");
+      toast.error(t('campaign.error_sync_metrics'));
     }
   };
 
@@ -241,13 +245,13 @@ function CampaignDetailContent() {
     setSyncingMetrics(false);
     
     if (successCount > 0) {
-      toast.success(`${successCount} vídeo(s) atualizados`);
+      toast.success(`${successCount} ${t('campaign.videos_updated')}`);
     }
     if (invalidUrlCount > 0) {
-      toast.warning(`${invalidUrlCount} link(s) inválidos (URLs de perfil não são permitidas)`);
+      toast.warning(`${invalidUrlCount} ${t('campaign.invalid_links')} (${t('campaign.profile_url_not_allowed')})`);
     }
     if (errorCount > 0) {
-      toast.error(`${errorCount} vídeo(s) com erro`);
+      toast.error(`${errorCount} ${t('campaign.videos_error')}`);
     }
   };
 
@@ -296,7 +300,7 @@ function CampaignDetailContent() {
           submitted_at: video.submitted_at,
           submitted_by: video.submitted_by,
           verified: video.verified,
-          username: usernamesMap[video.submitted_by] || `Participante #${video.id.slice(0, 4)}`,
+          username: usernamesMap[video.submitted_by] || `${t('campaign.participant')} #${video.id.slice(0, 4)}`,
         })).sort((a, b) => (b.views || 0) - (a.views || 0));
 
         setVideos(processedVideos);
@@ -306,8 +310,8 @@ function CampaignDetailContent() {
     } catch (error) {
       console.error("Error fetching campaign data:", error);
       toastHook({
-        title: "Erro ao carregar campanha",
-        description: "Não foi possível carregar os dados da campanha",
+        title: t('campaign.error_loading'),
+        description: t('msg.error_loading'),
         variant: "destructive",
       });
     } finally {
@@ -337,9 +341,9 @@ function CampaignDetailContent() {
       <MainLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] text-center">
           <Trophy className="h-16 w-16 text-muted-foreground mb-4" />
-          <h2 className="text-2xl font-bold mb-2">Campanha não encontrada</h2>
+          <h2 className="text-2xl font-bold mb-2">{t('campaign.not_found')}</h2>
           <Button onClick={() => navigate("/campaigns")} className="mt-4">
-            Voltar para Campanhas
+            {t('campaign.back_to_campaigns')}
           </Button>
         </div>
       </MainLayout>
@@ -372,13 +376,13 @@ function CampaignDetailContent() {
                   {campaign.name}
                 </h1>
                 <Badge className={campaign.is_active ? "bg-green-500/20 text-green-400" : "bg-muted"}>
-                  {campaign.is_active ? "Ativa" : "Encerrada"}
+                  {campaign.is_active ? t('campaign.active_status') : t('campaign.ended_status')}
                 </Badge>
               </div>
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
-                  {format(new Date(campaign.start_date), "dd MMM", { locale: ptBR })} - {format(new Date(campaign.end_date), "dd MMM yyyy", { locale: ptBR })}
+                  {format(new Date(campaign.start_date), "dd MMM", { locale: dateLocale })} - {format(new Date(campaign.end_date), "dd MMM yyyy", { locale: dateLocale })}
                 </div>
                 <div className="flex items-center gap-1">
                   {campaignPlatforms.map((platform) => {
@@ -399,7 +403,7 @@ function CampaignDetailContent() {
                 onClick={() => navigate(`/admin/edit-campaign/${campaign.id}`)}
               >
                 <Edit className="h-4 w-4 mr-2" />
-                Editar
+                {t('common.edit')}
               </Button>
               <Button
                 variant={campaign.is_active ? "outline" : "default"}
@@ -409,12 +413,12 @@ function CampaignDetailContent() {
                 {campaign.is_active ? (
                   <>
                     <Pause className="h-4 w-4 mr-2" />
-                    Pausar
+                    {t('campaigns.pause')}
                   </>
                 ) : (
                   <>
                     <Play className="h-4 w-4 mr-2" />
-                    Ativar
+                    {t('campaigns.activate')}
                   </>
                 )}
               </Button>
@@ -428,7 +432,7 @@ function CampaignDetailContent() {
           <GlowCard glowColor="green">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground font-medium">Views Totais</p>
+                <p className="text-sm text-muted-foreground font-medium">{t('campaign.total_views')}</p>
                 <p className="text-3xl font-bold mt-1">{formatNumber(totalViews)}</p>
               </div>
               <div className="p-3 rounded-xl bg-green-500/15">
@@ -440,7 +444,7 @@ function CampaignDetailContent() {
           <GlowCard glowColor="blue">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground font-medium">Vídeos Reconhecidos</p>
+                <p className="text-sm text-muted-foreground font-medium">{t('campaign.recognized_videos')}</p>
                 <p className="text-3xl font-bold mt-1">{videos.length}</p>
               </div>
               <div className="p-3 rounded-xl bg-blue-500/15">
@@ -452,7 +456,7 @@ function CampaignDetailContent() {
           <GlowCard glowColor="purple">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground font-medium">Participantes</p>
+                <p className="text-sm text-muted-foreground font-medium">{t('campaigns.participants')}</p>
                 <p className="text-3xl font-bold mt-1">{totalParticipants}</p>
               </div>
               <div className="p-3 rounded-xl bg-purple-500/15">
@@ -468,7 +472,7 @@ function CampaignDetailContent() {
             {/* Description */}
             {campaign.description && (
               <GlowCard>
-                <h3 className="font-semibold mb-3">Sobre a Campanha</h3>
+                <h3 className="font-semibold mb-3">{t('campaign.about')}</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
                   {campaign.description}
                 </p>
@@ -483,7 +487,7 @@ function CampaignDetailContent() {
                     <Award className="h-5 w-5 text-orange-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">Prêmios</h3>
+                    <h3 className="font-semibold mb-1">{t('campaign.prizes')}</h3>
                     <p className="text-sm text-muted-foreground">{campaign.prize_description}</p>
                   </div>
                 </div>
@@ -495,7 +499,7 @@ function CampaignDetailContent() {
               <GlowCard>
                 <h3 className="font-semibold mb-3 flex items-center gap-2">
                   <Trophy className="h-4 w-4 text-primary" />
-                  Regras
+                  {t('campaigns.rules')}
                 </h3>
                 <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
                   {campaign.rules}
@@ -510,7 +514,7 @@ function CampaignDetailContent() {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <Trophy className="h-5 w-5 text-primary" />
-                  Ranking de Vídeos
+                  {t('campaign.video_ranking')}
                 </h3>
                 {(isAdmin || isOwner) && videos.length > 0 && (
                   <Button
@@ -524,7 +528,7 @@ function CampaignDetailContent() {
                     ) : (
                       <RefreshCw className="h-4 w-4 mr-2" />
                     )}
-                    Sincronizar Métricas
+                    {syncingMetrics ? t('campaign.syncing') : t('campaign.sync_all')}
                   </Button>
                 )}
               </div>
@@ -532,9 +536,9 @@ function CampaignDetailContent() {
               {videos.length === 0 ? (
                 <div className="text-center py-12">
                   <Video className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
-                  <p className="text-muted-foreground">Nenhum vídeo submetido ainda</p>
+                  <p className="text-muted-foreground">{t('campaign.no_videos')}</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Participe enviando o link do seu vídeo
+                    {t('campaign.no_videos_desc')}
                   </p>
                 </div>
               ) : (
@@ -588,7 +592,7 @@ function CampaignDetailContent() {
                             rel="noopener noreferrer"
                             className="text-xs text-primary/70 hover:text-primary hover:underline truncate block"
                           >
-                            Ver vídeo ↗
+                            {t('common.view')} ↗
                           </a>
                         </div>
 
@@ -644,19 +648,18 @@ function CampaignDetailContent() {
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Remover Vídeo</AlertDialogTitle>
+                                  <AlertDialogTitle>{t('campaign.confirm_remove')}</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Tem certeza que deseja remover este vídeo do ranking? 
-                                    Esta ação não pode ser desfeita.
+                                    {t('campaign.confirm_remove_desc')}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() => handleDeleteVideo(video.id)}
                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   >
-                                    Remover
+                                    {t('common.delete')}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
