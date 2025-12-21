@@ -32,19 +32,19 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const clipperNavigation = [
     { name: t("nav.dashboard"), href: "/", icon: LayoutDashboard },
     { name: t("nav.campaigns"), href: "/campaigns", icon: Trophy },
-    { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
+    { name: t("nav.account_analytics"), href: "/account-analytics", icon: BarChart3 },
   ];
 
   const adminMainNavigation = [
     { name: t("nav.dashboard"), href: "/dashboard/admin", icon: LayoutDashboard },
-    { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
+    { name: t("nav.account_analytics"), href: "/account-analytics", icon: BarChart3 },
   ];
 
   const clientNavigation = [
     { name: t("nav.dashboard"), href: "/dashboard/client", icon: LayoutDashboard },
     { name: t("nav.campaigns"), href: "/client/campaigns", icon: Trophy },
-    { name: "Enviar Vídeo", href: "/submit", icon: Upload },
-    { name: "Account Analytics", href: "/account-analytics", icon: BarChart3 },
+    { name: t("nav.submit"), href: "/submit", icon: Upload },
+    { name: t("nav.account_analytics"), href: "/account-analytics", icon: BarChart3 },
   ];
 
   const adminNavigation = [

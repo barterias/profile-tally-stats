@@ -76,6 +76,7 @@ const translations: Translations = {
   "nav.client": { pt: "Cliente", en: "Client" },
   "nav.administration": { pt: "Administração", en: "Administration" },
   "nav.account": { pt: "Conta", en: "Account" },
+  "nav.account_analytics": { pt: "Análise de Contas", en: "Account Analytics" },
 
   // Common
   "common.loading": { pt: "Carregando...", en: "Loading..." },
