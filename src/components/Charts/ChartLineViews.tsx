@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { GlowCard } from '@/components/ui/GlowCard';
 import { ChartSkeleton } from './ChartSkeleton';
+import { LineChartTooltip } from './CustomTooltip';
 
 interface DataPoint {
   date: string;
@@ -54,14 +55,7 @@ export function ChartLineViews({ data, title, dataKey = 'views', color = '#8b5cf
                 return value;
               }}
             />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: 'hsl(var(--card))', 
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '8px'
-              }}
-              labelStyle={{ color: 'hsl(var(--foreground))' }}
-            />
+            <Tooltip content={<LineChartTooltip />} />
             <Line 
               type="monotone" 
               dataKey={dataKey} 
