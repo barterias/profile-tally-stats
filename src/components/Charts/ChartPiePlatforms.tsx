@@ -13,15 +13,15 @@ interface ChartPiePlatformsProps {
 }
 
 // High contrast, distinct colors for charts
-const COLORS = ['#f472b6', '#22d3ee', '#facc15', '#a78bfa', '#34d399', '#fb923c'];
+const COLORS = ['#E1306C', '#25F4EE', '#FF0000', '#facc15', '#34d399', '#a78bfa'];
 
-// Platform-specific colors with high contrast
+// Platform-specific colors
 const platformColors: Record<string, string> = {
-  tiktok: '#22d3ee',      // Cyan - distinct and vibrant
-  youtube: '#ef4444',     // Red - classic YouTube
-  instagram: '#f472b6',   // Pink - Instagram brand
-  kwai: '#facc15',        // Yellow - high contrast
-  facebook: '#3b82f6',    // Blue - Facebook brand
+  tiktok: '#25F4EE',      // TikTok turquoise
+  youtube: '#FF0000',     // YouTube red
+  instagram: '#E1306C',   // Instagram pink/purple
+  kwai: '#facc15',        // Yellow
+  facebook: '#3b82f6',    // Blue
   nodata: '#6b7280',      // Gray for no data state
 };
 
@@ -32,7 +32,7 @@ export function ChartPiePlatforms({ data, title }: ChartPiePlatformsProps) {
   }));
 
   return (
-    <GlowCard className="h-full">
+    <GlowCard className="h-full animate-fade-in">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
@@ -46,9 +46,16 @@ export function ChartPiePlatforms({ data, title }: ChartPiePlatformsProps) {
               paddingAngle={2}
               dataKey="value"
               nameKey="platform"
+              animationBegin={0}
+              animationDuration={800}
+              animationEasing="ease-out"
             >
               {dataWithColors.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
+                <Cell 
+                  key={`cell-${index}`} 
+                  fill={entry.color}
+                  className="transition-opacity duration-300 hover:opacity-80"
+                />
               ))}
             </Pie>
             <Tooltip 
@@ -56,13 +63,13 @@ export function ChartPiePlatforms({ data, title }: ChartPiePlatformsProps) {
                 backgroundColor: 'hsl(var(--card))', 
                 border: '1px solid hsl(var(--border))',
                 borderRadius: '8px',
-                color: 'hsl(var(--primary))'
+                color: 'hsl(var(--foreground))'
               }}
               itemStyle={{
-                color: 'hsl(var(--primary))'
+                color: 'hsl(var(--foreground))'
               }}
               labelStyle={{
-                color: 'hsl(var(--primary))'
+                color: 'hsl(var(--foreground))'
               }}
               formatter={(value: number) => {
                 if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
