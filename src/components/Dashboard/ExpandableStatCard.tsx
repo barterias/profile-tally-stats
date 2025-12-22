@@ -14,16 +14,10 @@ interface ExpandableStatCardProps {
   };
   details?: React.ReactNode;
   className?: string;
-  blobVariant?: 1 | 2 | 3 | 4;
 }
 
-// Different blob shapes for variety
-const blobShapes = {
-  1: "60% 40% 30% 70% / 60% 30% 70% 40%",
-  2: "40% 60% 70% 30% / 40% 70% 30% 60%",
-  3: "70% 30% 50% 50% / 30% 50% 50% 70%",
-  4: "30% 70% 40% 60% / 70% 40% 60% 30%",
-};
+// Simple rounded shape
+const collapsedRadius = "28%";
 
 export default function ExpandableStatCard({
   title,
@@ -33,7 +27,6 @@ export default function ExpandableStatCard({
   trend,
   details,
   className = "",
-  blobVariant = 1,
 }: ExpandableStatCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isClicking, setIsClicking] = useState(false);
@@ -55,7 +48,7 @@ export default function ExpandableStatCard({
         className
       )}
       style={{
-        borderRadius: isExpanded ? "1rem" : blobShapes[blobVariant],
+        borderRadius: isExpanded ? "1rem" : collapsedRadius,
       }}
       onClick={handleToggle}
     >
@@ -92,7 +85,7 @@ export default function ExpandableStatCard({
             "group-hover:shadow-[0_0_35px_rgba(203,213,225,0.55),0_0_70px_rgba(148,163,184,0.3),inset_0_0_35px_rgba(255,255,255,0.12)]",
             "group-hover:from-slate-200/20 group-hover:to-slate-300/20"
           )}
-          style={{ borderRadius: blobShapes[blobVariant] }}
+          style={{ borderRadius: collapsedRadius }}
         />
         
         {/* Icon container with click animation */}

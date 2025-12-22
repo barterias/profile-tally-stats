@@ -143,35 +143,30 @@ function DashboardClientContent() {
             value={clientMetrics?.totalCampaigns || 0}
             icon={Target}
             glowColor="orange"
-            blobVariant={1}
           />
           <MetricCardGlow
             title={t('clippers')}
             value={clientMetrics?.totalClippers || 0}
             icon={Users}
             glowColor="blue"
-            blobVariant={2}
           />
           <MetricCardGlow
             title={t('views')}
             value={formatNumber(clientMetrics?.totalViews || 0)}
             icon={Eye}
             glowColor="purple"
-            blobVariant={3}
           />
           <MetricCardGlow
             title={t('likes')}
             value={formatNumber(clientMetrics?.totalLikes || 0)}
             icon={Heart}
             glowColor="purple"
-            blobVariant={4}
           />
           <MetricCardGlow
             title={t('followers')}
             value={formatNumber(clientMetrics?.totalFollowers || 0)}
             icon={Users}
             glowColor="green"
-            blobVariant={5}
           />
         </div>
 
