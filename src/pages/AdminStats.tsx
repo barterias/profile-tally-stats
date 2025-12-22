@@ -91,13 +91,18 @@ function AdminStatsContent() {
   // Get counts from real data
   const totalAccounts = instagramAccounts.length + tiktokAccounts.length + youtubeAccounts.length;
 
-  // Platform data from social metrics
+  // Platform data from social metrics - High contrast colors
+  const platformColors: Record<string, string> = {
+    Instagram: '#f472b6',   // Pink
+    TikTok: '#22d3ee',      // Cyan
+    YouTube: '#ef4444',     // Red
+  };
+
   const platformData = socialMetrics?.platformBreakdown.map(p => ({
     name: p.platform,
     value: p.accounts,
     views: p.views,
-    color: p.platform === 'Instagram' ? 'hsl(var(--primary))' : 
-           p.platform === 'TikTok' ? 'hsl(var(--accent))' : 'hsl(340, 82%, 52%)',
+    color: platformColors[p.platform] || '#a78bfa',
   })) || [];
 
   if (loading || metricsLoading) {

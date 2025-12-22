@@ -12,14 +12,17 @@ interface ChartPiePlatformsProps {
   title: string;
 }
 
-const COLORS = ['#8b5cf6', '#22c55e', '#3b82f6', '#f97316', '#ec4899', '#06b6d4'];
+// High contrast, distinct colors for charts
+const COLORS = ['#f472b6', '#22d3ee', '#facc15', '#a78bfa', '#34d399', '#fb923c'];
 
+// Platform-specific colors with high contrast
 const platformColors: Record<string, string> = {
-  tiktok: '#00f2ea',
-  youtube: '#ff0000',
-  instagram: '#e4405f',
-  kwai: '#ff7b00',
-  facebook: '#1877f2',
+  tiktok: '#22d3ee',      // Cyan - distinct and vibrant
+  youtube: '#ef4444',     // Red - classic YouTube
+  instagram: '#f472b6',   // Pink - Instagram brand
+  kwai: '#facc15',        // Yellow - high contrast
+  facebook: '#3b82f6',    // Blue - Facebook brand
+  nodata: '#6b7280',      // Gray for no data state
 };
 
 export function ChartPiePlatforms({ data, title }: ChartPiePlatformsProps) {
