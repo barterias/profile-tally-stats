@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import MainLayout from "@/components/Layout/MainLayout";
-import StatCard from "@/components/Dashboard/StatCard";
+import ExpandableStatCard from "@/components/Dashboard/ExpandableStatCard";
 import ChartCard from "@/components/Dashboard/ChartCard";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -295,26 +295,46 @@ export default function UserDashboard() {
         </div>
 
         {/* Stats Grid - Removed Total Ganho */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <ExpandableStatCard
             title="Total de Views"
             value={formatNumber(stats.totalViews)}
             icon={Eye}
+            details={
+              <p className="text-sm text-muted-foreground">
+                Visualizações em todas as plataformas
+              </p>
+            }
           />
-          <StatCard
+          <ExpandableStatCard
             title="Vídeos no Sistema"
             value={stats.totalVideosSubmitted}
             icon={Video}
+            details={
+              <p className="text-sm text-muted-foreground">
+                Vídeos cadastrados nas suas contas
+              </p>
+            }
           />
-          <StatCard
+          <ExpandableStatCard
             title="Competições Ativas"
             value={stats.activeCampaigns}
             icon={Target}
+            details={
+              <p className="text-sm text-muted-foreground">
+                Campanhas disponíveis para participar
+              </p>
+            }
           />
-          <StatCard
+          <ExpandableStatCard
             title="Seus Envios"
             value={stats.submittedPosts}
             icon={Upload}
+            details={
+              <p className="text-sm text-muted-foreground">
+                Vídeos enviados para competições
+              </p>
+            }
           />
         </div>
 

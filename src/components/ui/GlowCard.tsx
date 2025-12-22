@@ -6,9 +6,10 @@ interface GlowCardProps {
   className?: string;
   glowColor?: 'primary' | 'green' | 'blue' | 'purple' | 'orange';
   hover?: boolean;
+  onClick?: () => void;
 }
 
-export function GlowCard({ children, className, glowColor = 'primary', hover = true }: GlowCardProps) {
+export function GlowCard({ children, className, glowColor = 'primary', hover = true, onClick }: GlowCardProps) {
   const glowClasses = {
     primary: 'shadow-[0_0_30px_rgba(139,92,246,0.15)] hover:shadow-[0_0_40px_rgba(139,92,246,0.25)]',
     green: 'shadow-[0_0_30px_rgba(34,197,94,0.15)] hover:shadow-[0_0_40px_rgba(34,197,94,0.25)]',
@@ -22,8 +23,10 @@ export function GlowCard({ children, className, glowColor = 'primary', hover = t
       className={cn(
         "rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm p-6 transition-all duration-300",
         hover && glowClasses[glowColor],
+        onClick && "cursor-pointer",
         className
       )}
+      onClick={onClick}
     >
       {children}
     </div>
