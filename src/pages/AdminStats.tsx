@@ -294,6 +294,38 @@ function AdminStatsContent() {
           <ChartCard title="Desempenho por Campanha" subtitle="Top 5 campanhas">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={campaignStats} layout="vertical">
+                <defs>
+                  <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={1}>
+                      <animate 
+                        attributeName="stopOpacity" 
+                        values="0.8;1;0.8" 
+                        dur="2s" 
+                        repeatCount="indefinite" 
+                      />
+                    </stop>
+                    <stop offset="50%" stopColor="hsl(280, 80%, 60%)" stopOpacity={0.9}>
+                      <animate 
+                        attributeName="offset" 
+                        values="0.4;0.6;0.4" 
+                        dur="3s" 
+                        repeatCount="indefinite" 
+                      />
+                    </stop>
+                    <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity={0.8}>
+                      <animate 
+                        attributeName="stopOpacity" 
+                        values="0.6;0.9;0.6" 
+                        dur="2.5s" 
+                        repeatCount="indefinite" 
+                      />
+                    </stop>
+                  </linearGradient>
+                  <linearGradient id="barGradientHover" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={1} />
+                    <stop offset="100%" stopColor="hsl(280, 85%, 65%)" stopOpacity={1} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                 <YAxis
@@ -306,12 +338,13 @@ function AdminStatsContent() {
                 <Tooltip content={<BarChartTooltip />} />
                 <Bar 
                   dataKey="videos" 
-                  fill="hsl(var(--primary))" 
+                  fill="url(#barGradient)" 
                   radius={[0, 4, 4, 0]} 
                   name="Vídeos"
                   animationBegin={0}
                   animationDuration={1000}
                   animationEasing="ease-out"
+                  className="transition-all duration-300 hover:brightness-110"
                 />
               </BarChart>
             </ResponsiveContainer>
