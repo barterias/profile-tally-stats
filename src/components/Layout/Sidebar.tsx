@@ -37,6 +37,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   const adminMainNavigation = [
     { name: t("nav.dashboard"), href: "/dashboard/admin", icon: LayoutDashboard },
+    { name: t("nav.submit"), href: "/submit", icon: Upload },
     { name: t("nav.account_analytics"), href: "/account-analytics", icon: BarChart3 },
   ];
 
