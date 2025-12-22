@@ -17,6 +17,7 @@ import { User, LogOut, Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 import MobileNav from "./MobileNav";
 import { cn } from "@/lib/utils";
+import logo from "@/assets/logo.png";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -93,6 +94,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 <Menu className="h-5 w-5" />
               </Button>
             )}
+
+            {/* Logo in Header */}
+            <div className="flex items-center gap-3">
+              <img src={logo} alt="ORDO JG" className="h-10 w-10 object-contain" />
+              <span className="text-lg font-bold text-foreground hidden sm:inline">ORDO JG</span>
+            </div>
 
             {/* Page Title - Can be dynamic */}
             <div className="flex-1" />
