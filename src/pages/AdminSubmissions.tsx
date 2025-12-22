@@ -53,6 +53,7 @@ import {
   Download,
   RefreshCw,
   Trash2,
+  CheckCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -163,6 +164,29 @@ function AdminSubmissionsContent() {
     }
   };
 
+  const handleApproveAll = async () => {
+    try {
+      const pendingIds = submissions.filter(s => !s.verified).map(s => s.id);
+      
+      if (pendingIds.length === 0) {
+        toast.info(t("submissions.no_pending_videos") || "Não há vídeos pendentes");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("campaign_videos")
+        .update({ verified: true })
+        .in("id", pendingIds);
+
+      if (error) throw error;
+
+      toast.success(t("submissions.all_videos_approved") || `${pendingIds.length} vídeos aprovados com sucesso!`);
+      fetchSubmissions();
+    } catch (error: any) {
+      toast.error(error.message || t("submissions.error_processing"));
+    }
+  };
+
   const openConfirmDialog = (
     title: string, 
     description: string, 
@@ -269,6 +293,20 @@ function AdminSubmissionsContent() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {pendingCount > 0 && (
+              <Button 
+                size="sm" 
+                onClick={() => openConfirmDialog(
+                  t("submissions.approve_all") || "Aprovar Todos",
+                  t("submissions.approve_all_confirm") || `Tem certeza que deseja aprovar todos os ${pendingCount} vídeos pendentes?`,
+                  handleApproveAll
+                )}
+                className="bg-success hover:bg-success/90"
+              >
+                <CheckCheck className="h-4 w-4 mr-2" />
+                {t("submissions.approve_all") || "Aprovar Todos"} ({pendingCount})
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={fetchSubmissions}>
               <RefreshCw className="h-4 w-4 mr-2" />
               {t("common.refresh")}
