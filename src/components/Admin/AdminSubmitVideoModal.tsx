@@ -6,8 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Video, Instagram, Youtube, CheckCircle2, AlertCircle, Search } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, Plus, Trash2, Video, CheckCircle2 } from "lucide-react";
 
 interface AdminSubmitVideoModalProps {
   open: boolean;
@@ -22,34 +21,24 @@ interface Campaign {
   platforms: string[];
 }
 
-interface UserProfile {
-  id: string;
-  username: string;
+// Detecta plataforma automaticamente pelo link
+function detectPlatform(url: string): string | null {
+  const lower = url.toLowerCase();
+  if (lower.includes("tiktok.com")) return "tiktok";
+  if (lower.includes("instagram.com")) return "instagram";
+  if (lower.includes("youtube.com") || lower.includes("youtu.be")) return "youtube";
+  return null;
 }
-
-// TikTok SVG Icon component
-const TikTokIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-  </svg>
-);
 
 export function AdminSubmitVideoModal({ open, onOpenChange, onSuccess, preselectedCampaignId }: AdminSubmitVideoModalProps) {
   const [loading, setLoading] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState(preselectedCampaignId || "");
-  const [selectedPlatform, setSelectedPlatform] = useState("");
-  const [selectedUser, setSelectedUser] = useState("");
   const [links, setLinks] = useState([""]);
-  const [validatingLinks, setValidatingLinks] = useState<Record<number, boolean>>({});
-  const [validatedLinks, setValidatedLinks] = useState<Record<number, { valid: boolean; error?: string }>>({});
-  const [userSearch, setUserSearch] = useState("");
 
   useEffect(() => {
     if (open) {
       fetchCampaigns();
-      fetchUsers();
       if (preselectedCampaignId) {
         setSelectedCampaign(preselectedCampaignId);
       }
@@ -57,108 +46,33 @@ export function AdminSubmitVideoModal({ open, onOpenChange, onSuccess, preselect
   }, [open, preselectedCampaignId]);
 
   useEffect(() => {
-    // Reset when campaign changes
-    setSelectedPlatform("");
+    // Reset links when campaign changes
     setLinks([""]);
-    setValidatedLinks({});
   }, [selectedCampaign]);
 
   const fetchCampaigns = async () => {
     const { data } = await supabase
-      .from('campaigns')
-      .select('id, name, platforms, is_active')
-      .eq('is_active', true)
-      .order('name');
+      .from("campaigns")
+      .select("id, name, platforms, is_active")
+      .eq("is_active", true)
+      .order("name");
 
-    setCampaigns((data || []).map(c => ({
-      id: c.id,
-      name: c.name,
-      platforms: c.platforms || [],
-    })));
+    setCampaigns(
+      (data || []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        platforms: c.platforms || [],
+      }))
+    );
   };
 
-  const fetchUsers = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, username')
-      .order('username');
+  const selectedCampaignData = campaigns.find((c) => c.id === selectedCampaign);
 
-    setUsers(data || []);
-  };
-
-  const selectedCampaignData = campaigns.find(c => c.id === selectedCampaign);
-  const availablePlatforms = selectedCampaignData?.platforms || [];
-
-  const filteredUsers = users.filter(u => 
-    u.username.toLowerCase().includes(userSearch.toLowerCase())
-  );
-
-  const platformIcons: Record<string, any> = {
-    tiktok: TikTokIcon,
-    instagram: Instagram,
-    youtube: Youtube,
-  };
-
-  const platformColors: Record<string, string> = {
-    tiktok: 'text-[#25F4EE]',
-    instagram: 'text-[#E1306C]',
-    youtube: 'text-[#FF0000]',
-  };
-
-  const validateLink = (link: string): boolean => {
-    const normalizedLink = link.toLowerCase().trim();
-    if (selectedPlatform === 'tiktok') return normalizedLink.includes('tiktok.com');
-    if (selectedPlatform === 'instagram') return normalizedLink.includes('instagram.com');
-    if (selectedPlatform === 'youtube') return normalizedLink.includes('youtube.com') || normalizedLink.includes('youtu.be');
-    return false;
-  };
-
-  const handleValidateLink = async (index: number) => {
-    const link = links[index];
-    if (!link.trim()) return;
-
-    if (!validateLink(link)) {
-      setValidatedLinks(prev => ({
-        ...prev,
-        [index]: { valid: false, error: "Link não corresponde à plataforma" },
-      }));
-      return;
-    }
-
-    setValidatingLinks(prev => ({ ...prev, [index]: true }));
-
-    try {
-      const { data, error } = await supabase.functions.invoke('video-details', {
-        body: { videoUrl: link },
-      });
-
-      if (error || !data?.success) {
-        setValidatedLinks(prev => ({
-          ...prev,
-          [index]: { valid: true, error: "Métricas serão buscadas após envio" },
-        }));
-      } else {
-        setValidatedLinks(prev => ({ ...prev, [index]: { valid: true } }));
-      }
-    } catch {
-      setValidatedLinks(prev => ({ ...prev, [index]: { valid: true, error: "Será validado após envio" } }));
-    } finally {
-      setValidatingLinks(prev => ({ ...prev, [index]: false }));
-    }
-  };
-
-  const addLink = () => {
-    setLinks([...links, ""]);
-  };
+  const addLink = () => setLinks([...links, ""]);
 
   const removeLink = (index: number) => {
     if (links.length > 1) {
       setLinks(links.filter((_, i) => i !== index));
-      setValidatedLinks(prev => {
-        const newState = { ...prev };
-        delete newState[index];
-        return newState;
-      });
     }
   };
 
@@ -166,36 +80,45 @@ export function AdminSubmitVideoModal({ open, onOpenChange, onSuccess, preselect
     const newLinks = [...links];
     newLinks[index] = value;
     setLinks(newLinks);
-    setValidatedLinks(prev => {
-      const newState = { ...prev };
-      delete newState[index];
-      return newState;
-    });
   };
 
   const handleSubmit = async () => {
-    if (!selectedCampaign || !selectedPlatform) {
-      toast.error("Selecione campanha e plataforma");
+    if (!selectedCampaign) {
+      toast.error("Selecione uma campanha");
       return;
     }
 
-    const validLinks = links.filter(l => l.trim() && validateLink(l));
+    const validLinks = links
+      .map((l) => l.trim())
+      .filter((l) => l && detectPlatform(l));
+
     if (validLinks.length === 0) {
-      toast.error("Adicione pelo menos um link válido");
+      toast.error("Adicione pelo menos um link válido (TikTok, Instagram ou YouTube)");
       return;
     }
 
     setLoading(true);
+    let successCount = 0;
+
     try {
       for (const link of validLinks) {
+        const platform = detectPlatform(link);
+        if (!platform) continue;
+
+        // Verificar se a plataforma é suportada pela campanha
+        if (selectedCampaignData?.platforms?.length && !selectedCampaignData.platforms.includes(platform)) {
+          toast.warning(`${platform} não é suportado por esta campanha`);
+          continue;
+        }
+
         const { data: insertedVideo, error: insertError } = await supabase
           .from("campaign_videos")
           .insert({
             campaign_id: selectedCampaign,
             video_link: link,
-            platform: selectedPlatform,
-            submitted_by: selectedUser || null,
-            verified: true, // Admin submissions are auto-verified
+            platform,
+            submitted_by: null,
+            verified: true,
             views: 0,
             likes: 0,
             comments: 0,
@@ -209,38 +132,36 @@ export function AdminSubmitVideoModal({ open, onOpenChange, onSuccess, preselect
           continue;
         }
 
-        // Fetch metrics from API
-        try {
-          const { data: metricsData } = await supabase.functions.invoke('video-details', {
-            body: { videoUrl: link },
-          });
+        successCount++;
 
-          if (metricsData?.success && metricsData?.data) {
-            const metrics = {
-              views: metricsData.data.viewsCount || 0,
-              likes: metricsData.data.likesCount || 0,
-              comments: metricsData.data.commentsCount || 0,
-              shares: metricsData.data.sharesCount || 0,
-            };
-
-            await supabase
-              .from("campaign_videos")
-              .update(metrics)
-              .eq("id", insertedVideo.id);
-          }
-        } catch (metricsError) {
-          console.error("Error fetching metrics:", metricsError);
-        }
+        // Buscar métricas em background
+        supabase.functions
+          .invoke("video-details", { body: { videoUrl: link } })
+          .then(({ data: metricsData }) => {
+            if (metricsData?.success && metricsData?.data) {
+              supabase
+                .from("campaign_videos")
+                .update({
+                  views: metricsData.data.viewsCount || 0,
+                  likes: metricsData.data.likesCount || 0,
+                  comments: metricsData.data.commentsCount || 0,
+                  shares: metricsData.data.sharesCount || 0,
+                })
+                .eq("id", insertedVideo.id);
+            }
+          })
+          .catch(() => {});
       }
 
-      toast.success(`${validLinks.length} vídeo(s) adicionado(s) com sucesso!`);
-      onOpenChange(false);
-      setLinks([""]);
-      setSelectedCampaign(preselectedCampaignId || "");
-      setSelectedPlatform("");
-      setSelectedUser("");
-      setValidatedLinks({});
-      onSuccess?.();
+      if (successCount > 0) {
+        toast.success(`${successCount} vídeo(s) adicionado(s)!`);
+        onOpenChange(false);
+        setLinks([""]);
+        setSelectedCampaign(preselectedCampaignId || "");
+        onSuccess?.();
+      } else {
+        toast.error("Nenhum vídeo foi adicionado");
+      }
     } catch (error: any) {
       toast.error(error.message || "Erro ao adicionar vídeos");
     } finally {
@@ -250,15 +171,15 @@ export function AdminSubmitVideoModal({ open, onOpenChange, onSuccess, preselect
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Video className="h-5 w-5 text-primary" />
-            Adicionar Vídeo (Admin)
+            Adicionar Vídeo
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-2">
           {/* Campaign Selection */}
           <div className="space-y-2">
             <Label>Campanha</Label>
@@ -268,144 +189,79 @@ export function AdminSubmitVideoModal({ open, onOpenChange, onSuccess, preselect
               </SelectTrigger>
               <SelectContent>
                 {campaigns.length === 0 ? (
-                  <SelectItem value="none" disabled>Nenhuma campanha ativa</SelectItem>
+                  <SelectItem value="none" disabled>
+                    Nenhuma campanha ativa
+                  </SelectItem>
                 ) : (
-                  campaigns.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  campaigns.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
                   ))
                 )}
               </SelectContent>
             </Select>
+            {selectedCampaignData && (
+              <p className="text-xs text-muted-foreground">
+                Plataformas: {selectedCampaignData.platforms.join(", ") || "todas"}
+              </p>
+            )}
           </div>
 
-          {/* User Selection (Optional) */}
-          {selectedCampaign && (
-            <div className="space-y-2">
-              <Label>Atribuir a usuário (opcional)</Label>
-              <div className="space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar usuário..."
-                    value={userSearch}
-                    onChange={(e) => setUserSearch(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-                <Select value={selectedUser} onValueChange={setSelectedUser}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um usuário" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-48">
-                    <SelectItem value="">Nenhum (vídeo sem dono)</SelectItem>
-                    {filteredUsers.slice(0, 50).map(u => (
-                      <SelectItem key={u.id} value={u.id}>@{u.username}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          {/* Platform Selection */}
-          {selectedCampaign && (
-            <div className="space-y-2">
-              <Label>Plataforma</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {availablePlatforms.map(platform => {
-                  const Icon = platformIcons[platform] || Video;
-                  const colorClass = platformColors[platform] || '';
-                  
-                  return (
-                    <Button
-                      key={platform}
-                      type="button"
-                      variant={selectedPlatform === platform ? "default" : "outline"}
-                      className="flex flex-col items-center py-4 h-auto"
-                      onClick={() => setSelectedPlatform(platform)}
-                    >
-                      <Icon className={`h-6 w-6 mb-1 ${selectedPlatform !== platform ? colorClass : ''}`} />
-                      <span className="text-xs capitalize">{platform}</span>
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Video Links */}
-          {selectedPlatform && (
+          {selectedCampaign && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Links dos vídeos</Label>
+                <Label>Link do vídeo</Label>
                 <Button type="button" variant="ghost" size="sm" onClick={addLink}>
                   <Plus className="h-4 w-4 mr-1" />
-                  Adicionar
+                  Mais
                 </Button>
               </div>
 
-              {links.map((link, index) => (
-                <div key={index} className="space-y-1">
-                  <div className="flex gap-2">
+              {links.map((link, index) => {
+                const detected = detectPlatform(link);
+                return (
+                  <div key={index} className="flex gap-2 items-center">
                     <div className="relative flex-1">
                       <Input
-                        placeholder={`Link do ${selectedPlatform}`}
+                        placeholder="Cole o link do TikTok, Instagram ou YouTube"
                         value={link}
                         onChange={(e) => updateLink(index, e.target.value)}
-                        onBlur={() => link.trim() && handleValidateLink(index)}
                       />
-                      {validatingLinks[index] && (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />
-                      )}
-                      {validatedLinks[index]?.valid && !validatingLinks[index] && (
-                        <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
-                      )}
-                      {validatedLinks[index]?.valid === false && !validatingLinks[index] && (
-                        <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                      {detected && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          <span className="text-xs text-muted-foreground capitalize">{detected}</span>
+                        </div>
                       )}
                     </div>
                     {links.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeLink(index)}
-                      >
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeLink(index)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
-                  {validatedLinks[index]?.error && (
-                    <p className={`text-xs ${validatedLinks[index]?.valid ? 'text-yellow-500' : 'text-red-500'}`}>
-                      {validatedLinks[index].error}
-                    </p>
-                  )}
-                </div>
-              ))}
-
-              <Alert>
-                <AlertDescription className="text-xs">
-                  Como admin, os vídeos serão adicionados como verificados automaticamente.
-                </AlertDescription>
-              </Alert>
+                );
+              })}
             </div>
           )}
 
           {/* Submit Button */}
           <Button
             onClick={handleSubmit}
-            disabled={loading || !selectedCampaign || !selectedPlatform || links.every(l => !l.trim())}
+            disabled={loading || !selectedCampaign || links.every((l) => !l.trim())}
             className="w-full"
           >
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Adicionando...
+                Enviando...
               </>
             ) : (
               <>
                 <Plus className="h-4 w-4 mr-2" />
-                Adicionar Vídeos
+                Adicionar
               </>
             )}
           </Button>
