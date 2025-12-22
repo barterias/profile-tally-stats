@@ -16,9 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Trophy, Zap, Eye, Lock, Mail, User, ArrowRight } from "lucide-react";
+import { Trophy, Eye, Lock, Mail, User, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { LanguageSelector } from "@/components/LanguageSelector";
+import logo from "@/assets/logo-transparent.png";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -164,13 +165,8 @@ export default function Auth() {
           <div className="hidden lg:flex flex-col justify-center space-y-8 p-8">
             <div className="space-y-4">
               <div className="flex items-center gap-3 mb-6">
-                <div className="relative">
-                  <Zap className="h-16 w-16 text-primary" />
-                  <div className="absolute inset-0 animate-pulse-glow">
-                    <Zap className="h-16 w-16 text-primary opacity-50" />
-                  </div>
-                </div>
-                <h1 className="text-5xl font-bold text-glow-lg">
+                <img src={logo} alt="ORDOJG" className="h-24 w-24 object-contain" />
+                <h1 className="text-5xl font-bold text-silver-shine">
                   ORDO JG
                 </h1>
               </div>
@@ -212,7 +208,7 @@ export default function Auth() {
             <Card className="w-full max-w-md glass-card border-2 shadow-2xl">
               <CardHeader className="space-y-1 pb-6">
                 <div className="flex items-center justify-center mb-4 lg:hidden">
-                  <Zap className="h-12 w-12 text-primary" />
+                  <img src={logo} alt="ORDOJG" className="h-16 w-16 object-contain" />
                 </div>
                 <CardTitle className="text-3xl font-bold text-center text-glow">
                   {t("auth.welcome")}
