@@ -19,7 +19,7 @@ import {
 import { Trophy, Eye, Lock, Mail, User, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { LanguageSelector } from "@/components/LanguageSelector";
-import logo from "@/assets/logo-transparent.png";
+import logo from "@/assets/logo.png";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
