@@ -26,16 +26,21 @@ export default function ExpandableStatCard({
   className = "",
 }: ExpandableStatCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isClicking, setIsClicking] = useState(false);
 
   const handleToggle = () => {
-    setIsExpanded(!isExpanded);
+    setIsClicking(true);
+    setTimeout(() => {
+      setIsClicking(false);
+      setIsExpanded(!isExpanded);
+    }, 150);
   };
 
   return (
     <Card
       className={cn(
         "relative cursor-pointer transition-all duration-500 ease-out overflow-hidden",
-        "glass-card-hover hover:shadow-lg",
+        "bg-card/60 backdrop-blur-sm border-border/30",
         isExpanded
           ? "p-6 rounded-2xl"
           : "p-0 rounded-full aspect-square flex items-center justify-center",
@@ -49,22 +54,41 @@ export default function ExpandableStatCard({
           className="absolute top-3 right-3 p-1.5 rounded-full bg-muted/50 hover:bg-muted transition-colors z-10"
           onClick={(e) => {
             e.stopPropagation();
-            setIsExpanded(false);
+            setIsClicking(true);
+            setTimeout(() => {
+              setIsClicking(false);
+              setIsExpanded(false);
+            }, 150);
           }}
         >
           <X className="h-4 w-4 text-muted-foreground" />
         </button>
       )}
 
-      {/* Collapsed State - Only Icon */}
+      {/* Collapsed State - Only Icon with Silver Glow */}
       <div
         className={cn(
-          "transition-all duration-500",
-          isExpanded ? "hidden" : "flex items-center justify-center w-full h-full"
+          "transition-all duration-300",
+          isExpanded ? "hidden" : "flex items-center justify-center w-full h-full group"
         )}
       >
-        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center neon-border">
-          <Icon className="h-6 w-6 text-primary" />
+        {/* Outer glow ring */}
+        <div className={cn(
+          "absolute inset-0 rounded-full transition-all duration-300",
+          "bg-gradient-to-br from-slate-300/10 via-white/5 to-slate-400/10",
+          "shadow-[0_0_20px_rgba(203,213,225,0.3),0_0_40px_rgba(148,163,184,0.15),inset_0_0_20px_rgba(255,255,255,0.05)]",
+          "group-hover:shadow-[0_0_30px_rgba(203,213,225,0.5),0_0_60px_rgba(148,163,184,0.25),inset_0_0_30px_rgba(255,255,255,0.1)]"
+        )} />
+        
+        {/* Icon container with click animation */}
+        <div className={cn(
+          "relative z-10 h-10 w-10 rounded-full flex items-center justify-center transition-all duration-150",
+          "bg-gradient-to-br from-slate-200/20 to-slate-400/10",
+          "shadow-[0_0_15px_rgba(226,232,240,0.4),0_0_30px_rgba(148,163,184,0.2)]",
+          "group-hover:shadow-[0_0_20px_rgba(226,232,240,0.6),0_0_40px_rgba(148,163,184,0.3)]",
+          isClicking && "scale-90 shadow-[0_0_25px_rgba(226,232,240,0.8),0_0_50px_rgba(148,163,184,0.4)]"
+        )}>
+          <Icon className="h-5 w-5 text-slate-300 drop-shadow-[0_0_8px_rgba(226,232,240,0.6)]" />
         </div>
       </div>
 
@@ -83,8 +107,13 @@ export default function ExpandableStatCard({
               <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
             )}
           </div>
-          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center neon-border">
-            <Icon className="h-6 w-6 text-primary" />
+          {/* Icon with glow in expanded state */}
+          <div className={cn(
+            "h-12 w-12 rounded-xl flex items-center justify-center",
+            "bg-gradient-to-br from-slate-200/20 to-slate-400/10",
+            "shadow-[0_0_15px_rgba(226,232,240,0.4),0_0_30px_rgba(148,163,184,0.2)]"
+          )}>
+            <Icon className="h-6 w-6 text-slate-300 drop-shadow-[0_0_8px_rgba(226,232,240,0.6)]" />
           </div>
         </div>
 
