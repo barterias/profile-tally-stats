@@ -91,11 +91,11 @@ function AdminStatsContent() {
   // Get counts from real data
   const totalAccounts = instagramAccounts.length + tiktokAccounts.length + youtubeAccounts.length;
 
-  // Platform data from social metrics - High contrast colors
+  // Platform data from social metrics - Brand colors
   const platformColors: Record<string, string> = {
-    Instagram: '#f472b6',   // Pink
-    TikTok: '#22d3ee',      // Cyan
-    YouTube: '#ef4444',     // Red
+    Instagram: '#E1306C',   // Instagram pink/purple
+    TikTok: '#25F4EE',      // TikTok turquoise
+    YouTube: '#FF0000',     // YouTube red
   };
 
   const platformData = socialMetrics?.platformBreakdown.map(p => ({

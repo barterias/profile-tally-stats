@@ -16,7 +16,7 @@ interface ChartLineViewsProps {
 
 export function ChartLineViews({ data, title, dataKey = 'views', color = '#8b5cf6' }: ChartLineViewsProps) {
   return (
-    <GlowCard className="h-full">
+    <GlowCard className="h-full animate-fade-in">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
@@ -53,6 +53,9 @@ export function ChartLineViews({ data, title, dataKey = 'views', color = '#8b5cf
               strokeWidth={2}
               dot={{ fill: color, strokeWidth: 2, r: 4 }}
               activeDot={{ r: 6, stroke: color, strokeWidth: 2 }}
+              animationBegin={0}
+              animationDuration={1000}
+              animationEasing="ease-out"
             />
           </LineChart>
         </ResponsiveContainer>
