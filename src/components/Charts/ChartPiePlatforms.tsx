@@ -17,11 +17,9 @@ const COLORS = ['#8b5cf6', '#22c55e', '#3b82f6', '#f97316', '#ec4899', '#06b6d4'
 const platformColors: Record<string, string> = {
   tiktok: '#00f2ea',
   youtube: '#ff0000',
-  instagram: '#E1306C',
+  instagram: '#e4405f',
   kwai: '#ff7b00',
   facebook: '#1877f2',
-  twitter: '#1DA1F2',
-  x: '#000000',
 };
 
 export function ChartPiePlatforms({ data, title }: ChartPiePlatformsProps) {
