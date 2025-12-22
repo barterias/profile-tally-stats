@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { externalSupabase } from "@/lib/externalSupabase";
 import AppLayout from "@/components/Layout/AppLayout";
-import StatCard from "@/components/Dashboard/StatCard";
+import ExpandableStatCard from "@/components/Dashboard/ExpandableStatCard";
 import ChartCard from "@/components/Dashboard/ChartCard";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -338,29 +338,49 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <ExpandableStatCard
             title="Total de Vídeos"
             value={stats.totalVideos.toLocaleString()}
             icon={Video}
             trend={{ value: "23.5%", isPositive: true }}
+            details={
+              <p className="text-sm text-muted-foreground">
+                Vídeos de todas as plataformas monitoradas
+              </p>
+            }
           />
-          <StatCard
+          <ExpandableStatCard
             title="Usuários Ativos"
             value={stats.totalUsers}
             icon={Users}
             trend={{ value: "12.3%", isPositive: true }}
+            details={
+              <p className="text-sm text-muted-foreground">
+                Clippers cadastrados na plataforma
+              </p>
+            }
           />
-          <StatCard
+          <ExpandableStatCard
             title="Competições Ativas"
             value={stats.activeCampaigns}
             icon={Trophy}
+            details={
+              <p className="text-sm text-muted-foreground">
+                Campanhas em andamento
+              </p>
+            }
           />
-          <StatCard
+          <ExpandableStatCard
             title="Views Totais"
             value={stats.totalViews.toLocaleString()}
             icon={Eye}
             trend={{ value: "45.8%", isPositive: true }}
+            details={
+              <p className="text-sm text-muted-foreground">
+                Soma de todas as visualizações
+              </p>
+            }
           />
         </div>
 
