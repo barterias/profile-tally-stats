@@ -164,11 +164,8 @@ export default function Auth() {
           {/* Left Side - Branding */}
           <div className="hidden lg:flex flex-col justify-center space-y-8 p-8">
             <div className="space-y-4">
-              <div className="flex items-center gap-3 mb-6">
-                <img src={logo} alt="ORDOJG" className="h-24 w-24 object-contain" />
-                <h1 className="text-5xl font-bold text-silver-shine">
-                  ORDO JG
-                </h1>
+              <div className="flex items-center justify-center mb-6">
+                <img src={logo} alt="ORDOJG" className="h-32 w-32 object-contain" />
               </div>
               
               <p className="text-xl text-muted-foreground">
