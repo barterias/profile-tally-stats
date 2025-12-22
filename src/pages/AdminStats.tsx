@@ -6,22 +6,25 @@ import MainLayout from "@/components/Layout/MainLayout";
 import StatCard from "@/components/Dashboard/StatCard";
 import ChartCard from "@/components/Dashboard/ChartCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useSocialMetrics } from "@/hooks/useSocialMetrics";
 import { useAllInstagramAccounts } from "@/hooks/useInstagramAccounts";
 import { useAllTikTokAccounts } from "@/hooks/useTikTokAccounts";
 import { useAllYouTubeAccounts } from "@/hooks/useYouTubeAccounts";
 import { PlatformTooltip, BarChartTooltip } from "@/components/Charts/CustomTooltip";
+import { AdminSubmitVideoModal } from "@/components/Admin/AdminSubmitVideoModal";
 import {
   BarChart3,
   Eye,
   Users,
   Trophy,
-  Video,
   TrendingUp,
   Instagram,
   Youtube,
   Calendar,
+  Plus,
+  Video,
 } from "lucide-react";
 import {
   BarChart,
@@ -36,14 +39,30 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+// TikTok SVG Icon component
+const TikTokIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+  </svg>
+);
+
+// Video icon component for stats
+const VideoIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="m22 8-6 4 6 4V8Z"/>
+    <rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>
+  </svg>
+);
+
 function AdminStatsContent() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [campaignStats, setCampaignStats] = useState<any[]>([]);
+  const [showAddVideoModal, setShowAddVideoModal] = useState(false);
 
   // Use real data from social metrics hook
-  const { data: socialMetrics, isLoading: metricsLoading } = useSocialMetrics();
+  const { data: socialMetrics, isLoading: metricsLoading, refetch } = useSocialMetrics();
   const { data: instagramAccounts = [] } = useAllInstagramAccounts();
   const { data: tiktokAccounts = [] } = useAllTikTokAccounts();
   const { data: youtubeAccounts = [] } = useAllYouTubeAccounts();
@@ -120,15 +139,31 @@ function AdminStatsContent() {
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <BarChart3 className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold text-glow">Estatísticas Gerais</h1>
-            <p className="text-muted-foreground">
-              Visão completa do desempenho da plataforma
-            </p>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <BarChart3 className="h-8 w-8 text-primary" />
+            <div>
+              <h1 className="text-2xl font-bold text-glow">Estatísticas Gerais</h1>
+              <p className="text-muted-foreground">
+                Visão completa do desempenho da plataforma
+              </p>
+            </div>
           </div>
+          <Button onClick={() => setShowAddVideoModal(true)} className="w-fit">
+            <Plus className="h-4 w-4 mr-2" />
+            Adicionar Vídeo
+          </Button>
         </div>
+
+        {/* Add Video Modal */}
+        <AdminSubmitVideoModal
+          open={showAddVideoModal}
+          onOpenChange={setShowAddVideoModal}
+          onSuccess={() => {
+            refetch();
+            fetchCampaignStats();
+          }}
+        />
 
         {/* Stats Grid - Real data from API */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -191,9 +226,9 @@ function AdminStatsContent() {
             </div>
           </Card>
 
-          <Card className="p-4 bg-gradient-to-r from-purple-500/10 to-purple-500/5 border-purple-500/20">
+          <Card className="p-4 bg-gradient-to-r from-[#25F4EE]/10 to-[#FE2C55]/5 border-[#25F4EE]/20">
             <div className="flex items-center gap-3 mb-4">
-              <Video className="h-6 w-6 text-purple-500" />
+              <TikTokIcon className="h-6 w-6 text-[#25F4EE]" />
               <h3 className="font-semibold">TikTok</h3>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
