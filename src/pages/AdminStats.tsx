@@ -242,7 +242,7 @@ function AdminStatsContent() {
         </div>
 
         {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
           <ChartCard title="Distribuição por Plataforma" subtitle="Contas e views">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -256,12 +256,21 @@ function AdminStatsContent() {
                       outerRadius={70}
                       paddingAngle={5}
                       dataKey="value"
+                      animationBegin={0}
+                      animationDuration={800}
+                      animationEasing="ease-out"
                     >
                       {platformData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell key={`cell-${index}`} fill={entry.color} className="transition-opacity hover:opacity-80" />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
                 <p className="text-center text-sm text-muted-foreground">
@@ -306,7 +315,15 @@ function AdminStatsContent() {
                     borderRadius: "8px",
                   }}
                 />
-                <Bar dataKey="videos" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Vídeos" />
+                <Bar 
+                  dataKey="videos" 
+                  fill="hsl(var(--primary))" 
+                  radius={[0, 4, 4, 0]} 
+                  name="Vídeos"
+                  animationBegin={0}
+                  animationDuration={1000}
+                  animationEasing="ease-out"
+                />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
