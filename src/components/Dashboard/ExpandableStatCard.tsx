@@ -49,21 +49,20 @@ export default function ExpandableStatCard({
         className={cn(
           "absolute inset-0 rounded-2xl p-[2px] overflow-hidden",
           "before:absolute before:inset-[-200%] before:animate-[spin_3s_linear_infinite]",
-          "before:bg-[conic-gradient(from_0deg,transparent_0deg,transparent_60deg,hsl(var(--primary))_120deg,hsl(160_80%_50%)_180deg,hsl(var(--primary))_240deg,transparent_300deg,transparent_360deg)]",
-          "group-hover:before:animate-[spin_2s_linear_infinite]"
+          "before:bg-[conic-gradient(from_0deg,transparent_0deg,transparent_60deg,hsl(0_0%_85%)_120deg,hsl(0_0%_100%)_180deg,hsl(0_0%_85%)_240deg,transparent_300deg,transparent_360deg)]"
         )}
         style={{
           background: "transparent",
         }}
       >
-        <div className="absolute inset-[-200%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0deg,transparent_60deg,hsl(160_80%_50%)_120deg,hsl(120_60%_45%)_180deg,hsl(160_80%_50%)_240deg,transparent_300deg,transparent_360deg)]" />
+        <div className="absolute inset-[-200%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0deg,transparent_60deg,hsl(0_0%_80%)_120deg,hsl(0_0%_95%)_180deg,hsl(0_0%_80%)_240deg,transparent_300deg,transparent_360deg)]" />
       </div>
 
       {/* Glow effect behind */}
       <div
         className={cn(
           "absolute inset-0 rounded-2xl blur-xl opacity-40 transition-opacity duration-500",
-          "bg-gradient-to-r from-emerald-500/50 via-green-400/50 to-emerald-500/50",
+          "bg-gradient-to-r from-slate-300/50 via-white/50 to-slate-300/50",
           "group-hover:opacity-60"
         )}
       />
@@ -103,12 +102,12 @@ export default function ExpandableStatCard({
           {/* Icon container with click animation */}
           <div className={cn(
             "relative z-10 h-11 w-11 rounded-full flex items-center justify-center transition-all duration-150",
-            "bg-gradient-to-br from-emerald-500/20 to-green-400/10",
-            "shadow-[0_0_20px_rgba(52,211,153,0.4),0_0_40px_rgba(34,197,94,0.2)]",
-            "group-hover:shadow-[0_0_30px_rgba(52,211,153,0.6),0_0_60px_rgba(34,197,94,0.3)]",
-            isClicking && "scale-90 shadow-[0_0_40px_rgba(52,211,153,0.8),0_0_80px_rgba(34,197,94,0.5)]"
+            "bg-gradient-to-br from-slate-200/20 to-white/10",
+            "shadow-[0_0_20px_rgba(226,232,240,0.5),0_0_40px_rgba(203,213,225,0.25)]",
+            "group-hover:shadow-[0_0_30px_rgba(226,232,240,0.7),0_0_60px_rgba(203,213,225,0.4)]",
+            isClicking && "scale-90 shadow-[0_0_40px_rgba(255,255,255,0.8),0_0_80px_rgba(226,232,240,0.5)]"
           )}>
-            <Icon className="h-5 w-5 text-emerald-300 drop-shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+            <Icon className="h-5 w-5 text-slate-200 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
           </div>
         </div>
 
@@ -130,10 +129,10 @@ export default function ExpandableStatCard({
             {/* Icon with glow in expanded state */}
             <div className={cn(
               "h-12 w-12 rounded-xl flex items-center justify-center",
-              "bg-gradient-to-br from-emerald-500/20 to-green-400/10",
-              "shadow-[0_0_20px_rgba(52,211,153,0.4),0_0_40px_rgba(34,197,94,0.2)]"
+              "bg-gradient-to-br from-slate-200/20 to-white/10",
+              "shadow-[0_0_20px_rgba(226,232,240,0.5),0_0_40px_rgba(203,213,225,0.25)]"
             )}>
-              <Icon className="h-6 w-6 text-emerald-300 drop-shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+              <Icon className="h-6 w-6 text-slate-200 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
             </div>
           </div>
 
