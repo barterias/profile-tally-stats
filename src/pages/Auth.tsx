@@ -165,7 +165,7 @@ export default function Auth() {
           <div className="hidden lg:flex flex-col justify-center space-y-8 p-8">
             <div className="space-y-4">
               <div className="flex items-center gap-3 mb-6">
-                <img src={logo} alt="ORDOJG" className="h-24 w-24 object-contain" />
+                <img src={logo} alt="ORDOJG" className="h-24 w-24 object-contain logo-glow" />
                 <h1 className="text-5xl font-bold text-silver-shine">
                   ORDO JG
                 </h1>
@@ -208,7 +208,7 @@ export default function Auth() {
             <Card className="w-full max-w-md glass-card border-2 shadow-2xl">
               <CardHeader className="space-y-1 pb-6">
                 <div className="flex items-center justify-center mb-4 lg:hidden">
-                  <img src={logo} alt="ORDOJG" className="h-16 w-16 object-contain" />
+                  <img src={logo} alt="ORDOJG" className="h-16 w-16 object-contain logo-glow" />
                 </div>
                 <CardTitle className="text-3xl font-bold text-center text-glow">
                   {t("auth.welcome")}
