@@ -23,6 +23,7 @@ All colors MUST be HSL.
     --primary-glow: 0 0% 90%;
     --primary-dark: 0 0% 60%;
     --primary-foreground: 0 0% 3%;
+    --silver-glow: 0 0% 85%;
     
     --secondary: 0 0% 10%;
     --secondary-foreground: 0 0% 85%;
@@ -274,5 +275,18 @@ All colors MUST be HSL.
     50% {
       transform: translateY(-10px);
     }
+  }
+
+  @keyframes logo-glow {
+    0%, 100% {
+      filter: drop-shadow(0 0 8px hsl(var(--silver-glow) / 0.5)) drop-shadow(0 0 20px hsl(var(--silver-glow) / 0.3));
+    }
+    50% {
+      filter: drop-shadow(0 0 18px hsl(var(--silver-glow) / 0.8)) drop-shadow(0 0 40px hsl(var(--silver-glow) / 0.5));
+    }
+  }
+
+  .logo-glow {
+    animation: logo-glow 2.5s ease-in-out infinite;
   }
 }
