@@ -8,65 +8,65 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Clipper Pro League - Premium Dark + Neon Blue Theme */
-    --background: 222 47% 4%;
-    --foreground: 210 100% 98%;
+    /* ORDOJG - Premium Black + Silver Theme */
+    --background: 0 0% 3%;
+    --foreground: 0 0% 85%;
     
-    --card: 222 40% 6%;
-    --card-foreground: 210 100% 98%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 85%;
     
-    --popover: 222 40% 5%;
-    --popover-foreground: 210 100% 98%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 85%;
     
-    /* Primary - Neon Blue */
-    --primary: 199 100% 50%;
-    --primary-glow: 199 100% 60%;
-    --primary-dark: 199 100% 40%;
-    --primary-foreground: 222 47% 4%;
+    /* Primary - Shiny Silver */
+    --primary: 0 0% 75%;
+    --primary-glow: 0 0% 90%;
+    --primary-dark: 0 0% 60%;
+    --primary-foreground: 0 0% 3%;
     
-    --secondary: 222 35% 10%;
-    --secondary-foreground: 210 100% 98%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 85%;
     
-    --muted: 222 30% 12%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 55%;
     
-    --accent: 191 100% 50%;
-    --accent-foreground: 222 47% 4%;
+    --accent: 0 0% 80%;
+    --accent-foreground: 0 0% 3%;
     
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 100% 98%;
+    --destructive-foreground: 0 0% 98%;
     
     --success: 142 76% 50%;
-    --success-foreground: 210 100% 98%;
+    --success-foreground: 0 0% 98%;
     
     --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 4%;
+    --warning-foreground: 0 0% 3%;
     
-    --border: 222 30% 15%;
-    --input: 222 35% 10%;
-    --ring: 199 100% 50%;
+    --border: 0 0% 15%;
+    --input: 0 0% 10%;
+    --ring: 0 0% 75%;
     
-    --chart-1: 199 100% 50%;
-    --chart-2: 191 100% 50%;
-    --chart-3: 180 100% 45%;
-    --chart-4: 142 76% 50%;
-    --chart-5: 270 100% 60%;
+    --chart-1: 0 0% 90%;
+    --chart-2: 0 0% 75%;
+    --chart-3: 0 0% 60%;
+    --chart-4: 0 0% 50%;
+    --chart-5: 0 0% 40%;
     
     --radius: 0.75rem;
 
-    /* Premium Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(199 100% 50%) 0%, hsl(191 100% 50%) 100%);
-    --gradient-secondary: linear-gradient(135deg, hsl(222 40% 6%) 0%, hsl(222 35% 10%) 100%);
-    --gradient-bg-dark: linear-gradient(180deg, hsl(222 47% 4%) 0%, hsl(222 40% 6%) 50%, hsl(222 47% 4%) 100%);
-    --gradient-glow: radial-gradient(ellipse at top, hsl(199 100% 50% / 0.15) 0%, transparent 60%);
-    --gradient-card: linear-gradient(135deg, hsl(222 40% 6% / 0.9) 0%, hsl(222 35% 10% / 0.7) 100%);
+    /* Premium Silver Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(0 0% 65%) 0%, hsl(0 0% 85%) 50%, hsl(0 0% 70%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(0 0% 6%) 0%, hsl(0 0% 10%) 100%);
+    --gradient-bg-dark: linear-gradient(180deg, hsl(0 0% 3%) 0%, hsl(0 0% 6%) 50%, hsl(0 0% 3%) 100%);
+    --gradient-glow: radial-gradient(ellipse at top, hsl(0 0% 80% / 0.08) 0%, transparent 60%);
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 6% / 0.9) 0%, hsl(0 0% 10% / 0.7) 100%);
     
-    /* Neon Glows & Shadows */
-    --shadow-glow-sm: 0 0 20px hsl(199 100% 50% / 0.3);
-    --shadow-glow: 0 0 40px hsl(199 100% 50% / 0.4);
-    --shadow-glow-lg: 0 0 80px hsl(199 100% 50% / 0.5);
-    --shadow-card: 0 8px 32px hsl(222 47% 2% / 0.6);
-    --shadow-card-hover: 0 12px 48px hsl(222 47% 2% / 0.8);
+    /* Silver Glows & Shadows */
+    --shadow-glow-sm: 0 0 20px hsl(0 0% 80% / 0.2);
+    --shadow-glow: 0 0 40px hsl(0 0% 80% / 0.3);
+    --shadow-glow-lg: 0 0 80px hsl(0 0% 80% / 0.4);
+    --shadow-card: 0 8px 32px hsl(0 0% 0% / 0.6);
+    --shadow-card-hover: 0 12px 48px hsl(0 0% 0% / 0.8);
     
     /* Transitions */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -74,19 +74,19 @@ All colors MUST be HSL.
     --transition-elastic: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
     
     /* Sidebar */
-    --sidebar-background: 222 40% 5%;
-    --sidebar-foreground: 210 100% 98%;
-    --sidebar-primary: 199 100% 50%;
-    --sidebar-primary-foreground: 222 47% 4%;
-    --sidebar-accent: 222 35% 10%;
-    --sidebar-accent-foreground: 210 100% 98%;
-    --sidebar-border: 222 30% 15%;
-    --sidebar-ring: 199 100% 50%;
+    --sidebar-background: 0 0% 5%;
+    --sidebar-foreground: 0 0% 85%;
+    --sidebar-primary: 0 0% 75%;
+    --sidebar-primary-foreground: 0 0% 3%;
+    --sidebar-accent: 0 0% 10%;
+    --sidebar-accent-foreground: 0 0% 85%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 0 0% 75%;
   }
 
   .dark {
-    --background: 220 30% 5%;
-    --foreground: 210 100% 98%;
+    --background: 0 0% 3%;
+    --foreground: 0 0% 85%;
   }
 }
 
@@ -165,11 +165,11 @@ All colors MUST be HSL.
   
   .neon-border {
     border: 1px solid hsl(var(--primary) / 0.5);
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.3), inset 0 0 20px hsl(var(--primary) / 0.1);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.2), inset 0 0 20px hsl(var(--primary) / 0.05);
   }
   
   .neon-glow {
-    box-shadow: 0 0 30px hsl(var(--primary) / 0.4);
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.3);
   }
   
   .hover-glow {
@@ -182,11 +182,11 @@ All colors MUST be HSL.
   }
   
   .text-glow {
-    text-shadow: 0 0 30px hsl(var(--primary) / 0.6), 0 0 60px hsl(var(--primary) / 0.3);
+    text-shadow: 0 0 30px hsl(var(--primary) / 0.5), 0 0 60px hsl(var(--primary) / 0.2);
   }
   
   .text-glow-sm {
-    text-shadow: 0 0 15px hsl(var(--primary) / 0.4);
+    text-shadow: 0 0 15px hsl(var(--primary) / 0.3);
   }
   
   .premium-gradient {
@@ -195,6 +195,14 @@ All colors MUST be HSL.
   
   .card-gradient {
     background: var(--gradient-card);
+  }
+  
+  /* Silver shimmer text effect */
+  .text-silver-shine {
+    background: linear-gradient(90deg, hsl(0 0% 70%) 0%, hsl(0 0% 95%) 50%, hsl(0 0% 70%) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 
   @keyframes fadeIn {
@@ -241,10 +249,10 @@ All colors MUST be HSL.
 
   @keyframes glow {
     0%, 100% {
-      box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+      box-shadow: 0 0 20px hsl(var(--primary) / 0.2);
     }
     50% {
-      box-shadow: 0 0 40px hsl(var(--primary) / 0.6);
+      box-shadow: 0 0 40px hsl(var(--primary) / 0.4);
     }
   }
 

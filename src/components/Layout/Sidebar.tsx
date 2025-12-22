@@ -10,11 +10,11 @@ import {
   Video,
   Users,
   BarChart3,
-  Zap,
   ChevronLeft,
   ChevronRight,
   UserCircle,
 } from "lucide-react";
+import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -139,13 +139,10 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         )}>
           <Link to={isAdmin ? "/dashboard/admin" : (isClient ? "/dashboard/client" : "/")} className="flex items-center gap-2">
             <div className="relative">
-              <div className="absolute inset-0 animate-pulse-glow rounded-lg">
-                <Zap className="h-8 w-8 text-primary opacity-50" />
-              </div>
-              <Zap className="h-8 w-8 text-primary relative z-10" />
+              <img src={logo} alt="ORDOJG" className="h-10 w-10 object-contain" />
             </div>
             {!collapsed && (
-              <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              <span className="text-lg font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
                 ORDOJG
               </span>
             )}
