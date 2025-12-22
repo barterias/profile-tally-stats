@@ -42,8 +42,8 @@ export function MetricCardGlow({
       className={cn(
         "relative overflow-hidden cursor-pointer transition-all duration-500 ease-out",
         isExpanded 
-          ? "rounded-2xl" 
-          : "rounded-[50%] sm:rounded-2xl aspect-square sm:aspect-auto"
+          ? "rounded-2xl p-6" 
+          : "rounded-full aspect-square p-0 flex items-center justify-center"
       )}
       onClick={handleToggle}
     >
@@ -60,27 +60,16 @@ export function MetricCardGlow({
         </button>
       )}
 
-      {/* Collapsed State - Circle/Compact */}
+      {/* Collapsed State - Only Icon */}
       <div
         className={cn(
           "transition-all duration-500",
-          isExpanded ? "hidden" : "flex flex-col items-center justify-center h-full text-center py-2"
+          isExpanded ? "hidden" : "flex items-center justify-center w-full h-full"
         )}
       >
-        <div className={cn("p-2.5 rounded-full mb-2", iconColors[glowColor])}>
-          <Icon className="h-5 w-5" />
+        <div className={cn("p-3 rounded-full", iconColors[glowColor])}>
+          <Icon className="h-6 w-6" />
         </div>
-        <p className="text-xl sm:text-2xl font-bold tracking-tight">{value}</p>
-        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 line-clamp-1 px-1">{title}</p>
-        {trend && (
-          <div className={cn(
-            "flex items-center gap-0.5 text-[10px] sm:text-xs font-medium mt-0.5",
-            trend.isPositive ? "text-green-400" : "text-red-400"
-          )}>
-            <span>{trend.isPositive ? '↑' : '↓'}</span>
-            <span>{Math.abs(trend.value)}%</span>
-          </div>
-        )}
       </div>
 
       {/* Expanded State - Full Details */}

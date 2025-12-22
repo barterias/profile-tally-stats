@@ -38,7 +38,7 @@ export default function ExpandableStatCard({
         "glass-card-hover hover:shadow-lg",
         isExpanded
           ? "p-6 rounded-2xl"
-          : "p-4 rounded-[50%] sm:rounded-[40%] aspect-square sm:aspect-auto sm:p-6 sm:rounded-2xl",
+          : "p-0 rounded-full aspect-square flex items-center justify-center",
         className
       )}
       onClick={handleToggle}
@@ -56,28 +56,16 @@ export default function ExpandableStatCard({
         </button>
       )}
 
-      {/* Collapsed State - Circle/Compact */}
+      {/* Collapsed State - Only Icon */}
       <div
         className={cn(
           "transition-all duration-500",
-          isExpanded ? "hidden" : "flex flex-col items-center justify-center h-full text-center"
+          isExpanded ? "hidden" : "flex items-center justify-center w-full h-full"
         )}
       >
-        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 neon-border">
+        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center neon-border">
           <Icon className="h-6 w-6 text-primary" />
         </div>
-        <p className="text-2xl sm:text-3xl font-bold text-glow-sm">{value}</p>
-        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{title}</p>
-        {trend && (
-          <span
-            className={cn(
-              "text-xs font-medium mt-1",
-              trend.isPositive ? "text-success" : "text-destructive"
-            )}
-          >
-            {trend.isPositive ? "↑" : "↓"} {trend.value}
-          </span>
-        )}
       </div>
 
       {/* Expanded State - Full Details */}
