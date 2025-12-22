@@ -139,7 +139,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         )}>
           <Link to={isAdmin ? "/dashboard/admin" : (isClient ? "/dashboard/client" : "/")} className="flex items-center gap-2">
             <div className="relative">
-              <img src={logo} alt="ORDOJG" className="h-10 w-10 object-contain logo-glow" />
+              <img src={logo} alt="ORDOJG" className="h-10 w-10 object-contain logo-glow rounded-lg" />
             </div>
             {!collapsed && (
               <span className="text-lg font-bold text-silver-shine text-glow-animated">
