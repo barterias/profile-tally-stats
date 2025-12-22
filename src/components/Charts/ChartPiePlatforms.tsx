@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { GlowCard } from '@/components/ui/GlowCard';
+import { ChartSkeleton } from './ChartSkeleton';
 
 interface PlatformData {
   platform: string;
@@ -10,6 +12,7 @@ interface PlatformData {
 interface ChartPiePlatformsProps {
   data: PlatformData[];
   title: string;
+  isLoading?: boolean;
 }
 
 // High contrast, distinct colors for charts
@@ -25,7 +28,21 @@ const platformColors: Record<string, string> = {
   nodata: '#6b7280',      // Gray for no data state
 };
 
-export function ChartPiePlatforms({ data, title }: ChartPiePlatformsProps) {
+export function ChartPiePlatforms({ data, title, isLoading }: ChartPiePlatformsProps) {
+  const [showChart, setShowChart] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && data.length > 0) {
+      const timer = setTimeout(() => setShowChart(true), 100);
+      return () => clearTimeout(timer);
+    }
+    setShowChart(false);
+  }, [isLoading, data]);
+
+  if (isLoading || !showChart) {
+    return <ChartSkeleton type="pie" title={title} />;
+  }
+
   const dataWithColors = data.map((item, index) => ({
     ...item,
     color: platformColors[item.platform.toLowerCase()] || COLORS[index % COLORS.length]

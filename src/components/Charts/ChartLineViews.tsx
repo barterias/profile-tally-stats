@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { GlowCard } from '@/components/ui/GlowCard';
+import { ChartSkeleton } from './ChartSkeleton';
 
 interface DataPoint {
   date: string;
@@ -12,9 +14,23 @@ interface ChartLineViewsProps {
   title: string;
   dataKey?: string;
   color?: string;
+  isLoading?: boolean;
 }
 
-export function ChartLineViews({ data, title, dataKey = 'views', color = '#8b5cf6' }: ChartLineViewsProps) {
+export function ChartLineViews({ data, title, dataKey = 'views', color = '#8b5cf6', isLoading }: ChartLineViewsProps) {
+  const [showChart, setShowChart] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && data.length > 0) {
+      const timer = setTimeout(() => setShowChart(true), 100);
+      return () => clearTimeout(timer);
+    }
+    setShowChart(false);
+  }, [isLoading, data]);
+
+  if (isLoading || !showChart) {
+    return <ChartSkeleton type="line" title={title} />;
+  }
   return (
     <GlowCard className="h-full animate-fade-in">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
