@@ -29,7 +29,6 @@ export default function MobileNav() {
       { name: "Home", href: "/", icon: LayoutDashboard },
       { name: "Campanhas", href: "/campaigns", icon: Trophy },
       { name: "Enviar", href: "/submit", icon: Upload },
-      ...(isAdmin ? [{ name: "Admin", href: "/admin", icon: Shield }] : []),
       { name: "Perfil", href: "/profile", icon: User },
     ];
   };
