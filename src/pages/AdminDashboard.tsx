@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SyncMetricsButton } from "@/components/Admin/SyncMetricsButton";
 import { AdminSubmitVideoModal } from "@/components/Admin/AdminSubmitVideoModal";
+import { useVideoNotifications } from "@/hooks/useVideoNotifications";
 import {
   Table,
   TableBody,
@@ -64,6 +65,8 @@ export default function AdminDashboard() {
   const [topUsers, setTopUsers] = useState<any[]>([]);
   const [growthData, setGrowthData] = useState<any[]>([]);
 
+  // Enable realtime video notifications for admin
+  useVideoNotifications();
   useEffect(() => {
     if (!isAdmin) {
       navigate("/");
