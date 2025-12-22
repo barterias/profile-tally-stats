@@ -5,6 +5,7 @@ import { GlowCard } from "@/components/ui/GlowCard";
 import { MetricCardGlow } from "@/components/ui/MetricCardGlow";
 import { ChartPiePlatforms } from "@/components/Charts/ChartPiePlatforms";
 import { Button } from "@/components/ui/button";
+import { NeonButton } from "@/components/ui/NeonButton";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import { useSocialMetrics } from "@/hooks/useSocialMetrics";
@@ -152,22 +153,18 @@ function DashboardAdminContent() {
             <p className="text-muted-foreground mt-1">{t('dashboard.overview')}</p>
           </div>
           <div className="flex flex-wrap gap-3 items-center">
-            <Button variant="outline" onClick={handleRefresh}>
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <NeonButton icon={RefreshCw} onClick={handleRefresh} variant="outline">
               {t('common.refresh')}
-            </Button>
-            <Button onClick={() => navigate('/admin/campaigns')} variant="outline">
-              <Trophy className="h-4 w-4 mr-2" />
+            </NeonButton>
+            <NeonButton icon={Trophy} onClick={() => navigate('/admin/campaigns')} variant="outline">
               {t('nav.campaigns')}
-            </Button>
-            <Button onClick={() => navigate('/account-analytics')} variant="outline">
-              <TrendingUp className="h-4 w-4 mr-2" />
+            </NeonButton>
+            <NeonButton icon={TrendingUp} onClick={() => navigate('/account-analytics')} variant="outline">
               {t('accounts')}
-            </Button>
-            <Button onClick={() => navigate('/admin/create-campaign')}>
-              <Plus className="h-4 w-4 mr-2" />
+            </NeonButton>
+            <NeonButton icon={Plus} onClick={() => navigate('/admin/create-campaign')}>
               {t('campaigns.new_campaign')}
-            </Button>
+            </NeonButton>
           </div>
         </div>
 
