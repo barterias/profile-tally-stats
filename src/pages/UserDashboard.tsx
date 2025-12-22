@@ -300,7 +300,6 @@ export default function UserDashboard() {
             title="Total de Views"
             value={formatNumber(stats.totalViews)}
             icon={Eye}
-            blobVariant={1}
             details={
               <p className="text-sm text-muted-foreground">
                 Visualizações em todas as plataformas
@@ -311,7 +310,6 @@ export default function UserDashboard() {
             title="Vídeos no Sistema"
             value={stats.totalVideosSubmitted}
             icon={Video}
-            blobVariant={2}
             details={
               <p className="text-sm text-muted-foreground">
                 Vídeos cadastrados nas suas contas
@@ -322,7 +320,6 @@ export default function UserDashboard() {
             title="Competições Ativas"
             value={stats.activeCampaigns}
             icon={Target}
-            blobVariant={3}
             details={
               <p className="text-sm text-muted-foreground">
                 Campanhas disponíveis para participar
@@ -333,7 +330,6 @@ export default function UserDashboard() {
             title="Seus Envios"
             value={stats.submittedPosts}
             icon={Upload}
-            blobVariant={4}
             details={
               <p className="text-sm text-muted-foreground">
                 Vídeos enviados para competições

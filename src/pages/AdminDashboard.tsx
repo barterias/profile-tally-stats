@@ -344,7 +344,6 @@ export default function AdminDashboard() {
             value={stats.totalVideos.toLocaleString()}
             icon={Video}
             trend={{ value: "23.5%", isPositive: true }}
-            blobVariant={1}
             details={
               <p className="text-sm text-muted-foreground">
                 Vídeos de todas as plataformas monitoradas
@@ -356,7 +355,6 @@ export default function AdminDashboard() {
             value={stats.totalUsers}
             icon={Users}
             trend={{ value: "12.3%", isPositive: true }}
-            blobVariant={2}
             details={
               <p className="text-sm text-muted-foreground">
                 Clippers cadastrados na plataforma
@@ -367,7 +365,6 @@ export default function AdminDashboard() {
             title="Competições Ativas"
             value={stats.activeCampaigns}
             icon={Trophy}
-            blobVariant={3}
             details={
               <p className="text-sm text-muted-foreground">
                 Campanhas em andamento
@@ -379,7 +376,6 @@ export default function AdminDashboard() {
             value={stats.totalViews.toLocaleString()}
             icon={Eye}
             trend={{ value: "45.8%", isPositive: true }}
-            blobVariant={4}
             details={
               <p className="text-sm text-muted-foreground">
                 Soma de todas as visualizações
