@@ -22,17 +22,17 @@ export function NeonButton({
         className={cn(
           "absolute inset-0 rounded-lg overflow-hidden",
           "before:absolute before:inset-[-200%] before:animate-[spin_3s_linear_infinite]",
-          "before:bg-[conic-gradient(from_0deg,transparent_0deg,transparent_60deg,hsl(160_80%_50%)_120deg,hsl(120_60%_45%)_180deg,hsl(160_80%_50%)_240deg,transparent_300deg,transparent_360deg)]"
+          "before:bg-[conic-gradient(from_0deg,transparent_0deg,transparent_60deg,hsl(0_0%_85%)_120deg,hsl(0_0%_100%)_180deg,hsl(0_0%_85%)_240deg,transparent_300deg,transparent_360deg)]"
         )}
       >
-        <div className="absolute inset-[-200%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0deg,transparent_60deg,hsl(160_80%_50%)_120deg,hsl(120_60%_45%)_180deg,hsl(160_80%_50%)_240deg,transparent_300deg,transparent_360deg)]" />
+        <div className="absolute inset-[-200%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0deg,transparent_60deg,hsl(0_0%_80%)_120deg,hsl(0_0%_95%)_180deg,hsl(0_0%_80%)_240deg,transparent_300deg,transparent_360deg)]" />
       </div>
 
       {/* Glow effect */}
       <div
         className={cn(
           "absolute inset-0 rounded-lg blur-md opacity-30 transition-opacity duration-300",
-          "bg-gradient-to-r from-emerald-500/50 via-green-400/50 to-emerald-500/50",
+          "bg-gradient-to-r from-slate-300/50 via-white/50 to-slate-300/50",
           "group-hover:opacity-50"
         )}
       />
@@ -51,7 +51,7 @@ export function NeonButton({
         )}
         {...props}
       >
-        {Icon && <Icon className="h-4 w-4 text-emerald-400" />}
+        {Icon && <Icon className="h-4 w-4 text-slate-300" />}
         <span>{children}</span>
       </button>
     </div>
