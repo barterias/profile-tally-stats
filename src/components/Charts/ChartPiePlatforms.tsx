@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { GlowCard } from '@/components/ui/GlowCard';
 import { ChartSkeleton } from './ChartSkeleton';
+import { PlatformTooltip } from './CustomTooltip';
 
 interface PlatformData {
   platform: string;
@@ -75,25 +76,7 @@ export function ChartPiePlatforms({ data, title, isLoading }: ChartPiePlatformsP
                 />
               ))}
             </Pie>
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: 'hsl(var(--card))', 
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '8px',
-                color: 'hsl(var(--foreground))'
-              }}
-              itemStyle={{
-                color: 'hsl(var(--foreground))'
-              }}
-              labelStyle={{
-                color: 'hsl(var(--foreground))'
-              }}
-              formatter={(value: number) => {
-                if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-                if (value >= 1000) return `${(value / 1000).toFixed(0)}K`;
-                return value;
-              }}
-            />
+            <Tooltip content={<PlatformTooltip />} />
             <Legend 
               verticalAlign="bottom" 
               height={36}
