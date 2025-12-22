@@ -54,11 +54,14 @@ import {
   RefreshCw,
   Trash2,
   CheckCheck,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { format } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
+import { AdminSubmitVideoModal } from "@/components/Admin/AdminSubmitVideoModal";
+import { useVideoNotifications } from "@/hooks/useVideoNotifications";
 
 interface VideoSubmission {
   id: string;
@@ -81,6 +84,7 @@ function AdminSubmissionsContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPlatform, setFilterPlatform] = useState<string>("all");
+  const [showAddVideoModal, setShowAddVideoModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title: string;
@@ -88,6 +92,9 @@ function AdminSubmissionsContent() {
     action: () => void;
     variant?: "default" | "destructive";
   }>({ open: false, title: "", description: "", action: () => {}, variant: "default" });
+
+  // Notificações em tempo real
+  useVideoNotifications();
 
   useEffect(() => {
     fetchSubmissions();
@@ -278,6 +285,13 @@ function AdminSubmissionsContent() {
 
   return (
     <MainLayout>
+      {/* Modal para adicionar vídeo */}
+      <AdminSubmitVideoModal
+        open={showAddVideoModal}
+        onOpenChange={setShowAddVideoModal}
+        onSuccess={fetchSubmissions}
+      />
+
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -292,7 +306,17 @@ function AdminSubmissionsContent() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Botão principal para adicionar vídeo */}
+            <Button 
+              size="sm" 
+              className="premium-gradient"
+              onClick={() => setShowAddVideoModal(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Vídeo
+            </Button>
+            
             {pendingCount > 0 && (
               <Button 
                 size="sm" 
