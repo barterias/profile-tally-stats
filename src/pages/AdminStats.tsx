@@ -11,6 +11,7 @@ import { useSocialMetrics } from "@/hooks/useSocialMetrics";
 import { useAllInstagramAccounts } from "@/hooks/useInstagramAccounts";
 import { useAllTikTokAccounts } from "@/hooks/useTikTokAccounts";
 import { useAllYouTubeAccounts } from "@/hooks/useYouTubeAccounts";
+import { PlatformTooltip, BarChartTooltip } from "@/components/Charts/CustomTooltip";
 import {
   BarChart3,
   Eye,
@@ -264,13 +265,7 @@ function AdminStatsContent() {
                         <Cell key={`cell-${index}`} fill={entry.color} className="transition-opacity hover:opacity-80" />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                      }}
-                    />
+                    <Tooltip content={<PlatformTooltip />} />
                   </PieChart>
                 </ResponsiveContainer>
                 <p className="text-center text-sm text-muted-foreground">
@@ -308,13 +303,7 @@ function AdminStatsContent() {
                   fontSize={12}
                   width={100}
                 />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
+                <Tooltip content={<BarChartTooltip />} />
                 <Bar 
                   dataKey="videos" 
                   fill="hsl(var(--primary))" 
