@@ -9,6 +9,7 @@ import ChartCard from "@/components/Dashboard/ChartCard";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SyncMetricsButton } from "@/components/Admin/SyncMetricsButton";
+import { AdminSubmitVideoModal } from "@/components/Admin/AdminSubmitVideoModal";
 import {
   Table,
   TableBody,
@@ -18,6 +19,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Eye,
   Users,
   Trophy,
@@ -26,6 +33,9 @@ import {
   Settings,
   TrendingUp,
   DollarSign,
+  Download,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import {
   BarChart,
@@ -38,11 +48,13 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { toast } from "sonner";
 
 export default function AdminDashboard() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [showAddVideoModal, setShowAddVideoModal] = useState(false);
   const [stats, setStats] = useState({
     totalVideos: 0,
     totalUsers: 0,
@@ -159,6 +171,93 @@ export default function AdminDashboard() {
     }
   };
 
+  const exportToCSV = () => {
+    const csvContent = [
+      ['Métrica', 'Valor'],
+      ['Total de Vídeos', stats.totalVideos.toString()],
+      ['Usuários Ativos', stats.totalUsers.toString()],
+      ['Competições Ativas', stats.activeCampaigns.toString()],
+      ['Views Totais', stats.totalViews.toString()],
+      [''],
+      ['CRESCIMENTO DIÁRIO'],
+      ['Data', 'Vídeos', 'Views'],
+      ...growthData.map(d => [d.date, d.videos?.toString() || '0', d.views?.toString() || '0']),
+      [''],
+      ['TOP USUÁRIOS'],
+      ['Posição', 'ID Usuário', 'Vídeos', 'Views'],
+      ...topUsers.map((u, i) => [(i + 1).toString(), u.userId?.slice(0, 8), u.videos?.toString(), u.views?.toString()]),
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `relatorio-admin-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    toast.success('Relatório CSV exportado com sucesso!');
+  };
+
+  const exportToPDF = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Por favor, permita pop-ups para exportar em PDF.');
+      return;
+    }
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Relatório Administrativo</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #1a1a2e; }
+          .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #8b5cf6; }
+          .header h1 { font-size: 28px; color: #8b5cf6; }
+          .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 30px 0; }
+          .stat-card { text-align: center; padding: 20px; background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 12px; }
+          .stat-card .value { font-size: 28px; font-weight: bold; color: #8b5cf6; }
+          .stat-card .label { font-size: 12px; color: #666; margin-top: 5px; }
+          .section { margin: 30px 0; }
+          .section-title { font-size: 18px; color: #8b5cf6; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+          th { background: #f8f9fa; font-weight: 600; font-size: 12px; text-transform: uppercase; color: #666; }
+          .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #999; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Relatório Administrativo</h1>
+          <p>Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="value">${stats.totalVideos.toLocaleString()}</div><div class="label">Total de Vídeos</div></div>
+          <div class="stat-card"><div class="value">${stats.totalUsers}</div><div class="label">Usuários Ativos</div></div>
+          <div class="stat-card"><div class="value">${stats.activeCampaigns}</div><div class="label">Competições Ativas</div></div>
+          <div class="stat-card"><div class="value">${stats.totalViews.toLocaleString()}</div><div class="label">Views Totais</div></div>
+        </div>
+        <div class="section">
+          <h2 class="section-title">🏆 Top Usuários</h2>
+          <table>
+            <thead><tr><th>#</th><th>Usuário</th><th>Vídeos</th><th>Views</th></tr></thead>
+            <tbody>
+              ${topUsers.map((u, i) => `<tr><td>${i + 1}º</td><td>Usuário #${u.userId?.slice(0, 8)}</td><td>${u.videos}</td><td>${u.views?.toLocaleString()}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="footer">Relatório gerado automaticamente</div>
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    toast.success('Relatório PDF gerado!');
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -171,9 +270,15 @@ export default function AdminDashboard() {
 
   return (
     <AppLayout>
+      <AdminSubmitVideoModal
+        open={showAddVideoModal}
+        onOpenChange={setShowAddVideoModal}
+        onSuccess={fetchAdminData}
+      />
+      
       <div className="space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-glow mb-2">
               Painel Administrativo
@@ -182,13 +287,41 @@ export default function AdminDashboard() {
               Gerencie competições, vídeos e usuários
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <SyncMetricsButton />
+            
+            {/* Export Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={exportToCSV}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Exportar CSV (Excel)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToPDF}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Exportar PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            <Button
+              variant="outline"
+              onClick={() => setShowAddVideoModal(true)}
+            >
+              <Video className="h-4 w-4 mr-2" />
+              Adicionar Vídeo
+            </Button>
             <Button
               variant="outline"
               onClick={() => navigate("/admin/videos")}
             >
-              <Video className="h-4 w-4 mr-2" />
+              <Settings className="h-4 w-4 mr-2" />
               Gerenciar Vídeos
             </Button>
             <Button
