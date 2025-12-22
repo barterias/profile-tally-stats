@@ -166,7 +166,7 @@ export default function Auth() {
             <div className="space-y-4">
               <div className="flex items-center gap-3 mb-6">
                 <img src={logo} alt="ORDOJG" className="h-24 w-24 object-contain logo-glow" />
-                <h1 className="text-5xl font-bold text-silver-shine">
+                <h1 className="text-5xl font-bold text-silver-shine text-glow-animated">
                   ORDO JG
                 </h1>
               </div>
