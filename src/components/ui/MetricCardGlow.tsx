@@ -11,7 +11,17 @@ interface MetricCardGlowProps {
   subtitle?: string;
   glowColor?: 'primary' | 'green' | 'blue' | 'purple' | 'orange';
   details?: React.ReactNode;
+  blobVariant?: 1 | 2 | 3 | 4 | 5;
 }
+
+// Different blob shapes for variety
+const blobShapes = {
+  1: "60% 40% 30% 70% / 60% 30% 70% 40%",
+  2: "40% 60% 70% 30% / 40% 70% 30% 60%",
+  3: "70% 30% 50% 50% / 30% 50% 50% 70%",
+  4: "30% 70% 40% 60% / 70% 40% 60% 30%",
+  5: "50% 50% 40% 60% / 60% 40% 50% 50%",
+};
 
 export function MetricCardGlow({ 
   title, 
@@ -20,18 +30,11 @@ export function MetricCardGlow({
   trend, 
   subtitle,
   glowColor = 'primary',
-  details
+  details,
+  blobVariant = 1
 }: MetricCardGlowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isClicking, setIsClicking] = useState(false);
-
-  const iconColors = {
-    primary: 'text-primary bg-primary/15',
-    green: 'text-green-400 bg-green-500/15',
-    blue: 'text-blue-400 bg-blue-500/15',
-    purple: 'text-purple-400 bg-purple-500/15',
-    orange: 'text-orange-400 bg-orange-500/15',
-  };
 
   const handleToggle = () => {
     setIsClicking(true);
@@ -48,9 +51,12 @@ export function MetricCardGlow({
         "relative overflow-hidden cursor-pointer transition-all duration-500 ease-out",
         "bg-card/60 backdrop-blur-sm",
         isExpanded 
-          ? "rounded-2xl p-6" 
-          : "rounded-full aspect-square p-0 flex items-center justify-center"
+          ? "p-6" 
+          : "aspect-square p-0 flex items-center justify-center"
       )}
+      style={{
+        borderRadius: isExpanded ? "1rem" : blobShapes[blobVariant],
+      }}
       onClick={handleToggle}
     >
       {/* Close button when expanded */}
@@ -77,23 +83,27 @@ export function MetricCardGlow({
           isExpanded ? "hidden" : "flex items-center justify-center w-full h-full group"
         )}
       >
-        {/* Outer glow ring */}
-        <div className={cn(
-          "absolute inset-0 rounded-full transition-all duration-300",
-          "bg-gradient-to-br from-slate-300/10 via-white/5 to-slate-400/10",
-          "shadow-[0_0_20px_rgba(203,213,225,0.3),0_0_40px_rgba(148,163,184,0.15),inset_0_0_20px_rgba(255,255,255,0.05)]",
-          "group-hover:shadow-[0_0_30px_rgba(203,213,225,0.5),0_0_60px_rgba(148,163,184,0.25),inset_0_0_30px_rgba(255,255,255,0.1)]"
-        )} />
+        {/* Outer organic glow */}
+        <div 
+          className={cn(
+            "absolute inset-1 transition-all duration-500",
+            "bg-gradient-to-br from-slate-300/15 via-white/5 to-slate-400/15",
+            "shadow-[0_0_25px_rgba(203,213,225,0.35),0_0_50px_rgba(148,163,184,0.2),inset_0_0_25px_rgba(255,255,255,0.08)]",
+            "group-hover:shadow-[0_0_35px_rgba(203,213,225,0.55),0_0_70px_rgba(148,163,184,0.3),inset_0_0_35px_rgba(255,255,255,0.12)]",
+            "group-hover:from-slate-200/20 group-hover:to-slate-300/20"
+          )}
+          style={{ borderRadius: blobShapes[blobVariant] }}
+        />
         
         {/* Icon container with click animation */}
         <div className={cn(
-          "relative z-10 h-10 w-10 rounded-full flex items-center justify-center transition-all duration-150",
-          "bg-gradient-to-br from-slate-200/20 to-slate-400/10",
-          "shadow-[0_0_15px_rgba(226,232,240,0.4),0_0_30px_rgba(148,163,184,0.2)]",
-          "group-hover:shadow-[0_0_20px_rgba(226,232,240,0.6),0_0_40px_rgba(148,163,184,0.3)]",
-          isClicking && "scale-90 shadow-[0_0_25px_rgba(226,232,240,0.8),0_0_50px_rgba(148,163,184,0.4)]"
+          "relative z-10 h-11 w-11 rounded-full flex items-center justify-center transition-all duration-150",
+          "bg-gradient-to-br from-slate-200/25 to-slate-400/15",
+          "shadow-[0_0_18px_rgba(226,232,240,0.5),0_0_35px_rgba(148,163,184,0.25)]",
+          "group-hover:shadow-[0_0_25px_rgba(226,232,240,0.7),0_0_50px_rgba(148,163,184,0.4)]",
+          isClicking && "scale-85 shadow-[0_0_30px_rgba(226,232,240,0.9),0_0_60px_rgba(148,163,184,0.5)]"
         )}>
-          <Icon className="h-5 w-5 text-slate-300 drop-shadow-[0_0_8px_rgba(226,232,240,0.6)]" />
+          <Icon className="h-5 w-5 text-slate-200 drop-shadow-[0_0_10px_rgba(226,232,240,0.7)]" />
         </div>
       </div>
 
@@ -124,10 +134,10 @@ export function MetricCardGlow({
           {/* Icon with glow in expanded state */}
           <div className={cn(
             "h-12 w-12 rounded-xl flex items-center justify-center",
-            "bg-gradient-to-br from-slate-200/20 to-slate-400/10",
-            "shadow-[0_0_15px_rgba(226,232,240,0.4),0_0_30px_rgba(148,163,184,0.2)]"
+            "bg-gradient-to-br from-slate-200/25 to-slate-400/15",
+            "shadow-[0_0_18px_rgba(226,232,240,0.5),0_0_35px_rgba(148,163,184,0.25)]"
           )}>
-            <Icon className="h-6 w-6 text-slate-300 drop-shadow-[0_0_8px_rgba(226,232,240,0.6)]" />
+            <Icon className="h-6 w-6 text-slate-200 drop-shadow-[0_0_10px_rgba(226,232,240,0.7)]" />
           </div>
         </div>
 

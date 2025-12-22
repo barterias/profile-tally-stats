@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { ReactNode } from "react";
+import { ReactNode, CSSProperties } from "react";
 
 interface GlowCardProps {
   children: ReactNode;
@@ -7,9 +7,10 @@ interface GlowCardProps {
   glowColor?: 'primary' | 'green' | 'blue' | 'purple' | 'orange';
   hover?: boolean;
   onClick?: () => void;
+  style?: CSSProperties;
 }
 
-export function GlowCard({ children, className, glowColor = 'primary', hover = true, onClick }: GlowCardProps) {
+export function GlowCard({ children, className, glowColor = 'primary', hover = true, onClick, style }: GlowCardProps) {
   const glowClasses = {
     primary: 'shadow-[0_0_30px_rgba(139,92,246,0.15)] hover:shadow-[0_0_40px_rgba(139,92,246,0.25)]',
     green: 'shadow-[0_0_30px_rgba(34,197,94,0.15)] hover:shadow-[0_0_40px_rgba(34,197,94,0.25)]',
@@ -27,6 +28,7 @@ export function GlowCard({ children, className, glowColor = 'primary', hover = t
         className
       )}
       onClick={onClick}
+      style={style}
     >
       {children}
     </div>
