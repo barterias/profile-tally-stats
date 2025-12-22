@@ -54,13 +54,11 @@ import {
   RefreshCw,
   Trash2,
   CheckCheck,
-  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { format } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
-import { AdminSubmitVideoModal } from "@/components/Admin/AdminSubmitVideoModal";
 import { useVideoNotifications } from "@/hooks/useVideoNotifications";
 
 interface VideoSubmission {
@@ -84,7 +82,6 @@ function AdminSubmissionsContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPlatform, setFilterPlatform] = useState<string>("all");
-  const [showAddVideoModal, setShowAddVideoModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title: string;
@@ -233,25 +230,85 @@ function AdminSubmissionsContent() {
     );
   };
 
-  const exportCSV = () => {
-    const headers = ["ID", t("submissions.user"), t("submissions.campaign"), t("submissions.platform"), t("common.status"), "Views", t("submissions.date")];
-    const rows = filteredSubmissions.map((s) => [
-      s.id,
-      s.username,
-      s.campaign_name,
-      s.platform,
-      s.verified ? t("submissions.validated") : t("submissions.pending"),
-      s.views,
-      format(new Date(s.submitted_at), "MM/dd/yyyy HH:mm"),
-    ]);
+  const exportFullReport = async () => {
+    try {
+      // Buscar todos os vídeos com métricas completas
+      const { data: videosData, error: videosError } = await supabase
+        .from("campaign_videos")
+        .select("*, campaigns(name)")
+        .order("submitted_at", { ascending: false });
 
-    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `submissions_${format(new Date(), "yyyy-MM-dd")}.csv`;
-    link.click();
-    toast.success(t("submissions.report_exported"));
+      if (videosError) throw videosError;
+
+      // Buscar todos os usuários
+      const userIds = [...new Set((videosData || []).map((v) => v.submitted_by).filter(Boolean))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", userIds);
+
+      const profileMap = new Map(profiles?.map((p) => [p.id, p.username]) || []);
+
+      // Calcular totais
+      const totalViews = videosData?.reduce((acc, v) => acc + (v.views || 0), 0) || 0;
+      const totalLikes = videosData?.reduce((acc, v) => acc + (v.likes || 0), 0) || 0;
+      const totalComments = videosData?.reduce((acc, v) => acc + (v.comments || 0), 0) || 0;
+      const totalShares = videosData?.reduce((acc, v) => acc + (v.shares || 0), 0) || 0;
+
+      // Headers do CSV
+      const headers = [
+        "ID",
+        "Usuário",
+        "Campanha",
+        "Plataforma",
+        "Link do Vídeo",
+        "Status",
+        "Views",
+        "Likes",
+        "Comentários",
+        "Compartilhamentos",
+        "Data de Envio"
+      ];
+
+      // Linhas de dados
+      const rows = (videosData || []).map((v: any) => [
+        v.id,
+        `"${profileMap.get(v.submitted_by) || 'Desconhecido'}"`,
+        `"${v.campaigns?.name || '—'}"`,
+        v.platform,
+        `"${v.video_link}"`,
+        v.verified ? "Validado" : "Pendente",
+        v.views || 0,
+        v.likes || 0,
+        v.comments || 0,
+        v.shares || 0,
+        format(new Date(v.submitted_at), "dd/MM/yyyy HH:mm")
+      ]);
+
+      // Adicionar resumo no topo
+      let csvContent = "RELATÓRIO COMPLETO DE VÍDEOS - ADMIN\n\n";
+      csvContent += "RESUMO GERAL\n";
+      csvContent += `Total de Vídeos,${videosData?.length || 0}\n`;
+      csvContent += `Total de Views,${totalViews.toLocaleString('pt-BR')}\n`;
+      csvContent += `Total de Likes,${totalLikes.toLocaleString('pt-BR')}\n`;
+      csvContent += `Total de Comentários,${totalComments.toLocaleString('pt-BR')}\n`;
+      csvContent += `Total de Compartilhamentos,${totalShares.toLocaleString('pt-BR')}\n`;
+      csvContent += `Data do Relatório,${format(new Date(), "dd/MM/yyyy HH:mm")}\n\n`;
+      csvContent += "LISTA DE VÍDEOS\n";
+      csvContent += headers.join(",") + "\n";
+      csvContent += rows.map((row) => row.join(",")).join("\n");
+
+      const blob = new Blob(['\ufeff' + csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `relatorio_videos_admin_${format(new Date(), "yyyy-MM-dd")}.csv`;
+      link.click();
+      
+      toast.success("Relatório completo exportado com sucesso!");
+    } catch (error) {
+      console.error("Error exporting report:", error);
+      toast.error("Erro ao exportar relatório");
+    }
   };
 
   const filteredSubmissions = submissions.filter((submission) => {
@@ -285,13 +342,6 @@ function AdminSubmissionsContent() {
 
   return (
     <MainLayout>
-      {/* Modal para adicionar vídeo */}
-      <AdminSubmitVideoModal
-        open={showAddVideoModal}
-        onOpenChange={setShowAddVideoModal}
-        onSuccess={fetchSubmissions}
-      />
-
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -307,16 +357,6 @@ function AdminSubmissionsContent() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Botão principal para adicionar vídeo */}
-            <Button 
-              size="sm" 
-              className="premium-gradient"
-              onClick={() => setShowAddVideoModal(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Adicionar Vídeo
-            </Button>
-            
             {pendingCount > 0 && (
               <Button 
                 size="sm" 
@@ -335,9 +375,9 @@ function AdminSubmissionsContent() {
               <RefreshCw className="h-4 w-4 mr-2" />
               {t("common.refresh")}
             </Button>
-            <Button variant="outline" size="sm" onClick={exportCSV}>
+            <Button variant="outline" size="sm" onClick={exportFullReport}>
               <Download className="h-4 w-4 mr-2" />
-              {t("common.export")}
+              Exportar Relatório
             </Button>
           </div>
         </div>
