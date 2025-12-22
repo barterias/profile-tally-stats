@@ -14,7 +14,7 @@ import {
   ChevronRight,
   UserCircle,
 } from "lucide-react";
-import logo from "@/assets/logo-transparent.png";
+import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
