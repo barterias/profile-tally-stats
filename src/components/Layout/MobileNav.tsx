@@ -15,7 +15,17 @@ export default function MobileNav() {
   const location = useLocation();
 
   const getNavigation = () => {
-    if (isClient && !isAdmin) {
+    if (isAdmin) {
+      return [
+        { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
+        { name: "Campanhas", href: "/admin/campaigns", icon: Trophy },
+        { name: "Enviar", href: "/submit", icon: Upload },
+        { name: "Stats", href: "/admin/stats", icon: BarChart3 },
+        { name: "Perfil", href: "/profile", icon: User },
+      ];
+    }
+    
+    if (isClient) {
       return [
         { name: "Dashboard", href: "/dashboard/client", icon: LayoutDashboard },
         { name: "Campanhas", href: "/client/campaigns", icon: Trophy },
