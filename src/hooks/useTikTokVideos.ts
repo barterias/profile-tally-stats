@@ -39,3 +39,22 @@ export function useTikTokVideos(accountId: string) {
     enabled: !!accountId,
   });
 }
+
+// Hook to fetch all videos for all accounts (for calculating total views)
+export function useAllTikTokVideos() {
+  return useQuery({
+    queryKey: ['tiktok-videos-all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tiktok_videos')
+        .select('account_id, views_count');
+
+      if (error) {
+        console.error('Error fetching all TikTok videos:', error);
+        return [];
+      }
+
+      return data;
+    },
+  });
+}

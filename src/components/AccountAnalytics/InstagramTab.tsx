@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, RefreshCw, Users, Eye, ThumbsUp, Video, Clock, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import {
   useSyncAllInstagramAccounts,
   useDeleteInstagramAccount,
 } from '@/hooks/useInstagramAccounts';
-import { useInstagramVideos } from '@/hooks/useInstagramVideos';
+import { useInstagramVideos, useAllInstagramVideos } from '@/hooks/useInstagramVideos';
 import { useApproveAccount, useRejectAccount } from '@/hooks/usePendingAccounts';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
@@ -47,6 +47,7 @@ export function InstagramTab() {
     : rawAccounts;
 
   const { data: posts = [], isLoading: postsLoading } = useInstagramVideos(selectedAccount?.id || '');
+  const { data: allPosts = [] } = useAllInstagramVideos();
 
   const addAccount = useAddInstagramAccount();
   const syncAccount = useSyncInstagramAccount();
@@ -54,6 +55,17 @@ export function InstagramTab() {
   const deleteAccount = useDeleteInstagramAccount();
   const approveAccount = useApproveAccount();
   const rejectAccount = useRejectAccount();
+
+  // Calculate total views per account from posts
+  const viewsByAccount = useMemo(() => {
+    const map: Record<string, number> = {};
+    allPosts.forEach(post => {
+      if (post.account_id) {
+        map[post.account_id] = (map[post.account_id] || 0) + (post.views_count || 0);
+      }
+    });
+    return map;
+  }, [allPosts]);
 
   const handleAddAccount = (username: string) => {
     addAccount.mutate({ username, isClientOrAdmin: isAdmin || isClient }, {
@@ -102,7 +114,7 @@ export function InstagramTab() {
   // Calculate totals and sort by followers
   const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.followers_count || 0) - Number(a.followers_count || 0));
   const totalFollowers = visibleAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
-  const totalViews = visibleAccounts.reduce((sum, acc) => sum + (acc.posts_count || 0) * 1000, 0);
+  const totalViews = visibleAccounts.reduce((sum, acc) => sum + (viewsByAccount[acc.id] || 0), 0);
   const totalPosts = visibleAccounts.reduce((sum, acc) => sum + (acc.posts_count || 0), 0);
 
   const formatNumber = (num: number) => {
@@ -195,15 +207,11 @@ export function InstagramTab() {
           ) : (
             <PlatformAccountsTable
               platform="instagram"
-              accounts={sortedAccounts.map((acc: any) => {
-                // Estimate views from posts count and followers
-                const totalViews = (acc.posts_count || 0) * Math.floor((acc.followers_count || 0) * 0.1);
-                return {
-                  id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
-                  followersCount: acc.followers_count, postsCount: acc.posts_count, totalViews: totalViews,
-                  lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
-                };
-              })}
+              accounts={sortedAccounts.map((acc: any) => ({
+                id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
+                followersCount: acc.followers_count, postsCount: acc.posts_count, totalViews: viewsByAccount[acc.id] || 0,
+                lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
+              }))}
               isLoading={accountsLoading}
               onSync={handleSyncAccount}
               onDelete={handleDeleteAccount}
