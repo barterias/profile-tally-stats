@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
       try {
         // Fetch regular videos
         const videosResponse = await fetch(
-          `https://api.scrapecreators.com/v1/youtube/channel/videos?handle=${encodeURIComponent(username)}&limit=20`,
+          `https://api.scrapecreators.com/v1/youtube/channel/videos?handle=${encodeURIComponent(username)}&limit=50`,
           {
             method: 'GET',
             headers: {
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
           
           console.log(`Found ${videosArray.length} videos from channel/videos endpoint`);
           
-          data.videos = videosArray.slice(0, 20).map((video: any) => ({
+          data.videos = videosArray.slice(0, 50).map((video: any) => ({
             videoId: video.video_id || video.videoId || video.id || '',
             title: video.title || '',
             description: video.description?.substring(0, 500) || undefined,
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
 
         // Fetch shorts
         const shortsResponse = await fetch(
-          `https://api.scrapecreators.com/v1/youtube/channel/shorts?handle=${encodeURIComponent(username)}&limit=20`,
+          `https://api.scrapecreators.com/v1/youtube/channel/shorts?handle=${encodeURIComponent(username)}&limit=50`,
           {
             method: 'GET',
             headers: {
@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
           
           console.log(`Found ${shortsArray.length} shorts from channel/shorts endpoint`);
           
-          const shorts = shortsArray.slice(0, 20).map((short: any) => ({
+          const shorts = shortsArray.slice(0, 50).map((short: any) => ({
             videoId: short.video_id || short.videoId || short.id || '',
             title: short.title || '',
             description: short.description?.substring(0, 500) || undefined,

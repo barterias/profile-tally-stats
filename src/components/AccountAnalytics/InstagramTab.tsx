@@ -195,11 +195,15 @@ export function InstagramTab() {
           ) : (
             <PlatformAccountsTable
               platform="instagram"
-              accounts={sortedAccounts.map((acc: any) => ({
-                id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
-                followersCount: acc.followers_count, postsCount: acc.posts_count, totalViews: (acc.posts_count || 0) * 1000,
-                lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
-              }))}
+              accounts={sortedAccounts.map((acc: any) => {
+                // Estimate views from posts count and followers
+                const totalViews = (acc.posts_count || 0) * Math.floor((acc.followers_count || 0) * 0.1);
+                return {
+                  id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
+                  followersCount: acc.followers_count, postsCount: acc.posts_count, totalViews: totalViews,
+                  lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
+                };
+              })}
               isLoading={accountsLoading}
               onSync={handleSyncAccount}
               onDelete={handleDeleteAccount}

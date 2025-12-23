@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
         
         if (Array.isArray(postsEdges) && postsEdges.length > 0) {
           console.log(`Found ${postsEdges.length} posts in profile response`);
-          data.posts = postsEdges.slice(0, 20).map((edge: any) => {
+          data.posts = postsEdges.slice(0, 50).map((edge: any) => {
             const node = edge.node || edge;
             return {
               postUrl: node.url || node.postUrl || (node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : ''),
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
         } else {
           // Try dedicated posts endpoint
           const postsResponse = await fetch(
-            `https://api.scrapecreators.com/v2/instagram/user/posts?handle=${encodeURIComponent(username)}&limit=20`,
+            `https://api.scrapecreators.com/v2/instagram/user/posts?handle=${encodeURIComponent(username)}&limit=50`,
             {
               method: 'GET',
               headers: {
@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
             
             console.log(`Found ${postsArray.length} posts from v2 endpoint`);
             
-            data.posts = postsArray.slice(0, 20).map((post: any) => ({
+            data.posts = postsArray.slice(0, 50).map((post: any) => ({
               postUrl: post.url || post.link || (post.shortcode ? `https://www.instagram.com/p/${post.shortcode}/` : ''),
               type: post.is_video ? 'video' : post.type || 'post',
               thumbnailUrl: post.thumbnail_url || post.display_url || post.image || undefined,

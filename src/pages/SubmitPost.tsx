@@ -88,11 +88,25 @@ export default function SubmitPost() {
         .order("created_at", { ascending: false });
       setCampaigns(data || []);
     } else {
-      // Regular users can see all active campaigns
+      // Clippers can only submit to campaigns where they are approved participants
+      const { data: approvedParticipations } = await supabase
+        .from("campaign_participants")
+        .select("campaign_id")
+        .eq("user_id", user.id)
+        .eq("status", "approved");
+
+      if (!approvedParticipations || approvedParticipations.length === 0) {
+        setCampaigns([]);
+        return;
+      }
+
+      const approvedCampaignIds = approvedParticipations.map(p => p.campaign_id);
+      
       const { data } = await supabase
         .from("campaigns")
         .select("*")
         .eq("is_active", true)
+        .in("id", approvedCampaignIds)
         .order("created_at", { ascending: false });
       setCampaigns(data || []);
     }
