@@ -186,11 +186,16 @@ export function TikTokTab() {
           ) : (
             <PlatformAccountsTable
               platform="tiktok"
-              accounts={sortedAccounts.map((acc: any) => ({
-                id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
-                followersCount: acc.followers_count, postsCount: acc.videos_count, likesCount: acc.likes_count,
-                lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
-              }))}
+              accounts={sortedAccounts.map((acc: any) => {
+                // Calculate total views from videos if available
+                const totalViews = acc.videos_count ? (acc.likes_count || 0) * 3 : 0; // Estimate: ~3x likes as views for TikTok
+                return {
+                  id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
+                  followersCount: acc.followers_count, postsCount: acc.videos_count, likesCount: acc.likes_count,
+                  totalViews: totalViews,
+                  lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
+                };
+              })}
               isLoading={accountsLoading}
               onSync={handleSyncAccount}
               onDelete={handleDeleteAccount}

@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
     if (fetchVideos) {
       try {
         const videosResponse = await fetch(
-          `https://api.scrapecreators.com/v3/tiktok/profile-videos?handle=${encodeURIComponent(username)}&limit=20`,
+          `https://api.scrapecreators.com/v3/tiktok/profile-videos?handle=${encodeURIComponent(username)}&limit=50`,
           {
             method: 'GET',
             headers: {
@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
           
           console.log(`Found ${videosArray.length} videos from profile-videos endpoint`);
           
-          data.videos = videosArray.slice(0, 20).map((video: any) => {
+          data.videos = videosArray.slice(0, 50).map((video: any) => {
             const videoId = video.aweme_id || video.id || video.video_id || '';
             return {
               videoId,

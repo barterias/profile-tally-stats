@@ -124,7 +124,7 @@ export function PlatformAccountsTable({
           <TableHead>Conta</TableHead>
           <TableHead className="text-right">{labels.followers}</TableHead>
           <TableHead className="text-right">{labels.posts}</TableHead>
-          {platform === 'youtube' && <TableHead className="text-right">Views Totais</TableHead>}
+          <TableHead className="text-right">Views Totais</TableHead>
           {platform === 'tiktok' && <TableHead className="text-right">Curtidas</TableHead>}
           <TableHead>Aprovação</TableHead>
           <TableHead>Última Sync</TableHead>
@@ -154,11 +154,9 @@ export function PlatformAccountsTable({
             <TableCell className="text-right">
               {formatNumber(account.postsCount)}
             </TableCell>
-            {platform === 'youtube' && (
-              <TableCell className="text-right">
-                {formatNumber(account.totalViews)}
-              </TableCell>
-            )}
+            <TableCell className="text-right font-semibold text-primary">
+              {formatNumber(account.totalViews)}
+            </TableCell>
             {platform === 'tiktok' && (
               <TableCell className="text-right">
                 {formatNumber(account.likesCount)}
