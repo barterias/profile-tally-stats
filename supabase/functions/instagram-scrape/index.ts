@@ -165,6 +165,27 @@ function mapApifyDataToInstagramData(items: any[]): InstagramScrapedData {
     return {};
   }
 
+  // LOG DETALHADO: Ver estrutura completa do primeiro item retornado
+  if (items.length > 0) {
+    console.log('[Apify] === RAW ITEM STRUCTURE (first item) ===');
+    console.log(JSON.stringify(items[0], null, 2));
+    
+    // Logar campos específicos relacionados a views
+    const firstItem = items[0];
+    console.log('[Apify] === VIEWS-RELATED FIELDS CHECK ===');
+    console.log('videoViewCount:', firstItem.videoViewCount);
+    console.log('videoPlayCount:', firstItem.videoPlayCount);
+    console.log('viewsCount:', firstItem.viewsCount);
+    console.log('view_count:', firstItem.view_count);
+    console.log('playCount:', firstItem.playCount);
+    console.log('views:', firstItem.views);
+    console.log('video_view_count:', firstItem.video_view_count);
+    
+    // Listar todas as keys do item para descobrir campos disponíveis
+    console.log('[Apify] === ALL AVAILABLE FIELDS ===');
+    console.log('Keys:', Object.keys(firstItem).join(', '));
+  }
+
   // O primeiro item geralmente contém os dados do perfil
   const profileItem = items.find(item => item.username) || items[0];
   
@@ -186,6 +207,15 @@ function mapApifyDataToInstagramData(items: any[]): InstagramScrapedData {
   
   data.posts = posts.slice(0, 50).map((item: any) => {
     const postType = item.type || (item.videoUrl ? 'video' : 'post');
+    
+    // Tentar extrair views de múltiplos campos possíveis
+    // Se nenhum campo existir, views será null (indisponível)
+    const viewsValue = item.videoViewCount ?? item.videoPlayCount ?? item.viewsCount ?? 
+                       item.view_count ?? item.playCount ?? item.views ?? null;
+    
+    // Log para debug de cada post
+    console.log(`[Apify] Post ${item.shortCode || 'unknown'}: type=${postType}, views=${viewsValue}, likesCount=${item.likesCount}`);
+    
     return {
       postUrl: item.url || (item.shortCode ? `https://www.instagram.com/p/${item.shortCode}/` : ''),
       type: postType === 'Video' || postType === 'Reel' ? 'video' : postType === 'Sidecar' ? 'carousel' : 'post',
@@ -193,8 +223,11 @@ function mapApifyDataToInstagramData(items: any[]): InstagramScrapedData {
       caption: item.caption?.substring(0, 200),
       likesCount: item.likesCount || 0,
       commentsCount: item.commentsCount || 0,
-      viewsCount: item.videoViewCount || item.videoPlayCount || item.viewsCount || 0,
+      // Views: usar 0 se não disponível (API não fornece esse dado)
+      viewsCount: viewsValue !== null ? viewsValue : 0,
       sharesCount: 0,
+      // Flag para indicar se views está disponível
+      viewsAvailable: viewsValue !== null,
     };
   });
 
