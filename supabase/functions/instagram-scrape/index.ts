@@ -156,8 +156,8 @@ serve(async (req) => {
 
     console.log(`[ScrapeCreators] Fetching Instagram profile: ${username}`);
 
-    // Fetch profile data
-    const profileResult = await fetchScrapeCreators('/v1/instagram/profile', { username });
+    // Fetch profile data - use 'handle' as the parameter name
+    const profileResult = await fetchScrapeCreators('/v1/instagram/profile', { handle: username });
     let data = mapProfileData(profileResult);
     
     // Ensure username is set

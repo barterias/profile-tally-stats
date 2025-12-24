@@ -98,8 +98,8 @@ Deno.serve(async (req) => {
     
     console.log(`[ScrapeCreators] Scraping TikTok profile: ${cleanUsername}`);
 
-    // Fetch user profile from ScrapeCreators
-    const profileResult = await fetchScrapeCreators('/v1/tiktok/profile', { username: cleanUsername });
+    // Fetch user profile from ScrapeCreators - use 'handle' as parameter
+    const profileResult = await fetchScrapeCreators('/v1/tiktok/profile', { handle: cleanUsername });
     
     const userData = profileResult?.user || profileResult;
     const statsData = profileResult?.stats || userData?.stats || {};
@@ -121,9 +121,9 @@ Deno.serve(async (req) => {
     // Fetch user videos if requested
     if (fetchVideos) {
       try {
-        // Use the profile videos endpoint
+        // Use the profile videos endpoint - use 'handle' as parameter
         const videosResult = await fetchScrapeCreators('/v3/tiktok/profile-videos', { 
-          username: cleanUsername,
+          handle: cleanUsername,
           count: '30'
         });
 
