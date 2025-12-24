@@ -5,6 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const ENSEMBLEDATA_API_URL = 'https://ensembledata.com/apis';
+
 interface YouTubeScrapedData {
   channelId?: string;
   username: string;
@@ -25,7 +27,30 @@ interface YouTubeScrapedData {
     commentsCount: number;
     publishedAt?: string;
     duration?: number;
+    isShort?: boolean;
   }>;
+}
+
+async function fetchEnsembleData(endpoint: string, params: Record<string, string>): Promise<any> {
+  const token = Deno.env.get('ENSEMBLEDATA_TOKEN');
+  if (!token) {
+    throw new Error('ENSEMBLEDATA_TOKEN not configured');
+  }
+
+  const queryParams = new URLSearchParams({ ...params, token });
+  const url = `${ENSEMBLEDATA_API_URL}${endpoint}?${queryParams}`;
+  
+  console.log(`Fetching EnsembleData: ${endpoint}`);
+  
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('EnsembleData API error:', response.status, errorText);
+    throw new Error(`EnsembleData API error: ${response.status}`);
+  }
+
+  return response.json();
 }
 
 Deno.serve(async (req) => {
@@ -43,132 +68,88 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Scraping YouTube channel: ${username}, fetchVideos: ${fetchVideos}`);
+    console.log(`Scraping YouTube channel via EnsembleData: ${username}`);
 
-    const apiKey = Deno.env.get('SCRAPECREATORS_API_KEY');
-    if (!apiKey) {
-      console.error('SCRAPECREATORS_API_KEY not configured');
+    const token = Deno.env.get('ENSEMBLEDATA_TOKEN');
+    if (!token) {
+      console.error('ENSEMBLEDATA_TOKEN not configured');
       return new Response(
-        JSON.stringify({ success: false, error: 'API key not configured' }),
+        JSON.stringify({ success: false, error: 'EnsembleData token not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Fetch channel data from ScrapeCreators
-    const profileResponse = await fetch(
-      `https://api.scrapecreators.com/v1/youtube/channel?handle=${encodeURIComponent(username)}`,
-      {
-        method: 'GET',
-        headers: {
-          'x-api-key': apiKey,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!profileResponse.ok) {
-      const errorText = await profileResponse.text();
-      console.error('ScrapeCreators API error:', profileResponse.status, errorText);
-      return new Response(
-        JSON.stringify({ success: false, error: `API error: ${profileResponse.status}` }),
-        { status: profileResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const profileData = await profileResponse.json();
-    console.log('Profile data received');
-
-    // Parse the channel data from ScrapeCreators API
-    const channelData = profileData.data || profileData;
+    // Clean up username/handle
+    const handle = username.startsWith('@') ? username : `@${username}`;
+    
+    // Fetch channel info from EnsembleData YouTube API
+    const channelResult = await fetchEnsembleData('/youtube/channel/info', { handle });
+    const channelData = channelResult.data || channelResult;
     
     const data: YouTubeScrapedData = {
       channelId: channelData.channel_id || channelData.channelId || undefined,
-      username: channelData.custom_url?.replace('@', '') || channelData.handle?.replace('@', '') || username,
+      username: channelData.handle?.replace('@', '') || username.replace('@', ''),
       displayName: channelData.title || channelData.name || undefined,
-      profileImageUrl: channelData.thumbnail?.url || channelData.thumbnails?.high?.url || channelData.avatar || undefined,
-      bannerUrl: channelData.banner?.url || channelData.brandingSettings?.image?.bannerExternalUrl || undefined,
+      profileImageUrl: channelData.thumbnail?.url || channelData.thumbnails?.high?.url || undefined,
+      bannerUrl: channelData.banner?.url || undefined,
       description: channelData.description?.substring(0, 500) || undefined,
-      subscribersCount: channelData.subscriber_count || channelData.subscriberCount || channelData.statistics?.subscriberCount || 0,
-      videosCount: channelData.video_count || channelData.videoCount || channelData.statistics?.videoCount || 0,
-      totalViews: channelData.view_count || channelData.viewCount || channelData.statistics?.viewCount || 0,
+      subscribersCount: channelData.subscriber_count || channelData.subscriberCount || 0,
+      videosCount: channelData.video_count || channelData.videoCount || 0,
+      totalViews: channelData.view_count || channelData.viewCount || 0,
       videos: [],
     };
 
     // Fetch videos and shorts if requested
-    if (fetchVideos) {
+    if (fetchVideos && data.channelId) {
       try {
         // Fetch regular videos
-        const videosResponse = await fetch(
-          `https://api.scrapecreators.com/v1/youtube/channel/videos?handle=${encodeURIComponent(username)}&limit=50`,
-          {
-            method: 'GET',
-            headers: {
-              'x-api-key': apiKey,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
+        const videosResult = await fetchEnsembleData('/youtube/channel/videos', {
+          browseId: data.channelId,
+          depth: '1',
+        });
 
-        if (videosResponse.ok) {
-          const videosData = await videosResponse.json();
-          console.log('Videos API response:', JSON.stringify(videosData).substring(0, 500));
-          const videosArray = videosData.videos || videosData.data?.videos || videosData.data || [];
-          
-          console.log(`Found ${videosArray.length} videos from channel/videos endpoint`);
-          
+        const videosArray = videosResult.data?.videos || videosResult.data || [];
+        
+        if (Array.isArray(videosArray)) {
+          console.log(`Found ${videosArray.length} videos`);
           data.videos = videosArray.slice(0, 50).map((video: any) => ({
             videoId: video.video_id || video.videoId || video.id || '',
             title: video.title || '',
             description: video.description?.substring(0, 500) || undefined,
-            thumbnailUrl: video.thumbnail?.url || video.thumbnails?.high?.url || video.thumbnail_url || video.thumbnail || undefined,
-            viewsCount: parseInt(video.view_count || video.viewCount || video.views || '0') || 0,
-            likesCount: parseInt(video.like_count || video.likeCount || video.likes || '0') || 0,
-            commentsCount: parseInt(video.comment_count || video.commentCount || video.comments || '0') || 0,
-            publishedAt: video.published_at || video.publishedAt || video.upload_date || undefined,
+            thumbnailUrl: video.thumbnail?.url || video.thumbnails?.high?.url || undefined,
+            viewsCount: parseInt(video.view_count || video.viewCount || '0') || 0,
+            likesCount: parseInt(video.like_count || video.likeCount || '0') || 0,
+            commentsCount: parseInt(video.comment_count || video.commentCount || '0') || 0,
+            publishedAt: video.published_at || video.publishedAt || undefined,
             duration: video.duration || video.length_seconds || undefined,
             isShort: false,
           }));
-        } else {
-          const errorText = await videosResponse.text();
-          console.error('Videos endpoint failed:', videosResponse.status, errorText);
         }
 
         // Fetch shorts
-        const shortsResponse = await fetch(
-          `https://api.scrapecreators.com/v1/youtube/channel/shorts?handle=${encodeURIComponent(username)}&limit=50`,
-          {
-            method: 'GET',
-            headers: {
-              'x-api-key': apiKey,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
+        const shortsResult = await fetchEnsembleData('/youtube/channel/shorts', {
+          browseId: data.channelId,
+          depth: '1',
+        });
 
-        if (shortsResponse.ok) {
-          const shortsData = await shortsResponse.json();
-          console.log('Shorts API response:', JSON.stringify(shortsData).substring(0, 500));
-          const shortsArray = shortsData.shorts || shortsData.data?.shorts || shortsData.data || [];
-          
-          console.log(`Found ${shortsArray.length} shorts from channel/shorts endpoint`);
-          
+        const shortsArray = shortsResult.data?.shorts || shortsResult.data || [];
+        
+        if (Array.isArray(shortsArray)) {
+          console.log(`Found ${shortsArray.length} shorts`);
           const shorts = shortsArray.slice(0, 50).map((short: any) => ({
             videoId: short.video_id || short.videoId || short.id || '',
             title: short.title || '',
             description: short.description?.substring(0, 500) || undefined,
-            thumbnailUrl: short.thumbnail?.url || short.thumbnails?.high?.url || short.thumbnail_url || short.thumbnail || undefined,
-            viewsCount: parseInt(short.viewCountInt || short.view_count || short.viewCount || short.views || '0') || 0,
-            likesCount: parseInt(short.likeCountInt || short.like_count || short.likeCount || short.likes || '0') || 0,
-            commentsCount: parseInt(short.commentCountInt || short.comment_count || short.commentCount || short.comments || '0') || 0,
-            publishedAt: short.publishDate || short.published_at || short.publishedAt || short.upload_date || undefined,
-            duration: short.duration || short.length_seconds || undefined,
+            thumbnailUrl: short.thumbnail?.url || undefined,
+            viewsCount: parseInt(short.viewCountInt || short.view_count || '0') || 0,
+            likesCount: parseInt(short.likeCountInt || short.like_count || '0') || 0,
+            commentsCount: parseInt(short.commentCountInt || short.comment_count || '0') || 0,
+            publishedAt: short.publishDate || short.published_at || undefined,
+            duration: short.duration || undefined,
             isShort: true,
           }));
           
           data.videos = [...(data.videos || []), ...shorts];
-        } else {
-          const errorText = await shortsResponse.text();
-          console.error('Shorts endpoint failed:', shortsResponse.status, errorText);
         }
       } catch (videosError) {
         console.error('Error fetching videos/shorts:', videosError);
@@ -220,12 +201,10 @@ Deno.serve(async (req) => {
       // Save videos to database
       if (data.videos && data.videos.length > 0) {
         for (const video of data.videos) {
-          // Use shorts URL for shorts, regular URL for videos
-          const videoUrl = (video as any).isShort 
+          const videoUrl = video.isShort 
             ? `https://www.youtube.com/shorts/${video.videoId}`
             : `https://www.youtube.com/watch?v=${video.videoId}`;
           
-          // Upsert video
           const { data: existingVideo } = await supabase
             .from('youtube_videos')
             .select('id')

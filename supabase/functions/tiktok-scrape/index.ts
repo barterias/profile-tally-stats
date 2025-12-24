@@ -5,6 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const ENSEMBLEDATA_API_URL = 'https://ensembledata.com/apis';
+
 interface TikTokScrapedData {
   username: string;
   displayName?: string;
@@ -29,6 +31,28 @@ interface TikTokScrapedData {
   }>;
 }
 
+async function fetchEnsembleData(endpoint: string, params: Record<string, string>): Promise<any> {
+  const token = Deno.env.get('ENSEMBLEDATA_TOKEN');
+  if (!token) {
+    throw new Error('ENSEMBLEDATA_TOKEN not configured');
+  }
+
+  const queryParams = new URLSearchParams({ ...params, token });
+  const url = `${ENSEMBLEDATA_API_URL}${endpoint}?${queryParams}`;
+  
+  console.log(`Fetching EnsembleData: ${endpoint}`);
+  
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('EnsembleData API error:', response.status, errorText);
+    throw new Error(`EnsembleData API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -44,114 +68,64 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Scraping TikTok profile: ${username}, fetchVideos: ${fetchVideos}`);
+    console.log(`Scraping TikTok profile via EnsembleData: ${username}`);
 
-    const apiKey = Deno.env.get('SCRAPECREATORS_API_KEY');
-    if (!apiKey) {
-      console.error('SCRAPECREATORS_API_KEY not configured');
+    const token = Deno.env.get('ENSEMBLEDATA_TOKEN');
+    if (!token) {
+      console.error('ENSEMBLEDATA_TOKEN not configured');
       return new Response(
-        JSON.stringify({ success: false, error: 'API key not configured' }),
+        JSON.stringify({ success: false, error: 'EnsembleData token not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Fetch profile data from ScrapeCreators
-    const profileResponse = await fetch(
-      `https://api.scrapecreators.com/v1/tiktok/profile?handle=${encodeURIComponent(username)}`,
-      {
-        method: 'GET',
-        headers: {
-          'x-api-key': apiKey,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!profileResponse.ok) {
-      const errorText = await profileResponse.text();
-      console.error('ScrapeCreators API error:', profileResponse.status, errorText);
-      return new Response(
-        JSON.stringify({ success: false, error: `API error: ${profileResponse.status}` }),
-        { status: profileResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const profileData = await profileResponse.json();
-    console.log('Profile data received');
-
-    // Parse the profile data from ScrapeCreators API
-    const userData = profileData.data?.user || profileData.data || profileData;
-    const statsData = profileData.data?.stats || userData.stats || userData;
+    // Fetch user info from EnsembleData TikTok API
+    const userInfoResult = await fetchEnsembleData('/tt/user/info', { username });
+    const userData = userInfoResult.data?.user || userInfoResult.data || userInfoResult;
+    const statsData = userInfoResult.data?.stats || userData.stats || {};
     
     const data: TikTokScrapedData = {
-      username: userData.uniqueId || userData.unique_id || userData.username || username,
-      displayName: userData.nickname || userData.displayName || userData.name || undefined,
-      profileImageUrl: userData.avatarLarger || userData.avatarMedium || userData.avatar || userData.profile_pic_url || undefined,
+      username: userData.uniqueId || userData.unique_id || username,
+      displayName: userData.nickname || userData.displayName || undefined,
+      profileImageUrl: userData.avatarLarger || userData.avatarMedium || userData.avatar || undefined,
       bio: userData.signature || userData.bio || undefined,
-      followersCount: statsData.followerCount || statsData.followers || statsData.follower_count || 0,
-      followingCount: statsData.followingCount || statsData.following || statsData.following_count || 0,
-      likesCount: statsData.heartCount || statsData.heart || statsData.likes || statsData.diggCount || 0,
-      videosCount: statsData.videoCount || statsData.video_count || statsData.videos || 0,
+      followersCount: statsData.followerCount || statsData.followers || 0,
+      followingCount: statsData.followingCount || statsData.following || 0,
+      likesCount: statsData.heartCount || statsData.heart || statsData.diggCount || 0,
+      videosCount: statsData.videoCount || statsData.videos || 0,
       videos: [],
     };
 
-    // Fetch videos if requested - use correct endpoint with hyphen
-    if (fetchVideos) {
+    // Fetch user videos if requested
+    if (fetchVideos && (userData.secUid || userData.sec_uid)) {
       try {
-        const videosResponse = await fetch(
-          `https://api.scrapecreators.com/v3/tiktok/profile-videos?handle=${encodeURIComponent(username)}&limit=50`,
-          {
-            method: 'GET',
-            headers: {
-              'x-api-key': apiKey,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
+        const secUid = userData.secUid || userData.sec_uid;
+        const videosResult = await fetchEnsembleData('/tt/user/posts', {
+          secUid,
+          depth: '1',
+          oldest_createtime: '0',
+        });
 
-        if (videosResponse.ok) {
-          const videosData = await videosResponse.json();
-          console.log('TikTok videos API response structure:', JSON.stringify(Object.keys(videosData)));
-          
-          // Handle different response structures
-          let videosArray: any[] = [];
-          if (Array.isArray(videosData)) {
-            videosArray = videosData;
-          } else if (videosData.data) {
-            if (Array.isArray(videosData.data)) {
-              videosArray = videosData.data;
-            } else if (videosData.data.videos) {
-              videosArray = videosData.data.videos;
-            } else if (videosData.data.itemList) {
-              videosArray = videosData.data.itemList;
-            }
-          } else if (videosData.videos) {
-            videosArray = videosData.videos;
-          } else if (videosData.itemList) {
-            videosArray = videosData.itemList;
-          }
-          
-          console.log(`Found ${videosArray.length} videos from profile-videos endpoint`);
-          
+        const videosArray = videosResult.data || [];
+        
+        if (Array.isArray(videosArray)) {
+          console.log(`Found ${videosArray.length} videos`);
           data.videos = videosArray.slice(0, 50).map((video: any) => {
-            const videoId = video.aweme_id || video.id || video.video_id || '';
+            const videoId = video.aweme_id || video.id || '';
             return {
               videoId,
               videoUrl: `https://www.tiktok.com/@${username}/video/${videoId}`,
-              caption: video.desc || video.description || video.caption || undefined,
-              thumbnailUrl: video.video?.cover || video.video?.origin_cover || video.cover || video.thumbnail || undefined,
-              viewsCount: video.statistics?.play_count || video.stats?.playCount || video.play_count || video.views || 0,
-              likesCount: video.statistics?.digg_count || video.stats?.diggCount || video.digg_count || video.likes || 0,
-              commentsCount: video.statistics?.comment_count || video.stats?.commentCount || video.comment_count || video.comments || 0,
-              sharesCount: video.statistics?.share_count || video.stats?.shareCount || video.share_count || video.shares || 0,
-              musicTitle: video.music?.title || video.music_title || undefined,
+              caption: video.desc || video.description || undefined,
+              thumbnailUrl: video.video?.cover || video.video?.origin_cover || undefined,
+              viewsCount: video.statistics?.play_count || video.stats?.playCount || 0,
+              likesCount: video.statistics?.digg_count || video.stats?.diggCount || 0,
+              commentsCount: video.statistics?.comment_count || video.stats?.commentCount || 0,
+              sharesCount: video.statistics?.share_count || video.stats?.shareCount || 0,
+              musicTitle: video.music?.title || undefined,
               duration: video.video?.duration || video.duration || undefined,
-              postedAt: video.create_time ? new Date(video.create_time * 1000).toISOString() : video.createTime ? new Date(video.createTime * 1000).toISOString() : undefined,
+              postedAt: video.create_time ? new Date(video.create_time * 1000).toISOString() : undefined,
             };
           });
-        } else {
-          const errorText = await videosResponse.text();
-          console.error('Videos endpoint failed:', videosResponse.status, errorText);
         }
       } catch (videosError) {
         console.error('Error fetching videos:', videosError);
@@ -202,7 +176,6 @@ Deno.serve(async (req) => {
       // Save videos to database
       if (data.videos && data.videos.length > 0) {
         for (const video of data.videos) {
-          // Upsert video
           const { data: existingVideo } = await supabase
             .from('tiktok_videos')
             .select('id')

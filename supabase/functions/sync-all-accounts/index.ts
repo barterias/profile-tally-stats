@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// This function syncs all active accounts from all platforms
+// This function syncs all active accounts from all platforms using EnsembleData
 // Should be called by a cron job every 6 hours
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -13,17 +13,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('Starting auto-sync for all accounts...');
+    console.log('Starting auto-sync for all accounts via EnsembleData...');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const apiKey = Deno.env.get('SCRAPECREATORS_API_KEY');
+    const token = Deno.env.get('ENSEMBLEDATA_TOKEN');
 
-    if (!apiKey) {
-      console.error('SCRAPECREATORS_API_KEY not configured');
+    if (!token) {
+      console.error('ENSEMBLEDATA_TOKEN not configured');
       return new Response(
-        JSON.stringify({ success: false, error: 'API key not configured' }),
+        JSON.stringify({ success: false, error: 'EnsembleData token not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Auto-sync completed',
+        message: 'Auto-sync completed via EnsembleData',
         results,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
