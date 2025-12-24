@@ -6,6 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const SCRAPECREATORS_API_URL = 'https://api.scrapecreators.com';
+
 interface InstagramScrapedData {
   username?: string;
   displayName?: string;
@@ -26,214 +28,98 @@ interface InstagramScrapedData {
   }>;
 }
 
-interface ApifyRunResponse {
-  data: {
-    id: string;
-    actId: string;
-    defaultDatasetId: string;
-    status: string;
-  };
-}
-
-interface ApifyRunStatus {
-  data: {
-    id: string;
-    status: string;
-    defaultDatasetId: string;
-  };
-}
-
-// Função para iniciar o run do Actor Apify
-async function startApifyRun(token: string, profileUrl: string, resultsLimit: number = 20): Promise<ApifyRunResponse> {
-  console.log(`[Apify] Starting run for profile: ${profileUrl}`);
-  
-  const response = await fetch(
-    `https://api.apify.com/v2/acts/apify~instagram-scraper/runs?token=${token}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        directUrls: [profileUrl],
-        resultsLimit: resultsLimit,
-        resultsType: "details",
-        searchType: "user",
-        searchLimit: 1,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[Apify] Failed to start run. Status: ${response.status}, Body: ${errorText}`);
-    
-    if (response.status === 401) {
-      throw new Error('Token do Apify inválido ou expirado');
-    } else if (response.status === 402) {
-      throw new Error('Créditos do Apify esgotados. Verifique sua conta.');
-    } else if (response.status === 429) {
-      throw new Error('Rate limit do Apify atingido. Tente novamente mais tarde.');
-    }
-    
-    throw new Error(`Apify API error: ${response.status} - ${errorText}`);
+// ScrapeCreators API client
+async function fetchScrapeCreators(endpoint: string, params: Record<string, string>): Promise<any> {
+  const apiKey = Deno.env.get('SCRAPECREATORS_API_KEY');
+  if (!apiKey) {
+    throw new Error('SCRAPECREATORS_API_KEY não configurada');
   }
 
-  const data = await response.json();
-  console.log(`[Apify] Run started successfully. Run ID: ${data.data?.id}`);
-  return data;
-}
-
-// Função para verificar o status do run
-async function checkRunStatus(token: string, runId: string): Promise<ApifyRunStatus> {
-  const response = await fetch(
-    `https://api.apify.com/v2/actor-runs/${runId}?token=${token}`,
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }
-  );
-
+  const queryParams = new URLSearchParams(params);
+  const url = `${SCRAPECREATORS_API_URL}${endpoint}?${queryParams}`;
+  
+  console.log(`[ScrapeCreators] Fetching: ${endpoint}`);
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'x-api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+  });
+  
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`[Apify] Failed to check run status. Status: ${response.status}, Body: ${errorText}`);
-    throw new Error(`Apify API error checking status: ${response.status} - ${errorText}`);
+    console.error(`[ScrapeCreators] API error: ${response.status}`, errorText);
+    
+    if (response.status === 401) {
+      throw new Error('API key do ScrapeCreators inválida ou expirada');
+    } else if (response.status === 402) {
+      throw new Error('Créditos do ScrapeCreators esgotados');
+    } else if (response.status === 429) {
+      throw new Error('Rate limit do ScrapeCreators atingido');
+    }
+    
+    throw new Error(`ScrapeCreators API error: ${response.status}`);
   }
 
   return response.json();
 }
 
-// Função para buscar os resultados do dataset
-async function getDatasetItems(token: string, datasetId: string): Promise<any[]> {
-  console.log(`[Apify] Fetching dataset items. Dataset ID: ${datasetId}`);
+// Map ScrapeCreators profile data to our format
+function mapProfileData(data: any): InstagramScrapedData {
+  const user = data?.data?.user || data?.user || data;
   
-  const response = await fetch(
-    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}&clean=true`,
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[Apify] Failed to get dataset items. Status: ${response.status}, Body: ${errorText}`);
-    throw new Error(`Apify API error fetching dataset: ${response.status} - ${errorText}`);
-  }
-
-  const items = await response.json();
-  console.log(`[Apify] Dataset items fetched. Count: ${items.length}`);
-  return items;
-}
-
-// Função para aguardar o run terminar
-async function waitForRunCompletion(token: string, runId: string, maxWaitMs: number = 180000): Promise<string> {
-  const startTime = Date.now();
-  const pollIntervalMs = 3000; // 3 segundos entre verificações
-
-  console.log(`[Apify] Waiting for run ${runId} to complete...`);
-
-  while (Date.now() - startTime < maxWaitMs) {
-    const statusResponse = await checkRunStatus(token, runId);
-    const status = statusResponse.data.status;
-    
-    console.log(`[Apify] Run status: ${status}`);
-
-    if (status === 'SUCCEEDED') {
-      return statusResponse.data.defaultDatasetId;
-    }
-
-    if (status === 'FAILED' || status === 'ABORTED' || status === 'TIMED-OUT') {
-      throw new Error(`Apify run ${status.toLowerCase()}`);
-    }
-
-    // Aguardar antes de verificar novamente
-    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
-  }
-
-  throw new Error(`Timeout waiting for Apify run to complete (max ${maxWaitMs / 1000}s)`);
-}
-
-// Função para mapear dados do Apify para o formato esperado
-function mapApifyDataToInstagramData(items: any[]): InstagramScrapedData {
-  if (!items || items.length === 0) {
-    console.log('[Apify] No items returned from dataset');
-    return {};
-  }
-
-  // LOG DETALHADO: Ver estrutura completa do primeiro item retornado
-  if (items.length > 0) {
-    console.log('[Apify] === RAW ITEM STRUCTURE (first item) ===');
-    console.log(JSON.stringify(items[0], null, 2));
-    
-    // Logar campos específicos relacionados a views
-    const firstItem = items[0];
-    console.log('[Apify] === VIEWS-RELATED FIELDS CHECK ===');
-    console.log('videoViewCount:', firstItem.videoViewCount);
-    console.log('videoPlayCount:', firstItem.videoPlayCount);
-    console.log('viewsCount:', firstItem.viewsCount);
-    console.log('view_count:', firstItem.view_count);
-    console.log('playCount:', firstItem.playCount);
-    console.log('views:', firstItem.views);
-    console.log('video_view_count:', firstItem.video_view_count);
-    
-    // Listar todas as keys do item para descobrir campos disponíveis
-    console.log('[Apify] === ALL AVAILABLE FIELDS ===');
-    console.log('Keys:', Object.keys(firstItem).join(', '));
-  }
-
-  // O primeiro item geralmente contém os dados do perfil
-  const profileItem = items.find(item => item.username) || items[0];
+  console.log('[ScrapeCreators] Mapping profile:', user?.username);
   
-  console.log('[Apify] Mapping profile data:', profileItem?.username);
-
-  const data: InstagramScrapedData = {
-    username: profileItem?.username || profileItem?.ownerUsername,
-    displayName: profileItem?.fullName || profileItem?.ownerFullName,
-    profileImageUrl: profileItem?.profilePicUrl || profileItem?.profilePicUrlHD,
-    bio: profileItem?.biography,
-    followersCount: profileItem?.followersCount || 0,
-    followingCount: profileItem?.followsCount || profileItem?.followingCount || 0,
-    postsCount: profileItem?.postsCount || profileItem?.mediaCount || 0,
+  return {
+    username: user?.username,
+    displayName: user?.full_name || user?.fullName,
+    profileImageUrl: user?.profile_pic_url_hd || user?.profile_pic_url || user?.profilePicUrl,
+    bio: user?.biography,
+    followersCount: user?.edge_followed_by?.count || user?.followerCount || 0,
+    followingCount: user?.edge_follow?.count || user?.followingCount || 0,
+    postsCount: user?.edge_owner_to_timeline_media?.count || user?.mediaCount || 0,
     posts: [],
   };
+}
 
-  // Mapear posts/reels
-  const posts = items.filter(item => item.type || item.shortCode || item.url);
+// Map ScrapeCreators posts to our format
+function mapPosts(postsData: any, profileData: InstagramScrapedData): InstagramScrapedData {
+  let edges: any[] = [];
   
-  data.posts = posts.slice(0, 50).map((item: any) => {
-    const postType = item.type || (item.videoUrl ? 'video' : 'post');
-    
-    // Tentar extrair views de múltiplos campos possíveis
-    // Se nenhum campo existir, views será null (indisponível)
-    const viewsValue = item.videoViewCount ?? item.videoPlayCount ?? item.viewsCount ?? 
-                       item.view_count ?? item.playCount ?? item.views ?? null;
-    
-    // Log para debug de cada post
-    console.log(`[Apify] Post ${item.shortCode || 'unknown'}: type=${postType}, views=${viewsValue}, likesCount=${item.likesCount}`);
+  if (Array.isArray(postsData)) {
+    edges = postsData;
+  } else if (postsData?.data?.user?.edge_owner_to_timeline_media?.edges) {
+    edges = postsData.data.user.edge_owner_to_timeline_media.edges;
+  } else if (postsData?.edges) {
+    edges = postsData.edges;
+  }
+  
+  if (!edges || edges.length === 0) {
+    console.log('[ScrapeCreators] No posts found to map');
+    return profileData;
+  }
+
+  profileData.posts = edges.slice(0, 50).map((edge: any) => {
+    const node = edge?.node || edge;
+    const isVideo = node?.__typename === 'XDTGraphVideo' || node?.is_video || node?.product_type === 'clips';
     
     return {
-      postUrl: item.url || (item.shortCode ? `https://www.instagram.com/p/${item.shortCode}/` : ''),
-      type: postType === 'Video' || postType === 'Reel' ? 'video' : postType === 'Sidecar' ? 'carousel' : 'post',
-      thumbnailUrl: item.displayUrl || item.thumbnailUrl || item.previewUrl,
-      caption: item.caption?.substring(0, 200),
-      likesCount: item.likesCount || 0,
-      commentsCount: item.commentsCount || 0,
-      // Views: usar 0 se não disponível (API não fornece esse dado)
-      viewsCount: viewsValue !== null ? viewsValue : 0,
+      postUrl: node?.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : '',
+      type: isVideo ? 'video' : (node?.__typename === 'XDTGraphSidecar' ? 'carousel' : 'post'),
+      thumbnailUrl: node?.display_url || node?.thumbnail_src || node?.thumbnailUrl,
+      caption: (node?.edge_media_to_caption?.edges?.[0]?.node?.text || node?.caption || '')?.substring(0, 200),
+      likesCount: node?.edge_liked_by?.count || node?.likesCount || node?.like_count || 0,
+      commentsCount: node?.edge_media_to_comment?.count || node?.commentsCount || node?.comment_count || 0,
+      // Views from video_view_count or video_play_count
+      viewsCount: node?.video_view_count || node?.video_play_count || node?.viewCount || 0,
       sharesCount: 0,
-      // Flag para indicar se views está disponível
-      viewsAvailable: viewsValue !== null,
     };
   });
 
-  console.log(`[Apify] Mapped ${data.posts?.length || 0} posts`);
-  
-  return data;
+  console.log(`[ScrapeCreators] Mapped ${profileData.posts?.length || 0} posts`);
+  return profileData;
 }
 
 serve(async (req) => {
@@ -251,11 +137,11 @@ serve(async (req) => {
       );
     }
 
-    const APIFY_API_TOKEN = Deno.env.get('APIFY_API_TOKEN');
-    if (!APIFY_API_TOKEN) {
-      console.error('[Apify] APIFY_API_TOKEN not configured');
+    const SCRAPECREATORS_API_KEY = Deno.env.get('SCRAPECREATORS_API_KEY');
+    if (!SCRAPECREATORS_API_KEY) {
+      console.error('[ScrapeCreators] API key not configured');
       return new Response(
-        JSON.stringify({ success: false, error: 'APIFY_API_TOKEN não configurado. Adicione o token nas variáveis de ambiente.' }),
+        JSON.stringify({ success: false, error: 'SCRAPECREATORS_API_KEY não configurada. Adicione a chave nas variáveis de ambiente.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -268,35 +154,30 @@ serve(async (req) => {
     }
     username = username.replace('@', '').replace('/', '');
 
-    // Construir URL do perfil
-    const fullProfileUrl = profileUrl.includes('instagram.com') 
-      ? profileUrl 
-      : `https://www.instagram.com/${username}/`;
+    console.log(`[ScrapeCreators] Fetching Instagram profile: ${username}`);
 
-    console.log(`[Apify] Fetching Instagram profile: ${username} (${fullProfileUrl})`);
-
-    // Definir limite de resultados baseado em fetchVideos
-    const resultsLimit = fetchVideos ? 20 : 1;
-
-    // 1. Iniciar o run do Apify
-    const runResponse = await startApifyRun(APIFY_API_TOKEN, fullProfileUrl, resultsLimit);
-    const runId = runResponse.data.id;
-
-    // 2. Aguardar conclusão
-    const datasetId = await waitForRunCompletion(APIFY_API_TOKEN, runId);
-
-    // 3. Buscar resultados
-    const items = await getDatasetItems(APIFY_API_TOKEN, datasetId);
-
-    // 4. Mapear para formato esperado
-    const data = mapApifyDataToInstagramData(items);
+    // Fetch profile data
+    const profileResult = await fetchScrapeCreators('/v1/instagram/profile', { username });
+    let data = mapProfileData(profileResult);
     
-    // Garantir que username está definido
+    // Ensure username is set
     if (!data.username) {
       data.username = username;
     }
 
-    console.log('[Apify] Parsed data:', data.displayName || data.username, 'with', data.posts?.length || 0, 'posts');
+    // Fetch posts if requested (profile already includes recent posts)
+    if (fetchVideos) {
+      // The profile endpoint returns posts, let's map them
+      const user = profileResult?.data?.user || profileResult?.user;
+      if (user?.edge_owner_to_timeline_media?.edges) {
+        data = mapPosts(user.edge_owner_to_timeline_media.edges, data);
+      }
+      
+      // For reels/videos with views, we might need to fetch individual post details
+      // But for now, we'll use what's available from the profile endpoint
+    }
+
+    console.log('[ScrapeCreators] Parsed data:', data.displayName || data.username, 'with', data.posts?.length || 0, 'posts');
 
     // Update database if accountId is provided
     if (accountId) {
@@ -319,9 +200,9 @@ serve(async (req) => {
         .eq('id', accountId);
 
       if (updateError) {
-        console.error('[Apify] Error updating account:', updateError);
+        console.error('[ScrapeCreators] Error updating account:', updateError);
       } else {
-        console.log('[Apify] Account updated successfully');
+        console.log('[ScrapeCreators] Account updated successfully');
       }
 
       // Save metrics history
@@ -372,7 +253,7 @@ serve(async (req) => {
               });
           }
         }
-        console.log(`[Apify] Saved ${data.posts.length} posts to database`);
+        console.log(`[ScrapeCreators] Saved ${data.posts.length} posts to database`);
       }
     }
 
@@ -384,7 +265,7 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('[Apify] Error scraping Instagram:', error);
+    console.error('[ScrapeCreators] Error scraping Instagram:', error);
     
     let errorMessage = 'Failed to fetch Instagram data';
     let statusCode = 500;
@@ -392,14 +273,12 @@ serve(async (req) => {
     if (error instanceof Error) {
       errorMessage = error.message;
       
-      if (errorMessage.includes('Token') || errorMessage.includes('401')) {
+      if (errorMessage.includes('API key') || errorMessage.includes('401')) {
         statusCode = 401;
       } else if (errorMessage.includes('Créditos') || errorMessage.includes('402')) {
         statusCode = 402;
       } else if (errorMessage.includes('Rate limit') || errorMessage.includes('429')) {
         statusCode = 429;
-      } else if (errorMessage.includes('Timeout')) {
-        statusCode = 408;
       }
     }
 
