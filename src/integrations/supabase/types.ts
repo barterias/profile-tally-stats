@@ -506,6 +506,63 @@ export type Database = {
         }
         Relationships: []
       }
+      creators_metrics: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          engagement_rate: number | null
+          followers_count: number | null
+          id: string
+          period_end: string | null
+          period_start: string | null
+          platform: string
+          profile_image_url: string | null
+          scraped_at: string
+          total_comments: number | null
+          total_likes: number | null
+          total_posts: number | null
+          total_views: number | null
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          engagement_rate?: number | null
+          followers_count?: number | null
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          platform: string
+          profile_image_url?: string | null
+          scraped_at?: string
+          total_comments?: number | null
+          total_likes?: number | null
+          total_posts?: number | null
+          total_views?: number | null
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          engagement_rate?: number | null
+          followers_count?: number | null
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          platform?: string
+          profile_image_url?: string | null
+          scraped_at?: string
+          total_comments?: number | null
+          total_likes?: number | null
+          total_posts?: number | null
+          total_views?: number | null
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       daily_rankings: {
         Row: {
           campaign_id: string | null
