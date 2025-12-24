@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.test-apify-instagram]
 verify_jwt = false
+
+[functions.test-scrapecreators]
+verify_jwt = false
