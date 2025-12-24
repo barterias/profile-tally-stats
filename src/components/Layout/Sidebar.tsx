@@ -13,7 +13,6 @@ import {
   ChevronLeft,
   ChevronRight,
   UserCircle,
-  UsersRound,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
@@ -40,7 +39,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: t("nav.dashboard"), href: "/dashboard/admin", icon: LayoutDashboard },
     { name: t("nav.submit"), href: "/submit", icon: Upload },
     { name: t("nav.account_analytics"), href: "/account-analytics", icon: BarChart3 },
-    { name: "Creators Panel", href: "/creators-panel", icon: UsersRound },
   ];
 
   const clientNavigation = [
@@ -48,7 +46,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: t("nav.campaigns"), href: "/client/campaigns", icon: Trophy },
     { name: t("nav.submit"), href: "/submit", icon: Upload },
     { name: t("nav.account_analytics"), href: "/account-analytics", icon: BarChart3 },
-    { name: "Creators Panel", href: "/creators-panel", icon: UsersRound },
   ];
 
   const adminNavigation = [

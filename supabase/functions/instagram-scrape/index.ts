@@ -270,43 +270,6 @@ Deno.serve(async (req) => {
         }
         console.log(`Saved ${data.posts.length} posts to database`);
       }
-
-      // Calculate totals and save to creators_metrics
-      const totalLikes = data.posts?.reduce((sum, p) => sum + p.likesCount, 0) || 0;
-      const totalViews = data.posts?.reduce((sum, p) => sum + p.viewsCount, 0) || 0;
-      const totalComments = data.posts?.reduce((sum, p) => sum + p.commentsCount, 0) || 0;
-      const totalPosts = data.posts?.length || 0;
-      const engagementRate = data.followersCount && data.followersCount > 0
-        ? ((totalLikes + totalComments) / data.followersCount / Math.max(totalPosts, 1)) * 100
-        : 0;
-
-      const today = new Date().toISOString().split('T')[0];
-      
-      const { error: metricsError } = await supabase
-        .from('creators_metrics')
-        .upsert({
-          platform: 'instagram',
-          username: data.username || username,
-          display_name: data.displayName,
-          profile_image_url: data.profileImageUrl,
-          followers_count: data.followersCount || 0,
-          total_views: totalViews,
-          total_likes: totalLikes,
-          total_comments: totalComments,
-          total_posts: totalPosts,
-          engagement_rate: Math.min(engagementRate, 100),
-          period_start: today,
-          period_end: today,
-          scraped_at: new Date().toISOString(),
-        }, {
-          onConflict: 'platform,username,period_start,period_end',
-        });
-
-      if (metricsError) {
-        console.error('Error saving creators_metrics:', metricsError);
-      } else {
-        console.log('Saved to creators_metrics table');
-      }
     }
 
     return new Response(

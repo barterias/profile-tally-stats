@@ -37,7 +37,6 @@ import SocialDashboard from "./pages/SocialDashboard";
 import SocialAccounts from "./pages/SocialAccounts";
 import SocialSettings from "./pages/SocialSettings";
 import AccountAnalytics from "./pages/AccountAnalytics";
-import CreatorsPanel from "./pages/CreatorsPanel";
 
 const queryClient = new QueryClient();
 
@@ -81,7 +80,6 @@ const App = () => (
               <Route path="/payments" element={<PaymentManagement />} />
               <Route path="/ranking" element={<ProtectedRoute><RankingGlobal /></ProtectedRoute>} />
               <Route path="/account-analytics" element={<ProtectedRoute><AccountAnalytics /></ProtectedRoute>} />
-              <Route path="/creators-panel" element={<ProtectedRoute><CreatorsPanel /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
