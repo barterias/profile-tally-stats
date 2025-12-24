@@ -1,11 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-const ENSEMBLEDATA_API_URL = 'https://ensembledata.com/apis';
 
 interface InstagramScrapedData {
   username?: string;
@@ -27,29 +26,184 @@ interface InstagramScrapedData {
   }>;
 }
 
-async function fetchEnsembleData(endpoint: string, params: Record<string, string>): Promise<any> {
-  const token = Deno.env.get('ENSEMBLEDATA_TOKEN');
-  if (!token) {
-    throw new Error('ENSEMBLEDATA_TOKEN not configured');
-  }
+interface ApifyRunResponse {
+  data: {
+    id: string;
+    actId: string;
+    defaultDatasetId: string;
+    status: string;
+  };
+}
 
-  const queryParams = new URLSearchParams({ ...params, token });
-  const url = `${ENSEMBLEDATA_API_URL}${endpoint}?${queryParams}`;
+interface ApifyRunStatus {
+  data: {
+    id: string;
+    status: string;
+    defaultDatasetId: string;
+  };
+}
+
+// Função para iniciar o run do Actor Apify
+async function startApifyRun(token: string, profileUrl: string, resultsLimit: number = 20): Promise<ApifyRunResponse> {
+  console.log(`[Apify] Starting run for profile: ${profileUrl}`);
   
-  console.log(`Fetching EnsembleData: ${endpoint}`);
-  
-  const response = await fetch(url);
-  
+  const response = await fetch(
+    `https://api.apify.com/v2/acts/apify~instagram-scraper/runs?token=${token}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        directUrls: [profileUrl],
+        resultsLimit: resultsLimit,
+        resultsType: "details",
+        searchType: "user",
+        searchLimit: 1,
+      }),
+    }
+  );
+
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('EnsembleData API error:', response.status, errorText);
-    throw new Error(`EnsembleData API error: ${response.status}`);
+    console.error(`[Apify] Failed to start run. Status: ${response.status}, Body: ${errorText}`);
+    
+    if (response.status === 401) {
+      throw new Error('Token do Apify inválido ou expirado');
+    } else if (response.status === 402) {
+      throw new Error('Créditos do Apify esgotados. Verifique sua conta.');
+    } else if (response.status === 429) {
+      throw new Error('Rate limit do Apify atingido. Tente novamente mais tarde.');
+    }
+    
+    throw new Error(`Apify API error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log(`[Apify] Run started successfully. Run ID: ${data.data?.id}`);
+  return data;
+}
+
+// Função para verificar o status do run
+async function checkRunStatus(token: string, runId: string): Promise<ApifyRunStatus> {
+  const response = await fetch(
+    `https://api.apify.com/v2/actor-runs/${runId}?token=${token}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[Apify] Failed to check run status. Status: ${response.status}, Body: ${errorText}`);
+    throw new Error(`Apify API error checking status: ${response.status} - ${errorText}`);
   }
 
   return response.json();
 }
 
-Deno.serve(async (req) => {
+// Função para buscar os resultados do dataset
+async function getDatasetItems(token: string, datasetId: string): Promise<any[]> {
+  console.log(`[Apify] Fetching dataset items. Dataset ID: ${datasetId}`);
+  
+  const response = await fetch(
+    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}&clean=true`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[Apify] Failed to get dataset items. Status: ${response.status}, Body: ${errorText}`);
+    throw new Error(`Apify API error fetching dataset: ${response.status} - ${errorText}`);
+  }
+
+  const items = await response.json();
+  console.log(`[Apify] Dataset items fetched. Count: ${items.length}`);
+  return items;
+}
+
+// Função para aguardar o run terminar
+async function waitForRunCompletion(token: string, runId: string, maxWaitMs: number = 180000): Promise<string> {
+  const startTime = Date.now();
+  const pollIntervalMs = 3000; // 3 segundos entre verificações
+
+  console.log(`[Apify] Waiting for run ${runId} to complete...`);
+
+  while (Date.now() - startTime < maxWaitMs) {
+    const statusResponse = await checkRunStatus(token, runId);
+    const status = statusResponse.data.status;
+    
+    console.log(`[Apify] Run status: ${status}`);
+
+    if (status === 'SUCCEEDED') {
+      return statusResponse.data.defaultDatasetId;
+    }
+
+    if (status === 'FAILED' || status === 'ABORTED' || status === 'TIMED-OUT') {
+      throw new Error(`Apify run ${status.toLowerCase()}`);
+    }
+
+    // Aguardar antes de verificar novamente
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(`Timeout waiting for Apify run to complete (max ${maxWaitMs / 1000}s)`);
+}
+
+// Função para mapear dados do Apify para o formato esperado
+function mapApifyDataToInstagramData(items: any[]): InstagramScrapedData {
+  if (!items || items.length === 0) {
+    console.log('[Apify] No items returned from dataset');
+    return {};
+  }
+
+  // O primeiro item geralmente contém os dados do perfil
+  const profileItem = items.find(item => item.username) || items[0];
+  
+  console.log('[Apify] Mapping profile data:', profileItem?.username);
+
+  const data: InstagramScrapedData = {
+    username: profileItem?.username || profileItem?.ownerUsername,
+    displayName: profileItem?.fullName || profileItem?.ownerFullName,
+    profileImageUrl: profileItem?.profilePicUrl || profileItem?.profilePicUrlHD,
+    bio: profileItem?.biography,
+    followersCount: profileItem?.followersCount || 0,
+    followingCount: profileItem?.followsCount || profileItem?.followingCount || 0,
+    postsCount: profileItem?.postsCount || profileItem?.mediaCount || 0,
+    posts: [],
+  };
+
+  // Mapear posts/reels
+  const posts = items.filter(item => item.type || item.shortCode || item.url);
+  
+  data.posts = posts.slice(0, 50).map((item: any) => {
+    const postType = item.type || (item.videoUrl ? 'video' : 'post');
+    return {
+      postUrl: item.url || (item.shortCode ? `https://www.instagram.com/p/${item.shortCode}/` : ''),
+      type: postType === 'Video' || postType === 'Reel' ? 'video' : postType === 'Sidecar' ? 'carousel' : 'post',
+      thumbnailUrl: item.displayUrl || item.thumbnailUrl || item.previewUrl,
+      caption: item.caption?.substring(0, 200),
+      likesCount: item.likesCount || 0,
+      commentsCount: item.commentsCount || 0,
+      viewsCount: item.videoViewCount || item.videoPlayCount || item.viewsCount || 0,
+      sharesCount: 0,
+    };
+  });
+
+  console.log(`[Apify] Mapped ${data.posts?.length || 0} posts`);
+  
+  return data;
+}
+
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -64,11 +218,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const token = Deno.env.get('ENSEMBLEDATA_TOKEN');
-    if (!token) {
-      console.error('ENSEMBLEDATA_TOKEN not configured');
+    const APIFY_API_TOKEN = Deno.env.get('APIFY_API_TOKEN');
+    if (!APIFY_API_TOKEN) {
+      console.error('[Apify] APIFY_API_TOKEN not configured');
       return new Response(
-        JSON.stringify({ success: false, error: 'EnsembleData token not configured. Please add your ENSEMBLEDATA_TOKEN.' }),
+        JSON.stringify({ success: false, error: 'APIFY_API_TOKEN não configurado. Adicione o token nas variáveis de ambiente.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -81,57 +235,35 @@ Deno.serve(async (req) => {
     }
     username = username.replace('@', '').replace('/', '');
 
-    console.log(`Fetching Instagram profile via EnsembleData: ${username}`);
+    // Construir URL do perfil
+    const fullProfileUrl = profileUrl.includes('instagram.com') 
+      ? profileUrl 
+      : `https://www.instagram.com/${username}/`;
 
-    // Fetch user info from EnsembleData
-    const userInfoResult = await fetchEnsembleData('/instagram/user/info', { username });
-    const userData = userInfoResult.data || userInfoResult;
+    console.log(`[Apify] Fetching Instagram profile: ${username} (${fullProfileUrl})`);
 
-    const data: InstagramScrapedData = {
-      username: userData.username || username,
-      displayName: userData.full_name || userData.fullName || undefined,
-      profileImageUrl: userData.profile_pic_url_hd || userData.profile_pic_url || userData.hd_profile_pic_url_info?.url || undefined,
-      bio: userData.biography || userData.bio || undefined,
-      followersCount: userData.follower_count || userData.edge_followed_by?.count || 0,
-      followingCount: userData.following_count || userData.edge_follow?.count || 0,
-      postsCount: userData.media_count || userData.edge_owner_to_timeline_media?.count || 0,
-      posts: [],
-    };
+    // Definir limite de resultados baseado em fetchVideos
+    const resultsLimit = fetchVideos ? 20 : 1;
 
-    // Fetch user reels/posts if requested
-    if (fetchVideos && userData.pk) {
-      try {
-        const reelsResult = await fetchEnsembleData('/instagram/user/reels', {
-          user_id: String(userData.pk),
-          depth: '1',
-          include_feed_video: 'true',
-          chunk_size: '50',
-        });
+    // 1. Iniciar o run do Apify
+    const runResponse = await startApifyRun(APIFY_API_TOKEN, fullProfileUrl, resultsLimit);
+    const runId = runResponse.data.id;
 
-        const reelsData = reelsResult.data?.items || reelsResult.data || [];
-        
-        if (Array.isArray(reelsData)) {
-          console.log(`Found ${reelsData.length} reels/posts`);
-          data.posts = reelsData.slice(0, 50).map((item: any) => {
-            const isVideo = item.is_video || item.media_type === 2;
-            return {
-              postUrl: item.code ? `https://www.instagram.com/p/${item.code}/` : '',
-              type: isVideo ? 'video' : item.media_type === 8 ? 'carousel' : 'post',
-              thumbnailUrl: item.image_versions2?.candidates?.[0]?.url || item.thumbnail_url || undefined,
-              caption: item.caption?.text?.substring(0, 200) || undefined,
-              likesCount: item.like_count || 0,
-              commentsCount: item.comment_count || 0,
-              viewsCount: item.play_count || item.view_count || 0,
-              sharesCount: item.share_count || 0,
-            };
-          });
-        }
-      } catch (postsError) {
-        console.error('Error fetching posts:', postsError);
-      }
+    // 2. Aguardar conclusão
+    const datasetId = await waitForRunCompletion(APIFY_API_TOKEN, runId);
+
+    // 3. Buscar resultados
+    const items = await getDatasetItems(APIFY_API_TOKEN, datasetId);
+
+    // 4. Mapear para formato esperado
+    const data = mapApifyDataToInstagramData(items);
+    
+    // Garantir que username está definido
+    if (!data.username) {
+      data.username = username;
     }
 
-    console.log('Parsed data:', data.displayName, 'with', data.posts?.length || 0, 'posts');
+    console.log('[Apify] Parsed data:', data.displayName || data.username, 'with', data.posts?.length || 0, 'posts');
 
     // Update database if accountId is provided
     if (accountId) {
@@ -154,7 +286,9 @@ Deno.serve(async (req) => {
         .eq('id', accountId);
 
       if (updateError) {
-        console.error('Error updating account:', updateError);
+        console.error('[Apify] Error updating account:', updateError);
+      } else {
+        console.log('[Apify] Account updated successfully');
       }
 
       // Save metrics history
@@ -166,6 +300,8 @@ Deno.serve(async (req) => {
       // Save posts to database
       if (data.posts && data.posts.length > 0) {
         for (const post of data.posts) {
+          if (!post.postUrl) continue;
+          
           const { data: existingPost } = await supabase
             .from('instagram_posts')
             .select('id')
@@ -203,7 +339,7 @@ Deno.serve(async (req) => {
               });
           }
         }
-        console.log(`Saved ${data.posts.length} posts to database`);
+        console.log(`[Apify] Saved ${data.posts.length} posts to database`);
       }
     }
 
@@ -215,11 +351,28 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error scraping Instagram:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch Instagram data';
+    console.error('[Apify] Error scraping Instagram:', error);
+    
+    let errorMessage = 'Failed to fetch Instagram data';
+    let statusCode = 500;
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      if (errorMessage.includes('Token') || errorMessage.includes('401')) {
+        statusCode = 401;
+      } else if (errorMessage.includes('Créditos') || errorMessage.includes('402')) {
+        statusCode = 402;
+      } else if (errorMessage.includes('Rate limit') || errorMessage.includes('429')) {
+        statusCode = 429;
+      } else if (errorMessage.includes('Timeout')) {
+        statusCode = 408;
+      }
+    }
+
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
