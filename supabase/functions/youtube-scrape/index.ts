@@ -142,9 +142,10 @@ function pick<T extends Record<string, any>>(obj: T | null | undefined, keys: (k
 async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean): Promise<{ data: YouTubeScrapedData; raw: any }> {
   const { handle, channelId, url } = normalizeYoutubeIdentifier(identifier);
 
-  // 1) Channel/Profile details (ScrapeCreators official quick-start uses /youtube/profile)
-  const profileResult = await scrapeCreatorsClient.get('/youtube/profile', {
-    ...(handle ? { handle } : {}),
+  // 1) Channel details - using /youtube/channel endpoint (docs say handle WITHOUT @)
+  const cleanHandle = handle ? handle.replace(/^@/, '') : undefined;
+  const profileResult = await scrapeCreatorsClient.get('/youtube/channel', {
+    ...(cleanHandle ? { handle: cleanHandle } : {}),
     ...(channelId ? { channelId } : {}),
     ...(url ? { url } : {}),
   });
@@ -180,27 +181,29 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
   let videosResult: any = null;
   let shortsResult: any = null;
 
-  // 2) Channel videos
-  if (fetchVideos && (data.channelId || handle)) {
+  // 2) Channel videos - prefer channelId, fallback to cleanHandle
+  if (fetchVideos && (data.channelId || cleanHandle)) {
     try {
       videosResult = await scrapeCreatorsClient.get('/youtube/channel-videos', {
         ...(data.channelId ? { channelId: data.channelId } : {}),
-        ...(handle ? { handle } : {}),
+        ...(cleanHandle && !data.channelId ? { handle: cleanHandle } : {}),
       });
 
       const videosArray = videosResult?.videos || videosResult?.data?.videos || [];
+      console.log(`[ScrapeCreators] Found ${videosArray.length} videos`);
+      
       if (Array.isArray(videosArray) && videosArray.length > 0) {
         data.videos = videosArray.slice(0, 30).map((video: any) => ({
-          videoId: video?.videoId || video?.video_id || video?.id || '',
+          videoId: video?.id || video?.videoId || '',
           title: video?.title || '',
           description: typeof video?.description === 'string' ? video.description.substring(0, 500) : undefined,
-          thumbnailUrl: video?.thumbnail?.url || video?.thumbnails?.[0]?.url || video?.thumbnailUrl || undefined,
-          viewsCount: parseCompactCount(video?.viewCount ?? video?.views ?? video?.view_count),
-          likesCount: parseCompactCount(video?.likeCount ?? video?.likes ?? video?.like_count),
-          commentsCount: parseCompactCount(video?.commentCount ?? video?.comments ?? video?.comment_count),
-          publishedAt: video?.publishedAt || video?.published_at || undefined,
-          duration: video?.duration || video?.lengthSeconds || video?.duration_seconds || undefined,
-          isShort: false,
+          thumbnailUrl: video?.thumbnail || undefined,
+          viewsCount: video?.viewCountInt ?? parseCompactCount(video?.viewCountText),
+          likesCount: video?.likeCountInt ?? parseCompactCount(video?.likeCountText),
+          commentsCount: video?.commentCountInt ?? parseCompactCount(video?.commentCountText),
+          publishedAt: video?.publishedTime || undefined,
+          duration: video?.lengthSeconds || undefined,
+          isShort: video?.type === 'short',
         }));
       }
 
