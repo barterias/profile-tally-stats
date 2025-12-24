@@ -121,15 +121,28 @@ Deno.serve(async (req) => {
           console.log(`Found ${postsEdges.length} posts in profile response`);
           data.posts = postsEdges.slice(0, 50).map((edge: any) => {
             const node = edge.node || edge;
+            const isVideo = node.is_video || node.isVideo || node.__typename === 'GraphVideo';
+            
+            // Fallback chain for views: video_view_count -> play_count -> views -> impressions -> 0
+            let viewsCount = 0;
+            if (isVideo) {
+              viewsCount = node.video_view_count ?? node.play_count ?? node.views ?? node.view_count ?? node.impressions ?? 0;
+            } else {
+              // For non-video posts, use impressions or reach as "views"
+              viewsCount = node.impressions ?? node.reach ?? node.views ?? 0;
+            }
+            
+            console.log(`Post ${node.shortcode || 'unknown'}: type=${isVideo ? 'video' : 'post'}, views=${viewsCount}, raw_video_view=${node.video_view_count}, play=${node.play_count}`);
+            
             return {
               postUrl: node.url || node.postUrl || (node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : ''),
-              type: node.is_video || node.isVideo ? 'video' : node.__typename === 'GraphSidecar' ? 'carousel' : 'post',
+              type: isVideo ? 'video' : node.__typename === 'GraphSidecar' ? 'carousel' : 'post',
               thumbnailUrl: node.thumbnail_url || node.thumbnailUrl || node.thumbnail_src || node.display_url || undefined,
               caption: (node.edge_media_to_caption?.edges?.[0]?.node?.text || node.caption || '')?.substring(0, 200) || undefined,
-              likesCount: node.edge_liked_by?.count || node.edge_media_preview_like?.count || node.like_count || 0,
-              commentsCount: node.edge_media_to_comment?.count || node.comment_count || 0,
-              viewsCount: node.video_view_count || node.play_count || 0,
-              sharesCount: node.share_count || 0,
+              likesCount: node.edge_liked_by?.count || node.edge_media_preview_like?.count || node.like_count || node.likes || 0,
+              commentsCount: node.edge_media_to_comment?.count || node.comment_count || node.comments || 0,
+              viewsCount: viewsCount,
+              sharesCount: node.share_count || node.shares || 0,
             };
           });
         } else {
@@ -151,16 +164,30 @@ Deno.serve(async (req) => {
             
             console.log(`Found ${postsArray.length} posts from v2 endpoint`);
             
-            data.posts = postsArray.slice(0, 50).map((post: any) => ({
-              postUrl: post.url || post.link || (post.shortcode ? `https://www.instagram.com/p/${post.shortcode}/` : ''),
-              type: post.is_video ? 'video' : post.type || 'post',
-              thumbnailUrl: post.thumbnail_url || post.display_url || post.image || undefined,
-              caption: post.caption?.substring(0, 200) || undefined,
-              likesCount: post.like_count || post.likes || 0,
-              commentsCount: post.comment_count || post.comments || 0,
-              viewsCount: post.video_view_count || post.views || 0,
-              sharesCount: post.share_count || 0,
-            }));
+            data.posts = postsArray.slice(0, 50).map((post: any) => {
+              const isVideo = post.is_video || post.type === 'video' || post.media_type === 'VIDEO';
+              
+              // Fallback chain for views
+              let viewsCount = 0;
+              if (isVideo) {
+                viewsCount = post.video_view_count ?? post.play_count ?? post.views ?? post.view_count ?? 0;
+              } else {
+                viewsCount = post.impressions ?? post.reach ?? post.views ?? 0;
+              }
+              
+              console.log(`Post v2 ${post.shortcode || 'unknown'}: type=${isVideo ? 'video' : 'post'}, views=${viewsCount}`);
+              
+              return {
+                postUrl: post.url || post.link || (post.shortcode ? `https://www.instagram.com/p/${post.shortcode}/` : ''),
+                type: isVideo ? 'video' : post.type || 'post',
+                thumbnailUrl: post.thumbnail_url || post.display_url || post.image || undefined,
+                caption: post.caption?.substring(0, 200) || undefined,
+                likesCount: post.like_count || post.likes || 0,
+                commentsCount: post.comment_count || post.comments || 0,
+                viewsCount: viewsCount,
+                sharesCount: post.share_count || post.shares || 0,
+              };
+            });
           }
         }
       } catch (postsError) {
