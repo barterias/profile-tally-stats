@@ -246,43 +246,6 @@ Deno.serve(async (req) => {
         }
         console.log(`Saved ${data.videos.length} videos to database`);
       }
-
-      // Calculate totals and save to creators_metrics
-      const totalViews = data.videos?.reduce((sum, v) => sum + v.viewsCount, 0) || 0;
-      const totalLikes = data.videos?.reduce((sum, v) => sum + v.likesCount, 0) || 0;
-      const totalComments = data.videos?.reduce((sum, v) => sum + v.commentsCount, 0) || 0;
-      const totalPosts = data.videos?.length || 0;
-      const engagementRate = data.followersCount && data.followersCount > 0
-        ? ((totalLikes + totalComments) / data.followersCount / Math.max(totalPosts, 1)) * 100
-        : 0;
-
-      const today = new Date().toISOString().split('T')[0];
-
-      const { error: creatorMetricsError } = await supabase
-        .from('creators_metrics')
-        .upsert({
-          platform: 'tiktok',
-          username: data.username,
-          display_name: data.displayName,
-          profile_image_url: data.profileImageUrl,
-          followers_count: data.followersCount,
-          total_views: totalViews,
-          total_likes: totalLikes,
-          total_comments: totalComments,
-          total_posts: totalPosts,
-          engagement_rate: Math.min(engagementRate, 100),
-          period_start: today,
-          period_end: today,
-          scraped_at: new Date().toISOString(),
-        }, {
-          onConflict: 'platform,username,period_start,period_end',
-        });
-
-      if (creatorMetricsError) {
-        console.error('Error saving creators_metrics:', creatorMetricsError);
-      } else {
-        console.log('Saved to creators_metrics table');
-      }
     }
 
     return new Response(
