@@ -57,6 +57,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { toast } from "sonner";
+import { TestApifyButton } from "@/components/Admin/TestApifyButton";
 
 interface AdminUser {
   id: string;
@@ -506,6 +507,9 @@ export default function Admin() {
                 </p>
               </Card>
             </div>
+
+            {/* Teste de API - Apify */}
+            <TestApifyButton />
           </TabsContent>
 
           {/* TAB: GERENCIAMENTO DE USUÁRIOS */}
