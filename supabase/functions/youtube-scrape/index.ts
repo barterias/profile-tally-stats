@@ -5,7 +5,55 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SCRAPECREATORS_API_URL = 'https://api.scrapecreators.com';
+// ScrapeCreators client
+// NOTE: In this runtime (Deno) env vars are read via Deno.env.get(...)
+// (equivalent to process.env.* in Node).
+const SCRAPECREATORS_BASE_URL = 'https://api.scrapecreators.com/v1';
+
+type ScrapeCreatorsParams = Record<string, string | number | boolean | undefined | null>;
+
+function toQueryParams(params: ScrapeCreatorsParams) {
+  const qp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null) continue;
+    qp.set(k, String(v));
+  }
+  return qp;
+}
+
+const scrapeCreatorsClient = {
+  async get(path: string, params: ScrapeCreatorsParams) {
+    const apiKey = Deno.env.get('SCRAPECREATORS_API_KEY');
+    if (!apiKey) throw new Error('SCRAPECREATORS_API_KEY não configurada');
+
+    const qp = toQueryParams(params);
+    const url = `${SCRAPECREATORS_BASE_URL}${path}${qp.toString() ? `?${qp.toString()}` : ''}`;
+
+    console.log(`[ScrapeCreators] GET ${path}`);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'x-api-key': apiKey,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[ScrapeCreators] API error: ${response.status}`, errorText);
+
+      if (response.status === 401) throw new Error('API key do ScrapeCreators inválida ou expirada');
+      if (response.status === 402) throw new Error('Créditos do ScrapeCreators esgotados');
+      if (response.status === 429) throw new Error('Rate limit do ScrapeCreators atingido');
+      if (response.status === 404) throw new Error('Canal não encontrado (ScrapeCreators 404)');
+
+      throw new Error(`ScrapeCreators API error: ${response.status}`);
+    }
+
+    return response.json();
+  },
+};
 
 interface YouTubeScrapedData {
   channelId?: string;
@@ -17,6 +65,8 @@ interface YouTubeScrapedData {
   subscribersCount: number;
   videosCount: number;
   totalViews: number;
+  totalLikes?: number;
+  totalComments?: number;
   videos?: Array<{
     videoId: string;
     title: string;
@@ -31,73 +81,197 @@ interface YouTubeScrapedData {
   }>;
 }
 
-// ScrapeCreators API client
-async function fetchScrapeCreators(endpoint: string, params: Record<string, string>): Promise<any> {
-  const apiKey = Deno.env.get('SCRAPECREATORS_API_KEY');
-  if (!apiKey) {
-    throw new Error('SCRAPECREATORS_API_KEY não configurada');
-  }
+function parseCompactCount(input?: string | number | null): number {
+  if (input === null || input === undefined) return 0;
+  if (typeof input === 'number') return Number.isFinite(input) ? Math.round(input) : 0;
 
-  const queryParams = new URLSearchParams(params);
-  const url = `${SCRAPECREATORS_API_URL}${endpoint}?${queryParams}`;
-  
-  console.log(`[ScrapeCreators] Fetching: ${endpoint}`);
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'x-api-key': apiKey,
-      'Content-Type': 'application/json',
-    },
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[ScrapeCreators] API error: ${response.status}`, errorText);
-    
-    if (response.status === 401) {
-      throw new Error('API key do ScrapeCreators inválida ou expirada');
-    } else if (response.status === 402) {
-      throw new Error('Créditos do ScrapeCreators esgotados');
-    } else if (response.status === 429) {
-      throw new Error('Rate limit do ScrapeCreators atingido');
-    }
-    
-    throw new Error(`ScrapeCreators API error: ${response.status}`);
-  }
-
-  return response.json();
-}
-
-// Parse subscriber count from text like "2.75M subscribers"
-function parseSubscriberCount(text?: string): number {
+  const text = String(input).trim();
   if (!text) return 0;
-  
-  const match = text.match(/([\d.]+)\s*(K|M|B)?/i);
-  if (!match) return 0;
-  
+
+  // normalize: remove words and spaces
+  // handles examples like: "603K subscribers", "305,644,721 views", "3,708 videos"
+  const cleaned = text
+    .replace(/subscribers?|inscritos?/gi, '')
+    .replace(/views?|visualiza(ç|c)ões?/gi, '')
+    .replace(/videos?/gi, '')
+    .replace(/,/g, '')
+    .trim();
+
+  const match = cleaned.match(/([\d.]+)\s*(K|M|B)?/i);
+  if (!match) {
+    const fallback = parseInt(cleaned.replace(/\D/g, ''), 10);
+    return Number.isFinite(fallback) ? fallback : 0;
+  }
+
   let value = parseFloat(match[1]);
   const multiplier = match[2]?.toUpperCase();
-  
-  if (multiplier === 'K') value *= 1000;
-  else if (multiplier === 'M') value *= 1000000;
-  else if (multiplier === 'B') value *= 1000000000;
-  
-  return Math.round(value);
+
+  if (multiplier === 'K') value *= 1_000;
+  if (multiplier === 'M') value *= 1_000_000;
+  if (multiplier === 'B') value *= 1_000_000_000;
+
+  return Number.isFinite(value) ? Math.round(value) : 0;
 }
 
-// Parse view count from text like "2,170,355,382 views"
-function parseViewCount(text?: string): number {
-  if (!text) return 0;
-  const cleanText = text.replace(/[,\s]/g, '').replace(/views?/i, '');
-  return parseInt(cleanText) || 0;
+function normalizeYoutubeIdentifier(identifier: string): { handle?: string; channelId?: string; url?: string } {
+  const raw = identifier.trim();
+  if (!raw) return {};
+
+  // URL
+  if (/^https?:\/\//i.test(raw)) {
+    return { url: raw };
+  }
+
+  // ChannelId
+  if (/^UC[\w-]{20,30}$/.test(raw)) {
+    return { channelId: raw };
+  }
+
+  // Handle
+  const handle = raw.replace(/^@/, '').trim();
+  return { handle };
 }
 
-// Parse video count from text like "9,221 videos"
-function parseVideoCount(text?: string): number {
-  if (!text) return 0;
-  const cleanText = text.replace(/[,\s]/g, '').replace(/videos?/i, '');
-  return parseInt(cleanText) || 0;
+function pick<T extends Record<string, any>>(obj: T | null | undefined, keys: (keyof T)[]) {
+  const out: Record<string, any> = {};
+  if (!obj) return out;
+  for (const k of keys) out[String(k)] = obj[k];
+  return out;
+}
+
+async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean): Promise<{ data: YouTubeScrapedData; raw: any }> {
+  const { handle, channelId, url } = normalizeYoutubeIdentifier(identifier);
+
+  // 1) Channel/Profile details (ScrapeCreators official quick-start uses /youtube/profile)
+  const profileResult = await scrapeCreatorsClient.get('/youtube/profile', {
+    ...(handle ? { handle } : {}),
+    ...(channelId ? { channelId } : {}),
+    ...(url ? { url } : {}),
+  });
+
+  // Parse avatar URL (largest source)
+  let avatarUrl: string | undefined;
+  const sources = profileResult?.avatar?.image?.sources;
+  if (Array.isArray(sources) && sources.length > 0) {
+    avatarUrl = sources[sources.length - 1]?.url || sources[0]?.url;
+  }
+
+  const resolvedHandle =
+    (typeof profileResult?.handle === 'string' ? profileResult.handle : undefined) ||
+    (typeof profileResult?.channel === 'string'
+      ? profileResult.channel.replace('http://www.youtube.com/@', '').replace('https://www.youtube.com/@', '')
+      : undefined) ||
+    handle ||
+    identifier;
+
+  const data: YouTubeScrapedData = {
+    channelId: profileResult?.channelId,
+    username: String(resolvedHandle).replace(/^@/, ''),
+    displayName: profileResult?.name,
+    profileImageUrl: avatarUrl,
+    bannerUrl: undefined,
+    description: typeof profileResult?.description === 'string' ? profileResult.description.substring(0, 500) : undefined,
+    subscribersCount: parseCompactCount(profileResult?.subscriberCount ?? profileResult?.subscriberCountText),
+    videosCount: parseCompactCount(profileResult?.videoCount ?? profileResult?.videoCountText),
+    totalViews: parseCompactCount(profileResult?.viewCount ?? profileResult?.viewCountText),
+    videos: [],
+  };
+
+  let videosResult: any = null;
+  let shortsResult: any = null;
+
+  // 2) Channel videos
+  if (fetchVideos && (data.channelId || handle)) {
+    try {
+      videosResult = await scrapeCreatorsClient.get('/youtube/channel-videos', {
+        ...(data.channelId ? { channelId: data.channelId } : {}),
+        ...(handle ? { handle } : {}),
+      });
+
+      const videosArray = videosResult?.videos || videosResult?.data?.videos || [];
+      if (Array.isArray(videosArray) && videosArray.length > 0) {
+        data.videos = videosArray.slice(0, 30).map((video: any) => ({
+          videoId: video?.videoId || video?.video_id || video?.id || '',
+          title: video?.title || '',
+          description: typeof video?.description === 'string' ? video.description.substring(0, 500) : undefined,
+          thumbnailUrl: video?.thumbnail?.url || video?.thumbnails?.[0]?.url || video?.thumbnailUrl || undefined,
+          viewsCount: parseCompactCount(video?.viewCount ?? video?.views ?? video?.view_count),
+          likesCount: parseCompactCount(video?.likeCount ?? video?.likes ?? video?.like_count),
+          commentsCount: parseCompactCount(video?.commentCount ?? video?.comments ?? video?.comment_count),
+          publishedAt: video?.publishedAt || video?.published_at || undefined,
+          duration: video?.duration || video?.lengthSeconds || video?.duration_seconds || undefined,
+          isShort: false,
+        }));
+      }
+
+      // 3) Shorts (optional) – keep non-fatal
+      try {
+        if (data.channelId) {
+          shortsResult = await scrapeCreatorsClient.get('/youtube/channel/shorts/simple', {
+            channelId: data.channelId,
+            limit: 20,
+          });
+
+          const shortsArray = shortsResult?.shorts || shortsResult?.data?.shorts || [];
+          if (Array.isArray(shortsArray) && shortsArray.length > 0) {
+            const shorts = shortsArray.slice(0, 20).map((short: any) => ({
+              videoId: short?.videoId || short?.video_id || short?.id || '',
+              title: short?.title || '',
+              description: undefined,
+              thumbnailUrl: short?.thumbnail?.url || short?.thumbnailUrl || undefined,
+              viewsCount: parseCompactCount(short?.viewCount ?? short?.views ?? short?.view_count),
+              likesCount: parseCompactCount(short?.likeCount ?? short?.likes ?? short?.like_count),
+              commentsCount: parseCompactCount(short?.commentCount ?? short?.comments ?? short?.comment_count),
+              publishedAt: short?.publishedAt || short?.published_at || undefined,
+              duration: short?.duration || short?.duration_seconds || undefined,
+              isShort: true,
+            }));
+
+            data.videos = [...(data.videos || []), ...shorts];
+          }
+        }
+      } catch (shortsError) {
+        console.error('[ScrapeCreators] Error fetching shorts:', shortsError);
+      }
+    } catch (videosError) {
+      console.error('[ScrapeCreators] Error fetching videos:', videosError);
+    }
+  }
+
+  // Aggregate likes/comments from fetched items (if available)
+  if (Array.isArray(data.videos) && data.videos.length > 0) {
+    data.totalLikes = data.videos.reduce((sum, v) => sum + (v.likesCount || 0), 0);
+    data.totalComments = data.videos.reduce((sum, v) => sum + (v.commentsCount || 0), 0);
+  }
+
+  const raw = {
+    profile: pick(profileResult, [
+      'channelId',
+      'channel',
+      'handle',
+      'name',
+      'subscriberCount',
+      'subscriberCountText',
+      'viewCount',
+      'viewCountText',
+      'videoCount',
+      'videoCountText',
+    ] as any),
+    videosSample: (() => {
+      const arr = videosResult?.videos || videosResult?.data?.videos;
+      const first = Array.isArray(arr) ? arr[0] : null;
+      return first
+        ? pick(first, ['videoId', 'title', 'viewCount', 'likeCount', 'commentCount', 'publishedAt'] as any)
+        : null;
+    })(),
+    shortsSample: (() => {
+      const arr = shortsResult?.shorts || shortsResult?.data?.shorts;
+      const first = Array.isArray(arr) ? arr[0] : null;
+      return first ? pick(first, ['videoId', 'title', 'viewCount', 'likeCount', 'commentCount'] as any) : null;
+    })(),
+  };
+
+  return { data, raw };
 }
 
 Deno.serve(async (req) => {
@@ -106,128 +280,52 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { accountId, username, fetchVideos = true } = await req.json();
+    const body = await req.json();
+    const {
+      accountId,
+      // backwards compatible: existing frontend sends "username"
+      username,
+      identifier,
+      channelId,
+      url,
+      fetchVideos = true,
+      debug = false,
+    } = body || {};
 
-    if (!username) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Username is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const channelIdentifier = identifier || username || channelId || url;
+
+    if (!channelIdentifier) {
+      return new Response(JSON.stringify({ success: false, error: 'Identificador do canal é obrigatório' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    const apiKey = Deno.env.get('SCRAPECREATORS_API_KEY');
-    if (!apiKey) {
-      console.error('[ScrapeCreators] API key not configured');
-      return new Response(
-        JSON.stringify({ success: false, error: 'SCRAPECREATORS_API_KEY não configurada' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    console.log(`[ScrapeCreators] Scraping YouTube: ${channelIdentifier}`);
 
-    // Clean up username/handle
-    const handle = username.startsWith('@') ? username : `@${username}`;
-    const cleanUsername = username.replace('@', '').trim();
-    
-    console.log(`[ScrapeCreators] Scraping YouTube channel: ${handle}`);
+    const { data, raw } = await getYoutubeChannelMetrics(String(channelIdentifier), !!fetchVideos);
 
-    // Fetch channel info from ScrapeCreators
-    const channelResult = await fetchScrapeCreators('/v1/youtube/channel', { handle });
-    
-    console.log('[ScrapeCreators] Channel data received:', channelResult?.name);
+    console.log(
+      '[ScrapeCreators] Parsed metrics:',
+      JSON.stringify(
+        {
+          username: data.username,
+          subscribersCount: data.subscribersCount,
+          totalViews: data.totalViews,
+          totalLikes: data.totalLikes,
+          videosFetched: data.videos?.length || 0,
+        },
+        null,
+        0,
+      ),
+    );
 
-    // Get avatar URL from the sources array
-    let avatarUrl = undefined;
-    if (channelResult?.avatar?.image?.sources?.length > 0) {
-      // Get the largest avatar available
-      const sources = channelResult.avatar.image.sources;
-      avatarUrl = sources[sources.length - 1]?.url || sources[0]?.url;
-    }
-
-    const data: YouTubeScrapedData = {
-      channelId: channelResult?.channelId,
-      username: channelResult?.channel?.replace('http://www.youtube.com/@', '')?.replace('https://www.youtube.com/@', '') || cleanUsername,
-      displayName: channelResult?.name,
-      profileImageUrl: avatarUrl,
-      bannerUrl: undefined, // Banner not included in basic channel endpoint
-      description: channelResult?.description?.substring(0, 500) || undefined,
-      subscribersCount: parseSubscriberCount(channelResult?.subscriberCountText) || channelResult?.subscriberCount || 0,
-      videosCount: parseVideoCount(channelResult?.videoCountText) || 0,
-      totalViews: parseViewCount(channelResult?.viewCountText) || 0,
-      videos: [],
-    };
-
-    // Fetch videos if requested
-    if (fetchVideos && data.channelId) {
-      try {
-        // Fetch channel videos
-        const videosResult = await fetchScrapeCreators('/v1/youtube/channel-videos', {
-          channelId: data.channelId,
-        });
-
-        const videosArray = videosResult?.videos || videosResult?.data?.videos || [];
-        
-        if (Array.isArray(videosArray) && videosArray.length > 0) {
-          console.log(`[ScrapeCreators] Found ${videosArray.length} videos`);
-          
-          data.videos = videosArray.slice(0, 30).map((video: any) => ({
-            videoId: video?.videoId || video?.video_id || '',
-            title: video?.title || '',
-            description: video?.description?.substring(0, 500) || undefined,
-            thumbnailUrl: video?.thumbnail?.url || video?.thumbnails?.[0]?.url || undefined,
-            viewsCount: parseInt(video?.viewCount || video?.view_count || '0') || 0,
-            likesCount: parseInt(video?.likeCount || video?.like_count || '0') || 0,
-            commentsCount: parseInt(video?.commentCount || video?.comment_count || '0') || 0,
-            publishedAt: video?.publishedAt || video?.published_at || undefined,
-            duration: video?.duration || video?.lengthSeconds || undefined,
-            isShort: false,
-          }));
-        }
-
-        // Try to fetch shorts as well
-        try {
-          const shortsResult = await fetchScrapeCreators('/v1/youtube/channel/shorts/simple', {
-            channelId: data.channelId,
-            limit: '20',
-          });
-
-          const shortsArray = shortsResult?.shorts || shortsResult?.data?.shorts || [];
-          
-          if (Array.isArray(shortsArray) && shortsArray.length > 0) {
-            console.log(`[ScrapeCreators] Found ${shortsArray.length} shorts`);
-            
-            const shorts = shortsArray.slice(0, 20).map((short: any) => ({
-              videoId: short?.videoId || short?.video_id || '',
-              title: short?.title || '',
-              description: undefined,
-              thumbnailUrl: short?.thumbnail?.url || undefined,
-              viewsCount: parseInt(short?.viewCount || short?.view_count || '0') || 0,
-              likesCount: parseInt(short?.likeCount || short?.like_count || '0') || 0,
-              commentsCount: parseInt(short?.commentCount || short?.comment_count || '0') || 0,
-              publishedAt: short?.publishedAt || undefined,
-              duration: short?.duration || undefined,
-              isShort: true,
-            }));
-            
-            data.videos = [...(data.videos || []), ...shorts];
-          }
-        } catch (shortsError) {
-          console.error('[ScrapeCreators] Error fetching shorts:', shortsError);
-          // Continue without shorts
-        }
-      } catch (videosError) {
-        console.error('[ScrapeCreators] Error fetching videos:', videosError);
-        // Continue without videos - don't fail the whole request
-      }
-    }
-
-    console.log('[ScrapeCreators] Parsed channel data:', data.displayName, 'with', data.videos?.length || 0, 'videos');
-
-    // Update database
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
+    // Update database (only when accountId provided)
     if (accountId) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
       const { error: updateError } = await supabase
         .from('youtube_accounts')
         .update({
@@ -246,32 +344,30 @@ Deno.serve(async (req) => {
 
       if (updateError) {
         console.error('[ScrapeCreators] Error updating account:', updateError);
-      } else {
-        console.log('[ScrapeCreators] Account updated successfully');
       }
 
-      // Save metrics history
-      const { error: metricsError } = await supabase
-        .from('youtube_metrics_history')
-        .insert({
-          account_id: accountId,
-          subscribers_count: data.subscribersCount,
-          views_count: data.totalViews,
-        });
+      // Save metrics history (include likes when available)
+      const { error: metricsError } = await supabase.from('youtube_metrics_history').insert({
+        account_id: accountId,
+        subscribers_count: data.subscribersCount,
+        views_count: data.totalViews,
+        likes_count: data.totalLikes ?? null,
+        comments_count: data.totalComments ?? null,
+      });
 
       if (metricsError) {
         console.error('[ScrapeCreators] Error saving metrics history:', metricsError);
       }
 
       // Save videos to database
-      if (data.videos && data.videos.length > 0) {
+      if (Array.isArray(data.videos) && data.videos.length > 0) {
         for (const video of data.videos) {
           if (!video.videoId) continue;
-          
-          const videoUrl = video.isShort 
+
+          const videoUrl = video.isShort
             ? `https://www.youtube.com/shorts/${video.videoId}`
             : `https://www.youtube.com/watch?v=${video.videoId}`;
-          
+
           const { data: existingVideo } = await supabase
             .from('youtube_videos')
             .select('id')
@@ -291,56 +387,51 @@ Deno.serve(async (req) => {
                 comments_count: video.commentsCount,
                 duration: video.duration,
                 video_url: videoUrl,
+                published_at: video.publishedAt,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', existingVideo.id);
           } else {
-            await supabase
-              .from('youtube_videos')
-              .insert({
-                account_id: accountId,
-                video_id: video.videoId,
-                video_url: videoUrl,
-                title: video.title,
-                description: video.description,
-                thumbnail_url: video.thumbnailUrl,
-                views_count: video.viewsCount,
-                likes_count: video.likesCount,
-                comments_count: video.commentsCount,
-                duration: video.duration,
-                published_at: video.publishedAt,
-              });
+            await supabase.from('youtube_videos').insert({
+              account_id: accountId,
+              video_id: video.videoId,
+              video_url: videoUrl,
+              title: video.title,
+              description: video.description,
+              thumbnail_url: video.thumbnailUrl,
+              views_count: video.viewsCount,
+              likes_count: video.likesCount,
+              comments_count: video.commentsCount,
+              duration: video.duration,
+              published_at: video.publishedAt,
+            });
           }
         }
-        console.log(`[ScrapeCreators] Saved ${data.videos.length} videos/shorts to database`);
       }
     }
 
     return new Response(
-      JSON.stringify({ success: true, data }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: true, data, ...(debug ? { raw } : {}) }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (error: unknown) {
     console.error('[ScrapeCreators] Error scraping YouTube:', error);
-    
-    let errorMessage = 'Failed to fetch YouTube data';
+
+    let errorMessage = 'Métricas indisponíveis no momento';
     let statusCode = 500;
-    
+
     if (error instanceof Error) {
-      errorMessage = error.message;
-      
-      if (errorMessage.includes('API key') || errorMessage.includes('401')) {
-        statusCode = 401;
-      } else if (errorMessage.includes('Créditos') || errorMessage.includes('402')) {
-        statusCode = 402;
-      } else if (errorMessage.includes('Rate limit') || errorMessage.includes('429')) {
-        statusCode = 429;
-      }
+      errorMessage = error.message || errorMessage;
+
+      if (errorMessage.includes('API key') || errorMessage.includes('401')) statusCode = 401;
+      else if (errorMessage.includes('Créditos') || errorMessage.includes('402')) statusCode = 402;
+      else if (errorMessage.includes('Rate limit') || errorMessage.includes('429')) statusCode = 429;
+      else if (errorMessage.includes('não encontrado') || errorMessage.includes('404')) statusCode = 404;
     }
-    
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+
+    return new Response(JSON.stringify({ success: false, error: errorMessage }), {
+      status: statusCode,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

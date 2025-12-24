@@ -30,16 +30,27 @@ export async function syncCampaignVideoMetrics(campaignId?: string): Promise<Syn
       return result;
     }
 
-    // Buscar todos os vídeos do banco externo (Instagram, TikTok e YouTube)
-    const [externalVideos, externalSocialVideos, externalYoutubeVideos] = await Promise.all([
+    // Buscar todos os vídeos do banco externo (Instagram/TikTok) e do banco local (YouTube via ScrapeCreators)
+    const [externalVideos, externalSocialVideos, localYoutubeVideos] = await Promise.all([
       externalSupabase.getAllVideos(),
       externalSupabase.getSocialVideos(),
-      externalSupabase.getYoutubeVideos(),
+      (async () => {
+        const { data, error } = await supabase
+          .from('youtube_videos')
+          .select('video_url, views_count, likes_count, comments_count');
+
+        if (error) {
+          console.error('Erro ao buscar youtube_videos (local):', error);
+          return [] as Array<{ video_url: string; views_count: number | null; likes_count: number | null; comments_count: number | null }>;
+        }
+
+        return (data || []) as Array<{ video_url: string; views_count: number | null; likes_count: number | null; comments_count: number | null }>;
+      })(),
     ]);
 
     // Criar mapa de vídeos externos por link normalizado
     const externalVideoMap = new Map<string, { views: number; likes: number; comments: number; shares: number }>();
-    
+
     for (const video of externalVideos) {
       const link = normalizeLink(video.link || video.video_url);
       if (link) {
@@ -64,14 +75,15 @@ export async function syncCampaignVideoMetrics(campaignId?: string): Promise<Syn
       }
     }
 
-    for (const video of externalYoutubeVideos) {
-      const link = normalizeLink(video.link || video.video_url);
+    // YouTube: fonte única agora é o banco local (youtube_videos)
+    for (const video of localYoutubeVideos) {
+      const link = normalizeLink(video.video_url);
       if (link) {
         externalVideoMap.set(link, {
-          views: video.views || 0,
-          likes: video.likes || 0,
-          comments: video.comments || 0,
-          shares: video.shares || 0,
+          views: Number(video.views_count || 0),
+          likes: Number(video.likes_count || 0),
+          comments: Number(video.comments_count || 0),
+          shares: 0,
         });
       }
     }
