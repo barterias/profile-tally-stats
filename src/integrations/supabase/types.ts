@@ -824,6 +824,42 @@ export type Database = {
           },
         ]
       }
+      metrics_snapshots: {
+        Row: {
+          by_platform: Json | null
+          created_at: string
+          followers: number | null
+          id: string
+          likes: number | null
+          range: string | null
+          recorded_at: string
+          shares: number | null
+          views: number | null
+        }
+        Insert: {
+          by_platform?: Json | null
+          created_at?: string
+          followers?: number | null
+          id?: string
+          likes?: number | null
+          range?: string | null
+          recorded_at?: string
+          shares?: number | null
+          views?: number | null
+        }
+        Update: {
+          by_platform?: Json | null
+          created_at?: string
+          followers?: number | null
+          id?: string
+          likes?: number | null
+          range?: string | null
+          recorded_at?: string
+          shares?: number | null
+          views?: number | null
+        }
+        Relationships: []
+      }
       monthly_rankings: {
         Row: {
           campaign_id: string | null
