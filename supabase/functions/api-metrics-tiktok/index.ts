@@ -6,6 +6,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ============ CACHE ============
+const cache = new Map<string, { data: any; expiry: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getCached(key: string): any | null {
+  const cached = cache.get(key);
+  if (cached && cached.expiry > Date.now()) {
+    console.log(`[Cache] HIT for key: ${key}`);
+    return cached.data;
+  }
+  if (cached) {
+    cache.delete(key);
+  }
+  return null;
+}
+
+function setCache(key: string, data: any): void {
+  cache.set(key, { data, expiry: Date.now() + CACHE_TTL_MS });
+  console.log(`[Cache] SET for key: ${key}, TTL: ${CACHE_TTL_MS}ms`);
+}
+
 // ============ TYPES ============
 interface NormalizedMetrics {
   range: string;
@@ -14,6 +35,8 @@ interface NormalizedMetrics {
   likes: number;
   shares: number;
   recentPosts: RecentPost[];
+  cached: boolean;
+  cachedAt?: string;
 }
 
 interface RecentPost {
@@ -24,6 +47,25 @@ interface RecentPost {
   likes: number;
   shares: number;
   url: string;
+}
+
+// ============ AUTH HELPER ============
+async function validateAuth(req: Request, supabaseUrl: string, supabaseKey: string): Promise<{ valid: boolean; userId?: string; error?: string }> {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return { valid: false, error: 'Missing or invalid Authorization header' };
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  
+  if (error || !user) {
+    return { valid: false, error: 'Invalid or expired token' };
+  }
+
+  return { valid: true, userId: user.id };
 }
 
 // ============ TIKTOK CLIENT ============
@@ -104,7 +146,7 @@ class TikTokMetricsService {
     this.client = client;
   }
 
-  async getMetrics(range: string): Promise<NormalizedMetrics> {
+  async getMetrics(range: string): Promise<Omit<NormalizedMetrics, 'cached' | 'cachedAt'>> {
     console.log(`[TikTok Service] Fetching metrics for range: ${range}`);
 
     const [followers, stats, recentVideos] = await Promise.all([
@@ -130,20 +172,45 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
   try {
+    // Validate JWT
+    const auth = await validateAuth(req, supabaseUrl, supabaseKey);
+    if (!auth.valid) {
+      console.log(`[TikTok API] Auth failed: ${auth.error}`);
+      return new Response(JSON.stringify({ error: 'Unauthorized', details: auth.error }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`[TikTok API] Authenticated user: ${auth.userId}`);
+
     const url = new URL(req.url);
     const range = url.searchParams.get('range') || '7d';
+    const cacheKey = `tiktok_metrics_${range}`;
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // Check cache
+    const cachedData = getCached(cacheKey);
+    if (cachedData) {
+      return new Response(JSON.stringify({ ...cachedData, cached: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    const client = new TikTokClient(supabaseUrl, supabaseKey);
+    const client = new TikTokClient(supabaseUrl, serviceKey);
     const service = new TikTokMetricsService(client);
     const metrics = await service.getMetrics(range);
 
+    // Set cache
+    setCache(cacheKey, { ...metrics, cachedAt: new Date().toISOString() });
+
     console.log(`[TikTok API] Metrics retrieved successfully for range ${range}`);
 
-    return new Response(JSON.stringify(metrics), {
+    return new Response(JSON.stringify({ ...metrics, cached: false }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error: unknown) {

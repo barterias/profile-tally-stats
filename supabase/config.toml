@@ -30,19 +30,8 @@ verify_jwt = false
 [functions.send-sync-notification]
 verify_jwt = false
 
+# Public endpoints (no auth required)
 [functions.api-health]
-verify_jwt = false
-
-[functions.api-metrics-instagram]
-verify_jwt = false
-
-[functions.api-metrics-tiktok]
-verify_jwt = false
-
-[functions.api-metrics-youtube]
-verify_jwt = false
-
-[functions.api-metrics-summary]
 verify_jwt = false
 
 [functions.api-auth-instagram]
@@ -53,3 +42,19 @@ verify_jwt = false
 
 [functions.api-auth-youtube]
 verify_jwt = false
+
+# Protected endpoints (JWT required)
+[functions.api-metrics-instagram]
+verify_jwt = true
+
+[functions.api-metrics-tiktok]
+verify_jwt = true
+
+[functions.api-metrics-youtube]
+verify_jwt = true
+
+[functions.api-metrics-summary]
+verify_jwt = true
+
+[functions.api-metrics-history]
+verify_jwt = true
