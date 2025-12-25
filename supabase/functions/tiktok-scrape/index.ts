@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { accountId, username, fetchVideos = true } = await req.json();
+    const { accountId, username, fetchVideos = true, debug = false } = await req.json();
 
     if (!username) {
       return new Response(
@@ -122,12 +122,17 @@ Deno.serve(async (req) => {
     if (fetchVideos) {
       try {
         // Use the profile videos endpoint - use 'handle' as parameter
-        const videosResult = await fetchScrapeCreators('/v3/tiktok/profile-videos', { 
+        const videosResult = await fetchScrapeCreators('/v3/tiktok/profile-videos', {
           handle: cleanUsername,
-          count: '30'
+          count: '30',
         });
 
-        const videosArray = videosResult?.data || videosResult?.itemList || [];
+        const videosArray =
+          (Array.isArray(videosResult?.itemList) ? videosResult.itemList : null) ||
+          (Array.isArray(videosResult?.data?.itemList) ? videosResult.data.itemList : null) ||
+          (Array.isArray(videosResult?.data) ? videosResult.data : null) ||
+          (Array.isArray(videosResult?.itemListData) ? videosResult.itemListData : null) ||
+          [];
         
         const toInt = (v: any) => {
           if (v === null || v === undefined) return 0;
@@ -192,7 +197,8 @@ Deno.serve(async (req) => {
         console.log('[ScrapeCreators] Account updated successfully');
       }
 
-       // Save metrics history (include aggregated views from fetched videos)
+       // Save metrics history
+       const hasAnyVideos = (data.videos || []).length > 0;
        const totalViews = (data.videos || []).reduce((sum, v) => sum + (v.viewsCount || 0), 0);
 
        const { error: metricsError } = await supabase
@@ -201,7 +207,7 @@ Deno.serve(async (req) => {
            account_id: accountId,
            followers_count: data.followersCount,
            likes_count: data.likesCount,
-           views_count: totalViews,
+           views_count: hasAnyVideos ? totalViews : null,
          });
 
       if (metricsError) {
@@ -259,7 +265,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, data }),
+      JSON.stringify({ success: true, data, ...(debug ? { raw: { profile: profileResult } } : {}) }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: unknown) {
