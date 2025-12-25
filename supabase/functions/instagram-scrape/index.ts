@@ -200,11 +200,47 @@ serve(async (req) => {
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
+      // Download and store profile image in Supabase Storage
+      let storedProfileImageUrl = data.profileImageUrl;
+      if (data.profileImageUrl) {
+        try {
+          console.log('[ScrapeCreators] Downloading profile image...');
+          const imageResponse = await fetch(data.profileImageUrl);
+          if (imageResponse.ok) {
+            const imageBlob = await imageResponse.blob();
+            const imageBuffer = await imageBlob.arrayBuffer();
+            const fileName = `instagram/${accountId}.png`;
+            
+            // Upload to storage (overwrite if exists)
+            const { error: uploadError } = await supabase.storage
+              .from('profile-avatars')
+              .upload(fileName, imageBuffer, {
+                contentType: 'image/png',
+                upsert: true
+              });
+
+            if (uploadError) {
+              console.error('[ScrapeCreators] Error uploading image:', uploadError);
+            } else {
+              // Get public URL
+              const { data: publicUrlData } = supabase.storage
+                .from('profile-avatars')
+                .getPublicUrl(fileName);
+              
+              storedProfileImageUrl = publicUrlData.publicUrl + `?t=${Date.now()}`;
+              console.log('[ScrapeCreators] Profile image stored:', storedProfileImageUrl);
+            }
+          }
+        } catch (imgError) {
+          console.error('[ScrapeCreators] Error processing profile image:', imgError);
+        }
+      }
+
       const { error: updateError } = await supabase
         .from('instagram_accounts')
         .update({
           display_name: data.displayName,
-          profile_image_url: data.profileImageUrl,
+          profile_image_url: storedProfileImageUrl,
           bio: data.bio,
           followers_count: data.followersCount,
           following_count: data.followingCount,
@@ -247,7 +283,7 @@ serve(async (req) => {
           platform: 'instagram',
           username: data.username || username,
           display_name: data.displayName,
-          profile_image_url: data.profileImageUrl,
+          profile_image_url: storedProfileImageUrl,
           followers: data.followersCount || 0,
           following: data.followingCount || 0,
           total_views: hasAnyViews ? totalViews : 0,
