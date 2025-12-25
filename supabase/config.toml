@@ -29,3 +29,27 @@ verify_jwt = false
 
 [functions.send-sync-notification]
 verify_jwt = false
+
+[functions.api-health]
+verify_jwt = false
+
+[functions.api-metrics-instagram]
+verify_jwt = false
+
+[functions.api-metrics-tiktok]
+verify_jwt = false
+
+[functions.api-metrics-youtube]
+verify_jwt = false
+
+[functions.api-metrics-summary]
+verify_jwt = false
+
+[functions.api-auth-instagram]
+verify_jwt = false
+
+[functions.api-auth-tiktok]
+verify_jwt = false
+
+[functions.api-auth-youtube]
+verify_jwt = false
