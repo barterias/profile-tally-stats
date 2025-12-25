@@ -110,6 +110,8 @@ export function useAddTikTokAccount() {
         toast.success(result.reactivated ? 'Conta reativada!' : 'Conta adicionada!');
         queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
         queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
+        queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
+        queryClient.invalidateQueries({ queryKey: ['tiktok-videos-all'] });
         queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
       } else {
         toast.error(result.error || 'Erro ao adicionar conta');
@@ -146,6 +148,7 @@ export function useSyncTikTokAccount() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
+      queryClient.invalidateQueries({ queryKey: ['tiktok-videos-all'] });
       queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: any) => {
@@ -183,6 +186,7 @@ export function useSyncAllTikTokAccounts() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
+      queryClient.invalidateQueries({ queryKey: ['tiktok-videos-all'] });
       queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: any) => {
@@ -209,6 +213,8 @@ export function useDeleteTikTokAccount() {
       toast.success('Conta removida!');
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
+      queryClient.invalidateQueries({ queryKey: ['tiktok-videos-all'] });
       queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: any) => {

@@ -47,6 +47,8 @@ export function useAddInstagramAccount() {
         toast.success('Conta do Instagram adicionada com sucesso!');
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts-all'] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-videos'] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-videos-all'] });
         queryClient.invalidateQueries({ queryKey: ['instagram-metrics-summary'] });
         queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
       } else {
@@ -69,7 +71,8 @@ export function useSyncInstagramAccount() {
         toast.success('Métricas atualizadas com sucesso!');
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts-all'] });
-        queryClient.invalidateQueries({ queryKey: ['instagram-posts', accountId] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-videos'] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-videos-all'] });
         queryClient.invalidateQueries({ queryKey: ['instagram-metrics-summary'] });
         queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
       } else {
@@ -105,7 +108,8 @@ export function useSyncAllInstagramAccounts() {
       // Invalidate all related queries after all syncs complete
       queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['instagram-accounts-all'] });
-      queryClient.invalidateQueries({ queryKey: ['instagram-posts'] });
+      queryClient.invalidateQueries({ queryKey: ['instagram-videos'] });
+      queryClient.invalidateQueries({ queryKey: ['instagram-videos-all'] });
       queryClient.invalidateQueries({ queryKey: ['instagram-metrics-summary'] });
       queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
@@ -125,7 +129,8 @@ export function useDeleteInstagramAccount() {
         toast.success('Conta removida com sucesso!');
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts-all'] });
-        queryClient.invalidateQueries({ queryKey: ['instagram-posts', accountId] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-videos'] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-videos-all'] });
         queryClient.invalidateQueries({ queryKey: ['instagram-metrics-summary'] });
         queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
       } else {
