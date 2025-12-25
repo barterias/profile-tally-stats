@@ -121,6 +121,7 @@ export const instagramApi = {
         user_id: userId,
         username: cleanUsername,
         profile_url: profileUrl,
+        is_active: true,
         display_name: scrapeResult.data?.displayName || null,
         profile_image_url: scrapeResult.data?.profileImageUrl || null,
         followers_count: scrapeResult.data?.followersCount || 0,
@@ -162,7 +163,7 @@ export const instagramApi = {
       .from('instagram_accounts')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_active', true)
+      .or('is_active.is.null,is_active.eq.true')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -178,7 +179,7 @@ export const instagramApi = {
     const { data, error } = await supabase
       .from('instagram_accounts')
       .select('*')
-      .eq('is_active', true)
+      .or('is_active.is.null,is_active.eq.true')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -265,7 +266,7 @@ export const instagramApi = {
     let query = supabase
       .from('instagram_accounts')
       .select('followers_count')
-      .eq('is_active', true);
+      .or('is_active.is.null,is_active.eq.true');
 
     if (userId) {
       query = query.eq('user_id', userId);

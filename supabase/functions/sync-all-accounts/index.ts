@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     const { data: instagramAccounts } = await supabase
       .from('instagram_accounts')
       .select('id, username, profile_url')
-      .eq('is_active', true);
+      .or('is_active.is.null,is_active.eq.true');
 
     if (instagramAccounts && instagramAccounts.length > 0) {
       results.totalAccounts += instagramAccounts.length;
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
     const { data: youtubeAccounts } = await supabase
       .from('youtube_accounts')
       .select('id, username, channel_id')
-      .eq('is_active', true);
+      .or('is_active.is.null,is_active.eq.true');
 
     if (youtubeAccounts && youtubeAccounts.length > 0) {
       results.totalAccounts += youtubeAccounts.length;
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
     const { data: tiktokAccounts } = await supabase
       .from('tiktok_accounts')
       .select('id, username')
-      .eq('is_active', true);
+      .or('is_active.is.null,is_active.eq.true');
 
     if (tiktokAccounts && tiktokAccounts.length > 0) {
       results.totalAccounts += tiktokAccounts.length;
