@@ -6,11 +6,15 @@ import { InstagramTab } from '@/components/AccountAnalytics/InstagramTab';
 import { YouTubeTab } from '@/components/AccountAnalytics/YouTubeTab';
 import { TikTokTab } from '@/components/AccountAnalytics/TikTokTab';
 import { BatchSyncButton } from '@/components/Admin/BatchSyncButton';
+import { useRealtimeAccounts } from '@/hooks/useRealtimeAccounts';
 
 export type PlatformType = 'instagram' | 'youtube' | 'tiktok';
 
 export default function AccountAnalytics() {
   const [activeTab, setActiveTab] = useState<PlatformType>('instagram');
+  
+  // Subscribe to realtime updates for all social accounts
+  useRealtimeAccounts();
 
   return (
     <MainLayout>
