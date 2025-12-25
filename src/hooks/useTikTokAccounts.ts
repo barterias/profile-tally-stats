@@ -13,7 +13,7 @@ export function useTikTokAccounts() {
         .from('tiktok_accounts')
         .select('*')
         .eq('user_id', user?.id)
-        .eq('is_active', true)
+        .or('is_active.is.null,is_active.eq.true')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -30,7 +30,7 @@ export function useAllTikTokAccounts() {
       const { data, error } = await supabase
         .from('tiktok_accounts')
         .select('*')
-        .eq('is_active', true)
+        .or('is_active.is.null,is_active.eq.true')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -87,6 +87,7 @@ export function useAddTikTokAccount() {
           user_id: user?.id,
           username,
           profile_url: `https://tiktok.com/@${username}`,
+          is_active: true,
           ...(autoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
         })
         .select()
