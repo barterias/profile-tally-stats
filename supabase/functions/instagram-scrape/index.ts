@@ -84,6 +84,15 @@ function mapProfileData(data: any): InstagramScrapedData {
   };
 }
 
+// Helper to coerce ScrapeCreators counts that may come as number or string
+function toInt(value: any): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? Math.trunc(value) : 0;
+  const cleaned = String(value).replace(/[^0-9]/g, '');
+  const n = cleaned ? parseInt(cleaned, 10) : 0;
+  return Number.isFinite(n) ? n : 0;
+}
+
 // Map ScrapeCreators posts to our format
 function mapPosts(postsData: any, profileData: InstagramScrapedData): InstagramScrapedData {
   let edges: any[] = [];
@@ -104,16 +113,16 @@ function mapPosts(postsData: any, profileData: InstagramScrapedData): InstagramS
   profileData.posts = edges.slice(0, 50).map((edge: any) => {
     const node = edge?.node || edge;
     const isVideo = node?.__typename === 'XDTGraphVideo' || node?.is_video || node?.product_type === 'clips';
-    
+
     return {
       postUrl: node?.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : '',
       type: isVideo ? 'video' : (node?.__typename === 'XDTGraphSidecar' ? 'carousel' : 'post'),
       thumbnailUrl: node?.display_url || node?.thumbnail_src || node?.thumbnailUrl,
       caption: (node?.edge_media_to_caption?.edges?.[0]?.node?.text || node?.caption || '')?.substring(0, 200),
-      likesCount: node?.edge_liked_by?.count || node?.likesCount || node?.like_count || 0,
-      commentsCount: node?.edge_media_to_comment?.count || node?.commentsCount || node?.comment_count || 0,
-      // Views from video_view_count or video_play_count
-      viewsCount: node?.video_view_count || node?.video_play_count || node?.viewCount || 0,
+      likesCount: toInt(node?.edge_liked_by?.count ?? node?.likesCount ?? node?.like_count),
+      commentsCount: toInt(node?.edge_media_to_comment?.count ?? node?.commentsCount ?? node?.comment_count),
+      // Views from video_view_count (reels) or video_play_count (sometimes present)
+      viewsCount: toInt(node?.video_view_count ?? node?.video_play_count ?? node?.viewCount),
       sharesCount: 0,
     };
   });
@@ -205,10 +214,17 @@ serve(async (req) => {
         console.log('[ScrapeCreators] Account updated successfully');
       }
 
-      // Save metrics history
+      // Save metrics history (store aggregated views/likes/comments from fetched posts)
+      const totalViews = (data.posts || []).reduce((sum, p) => sum + (p.viewsCount || 0), 0);
+      const totalLikes = (data.posts || []).reduce((sum, p) => sum + (p.likesCount || 0), 0);
+      const totalComments = (data.posts || []).reduce((sum, p) => sum + (p.commentsCount || 0), 0);
+
       await supabase.from('instagram_metrics_history').insert({
         account_id: accountId,
         followers_count: data.followersCount,
+        likes_count: totalLikes,
+        comments_count: totalComments,
+        views_count: totalViews,
       });
 
       // Save posts to database

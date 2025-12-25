@@ -48,8 +48,9 @@ serve(async (req) => {
     const url = new URL(req.url);
     const platform = url.searchParams.get('platform') || 'instagram';
     const username = url.searchParams.get('username') || 'instagram';
+    const resource = url.searchParams.get('resource') || 'profile'; // profile | videos
 
-    console.log(`[ScrapeCreators Test] Testing ${platform} with username: ${username}`);
+    console.log(`[ScrapeCreators Test] Testing ${platform}/${resource} with username: ${username}`);
 
     let result: any;
     let endpoint: string;
@@ -57,15 +58,26 @@ serve(async (req) => {
     switch (platform) {
       case 'instagram':
         endpoint = '/v1/instagram/profile';
+        // Profile already contains recent posts (including video_view_count for reels)
         result = await fetchScrapeCreators(endpoint, { handle: username });
         break;
       case 'tiktok':
-        endpoint = '/v1/tiktok/profile';
-        result = await fetchScrapeCreators(endpoint, { handle: username });
+        if (resource === 'videos') {
+          endpoint = '/v3/tiktok/profile-videos';
+          result = await fetchScrapeCreators(endpoint, { handle: username, count: '30' });
+        } else {
+          endpoint = '/v1/tiktok/profile';
+          result = await fetchScrapeCreators(endpoint, { handle: username });
+        }
         break;
       case 'youtube':
-        endpoint = '/v1/youtube/channel';
-        result = await fetchScrapeCreators(endpoint, { handle: username });
+        if (resource === 'videos') {
+          endpoint = '/v1/youtube/channel-videos';
+          result = await fetchScrapeCreators(endpoint, { handle: username });
+        } else {
+          endpoint = '/v1/youtube/channel';
+          result = await fetchScrapeCreators(endpoint, { handle: username });
+        }
         break;
       default:
         throw new Error(`Unsupported platform: ${platform}`);

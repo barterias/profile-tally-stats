@@ -129,6 +129,12 @@ Deno.serve(async (req) => {
 
         const videosArray = videosResult?.data || videosResult?.itemList || [];
         
+        const toInt = (v: any) => {
+          if (v === null || v === undefined) return 0;
+          const n = typeof v === 'number' ? v : Number(String(v).replace(/[^0-9]/g, ''));
+          return Number.isFinite(n) ? Math.trunc(n) : 0;
+        };
+
         if (Array.isArray(videosArray) && videosArray.length > 0) {
           console.log(`[ScrapeCreators] Found ${videosArray.length} videos`);
           
@@ -141,12 +147,12 @@ Deno.serve(async (req) => {
               videoUrl: `https://www.tiktok.com/@${cleanUsername}/video/${videoId}`,
               caption: video?.desc || video?.description || undefined,
               thumbnailUrl: video?.video?.cover || video?.video?.originCover || video?.cover || undefined,
-              viewsCount: stats?.playCount || stats?.play_count || video?.playCount || 0,
-              likesCount: stats?.diggCount || stats?.digg_count || video?.diggCount || 0,
-              commentsCount: stats?.commentCount || stats?.comment_count || video?.commentCount || 0,
-              sharesCount: stats?.shareCount || stats?.share_count || video?.shareCount || 0,
+              viewsCount: toInt(stats?.playCount ?? stats?.play_count ?? video?.playCount),
+              likesCount: toInt(stats?.diggCount ?? stats?.digg_count ?? video?.diggCount),
+              commentsCount: toInt(stats?.commentCount ?? stats?.comment_count ?? video?.commentCount),
+              sharesCount: toInt(stats?.shareCount ?? stats?.share_count ?? video?.shareCount),
               musicTitle: video?.music?.title || undefined,
-              duration: video?.video?.duration || video?.duration || undefined,
+              duration: toInt(video?.video?.duration ?? video?.duration),
               postedAt: video?.createTime ? new Date(video.createTime * 1000).toISOString() : undefined,
             };
           });
@@ -186,14 +192,17 @@ Deno.serve(async (req) => {
         console.log('[ScrapeCreators] Account updated successfully');
       }
 
-      // Save metrics history
-      const { error: metricsError } = await supabase
-        .from('tiktok_metrics_history')
-        .insert({
-          account_id: accountId,
-          followers_count: data.followersCount,
-          likes_count: data.likesCount,
-        });
+       // Save metrics history (include aggregated views from fetched videos)
+       const totalViews = (data.videos || []).reduce((sum, v) => sum + (v.viewsCount || 0), 0);
+
+       const { error: metricsError } = await supabase
+         .from('tiktok_metrics_history')
+         .insert({
+           account_id: accountId,
+           followers_count: data.followersCount,
+           likes_count: data.likesCount,
+           views_count: totalViews,
+         });
 
       if (metricsError) {
         console.error('[ScrapeCreators] Error saving metrics history:', metricsError);
