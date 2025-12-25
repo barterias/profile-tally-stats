@@ -217,6 +217,25 @@ serve(async (req) => {
     const service = new MetricsSummaryService(supabaseUrl, serviceKey);
     const summary = await service.getSummary(range);
 
+    // Save snapshot to metrics_snapshots table
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    const { error: snapshotError } = await supabaseAdmin
+      .from('metrics_snapshots')
+      .insert({
+        followers: summary.total.followers,
+        views: summary.total.views,
+        likes: summary.total.likes,
+        shares: summary.total.shares,
+        range: range,
+        by_platform: summary.byPlatform,
+      });
+
+    if (snapshotError) {
+      console.warn('[Summary API] Failed to save snapshot:', snapshotError.message);
+    } else {
+      console.log('[Summary API] Snapshot saved successfully');
+    }
+
     // Set cache
     setCache(cacheKey, { ...summary, cachedAt: new Date().toISOString() });
 
