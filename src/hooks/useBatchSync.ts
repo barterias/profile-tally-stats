@@ -48,16 +48,28 @@ export function useBatchSync() {
       setLastSyncResult(result);
 
       if (result.success) {
-        // Invalidate all related queries to refresh UI
+        // Invalidate all related queries to refresh UI - must match exact query keys used by hooks
         await Promise.all([
+          // Instagram queries
           queryClient.invalidateQueries({ queryKey: ["instagram-accounts"] }),
+          queryClient.invalidateQueries({ queryKey: ["instagram-accounts-all"] }),
           queryClient.invalidateQueries({ queryKey: ["instagram-posts"] }),
           queryClient.invalidateQueries({ queryKey: ["instagram-videos"] }),
+          queryClient.invalidateQueries({ queryKey: ["instagram-videos-all"] }),
+          queryClient.invalidateQueries({ queryKey: ["instagram-metrics-summary"] }),
+          // YouTube queries
           queryClient.invalidateQueries({ queryKey: ["youtube-accounts"] }),
+          queryClient.invalidateQueries({ queryKey: ["youtube-accounts-all"] }),
           queryClient.invalidateQueries({ queryKey: ["youtube-videos"] }),
+          queryClient.invalidateQueries({ queryKey: ["youtube-videos-all"] }),
+          // TikTok queries
           queryClient.invalidateQueries({ queryKey: ["tiktok-accounts"] }),
+          queryClient.invalidateQueries({ queryKey: ["tiktok-accounts-all"] }),
           queryClient.invalidateQueries({ queryKey: ["tiktok-videos"] }),
+          queryClient.invalidateQueries({ queryKey: ["tiktok-videos-all"] }),
+          // Unified metrics
           queryClient.invalidateQueries({ queryKey: ["social-metrics"] }),
+          queryClient.invalidateQueries({ queryKey: ["social-metrics-unified"] }),
           queryClient.invalidateQueries({ queryKey: ["pending-accounts"] }),
         ]);
 
