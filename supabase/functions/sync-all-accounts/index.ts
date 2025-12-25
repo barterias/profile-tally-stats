@@ -157,14 +157,39 @@ Deno.serve(async (req) => {
     results.totalSynced = results.instagram.synced + results.youtube.synced + results.tiktok.synced;
     results.totalErrors = results.instagram.errors + results.youtube.errors + results.tiktok.errors;
 
+    const completedAt = new Date().toISOString();
     console.log('🏁 Batch sync completed:', JSON.stringify(results, null, 2));
+
+    // Send email notification if there are errors
+    if (results.totalErrors > 0) {
+      try {
+        console.log('📧 Sending failure notification email...');
+        const notificationType = results.totalSynced === 0 ? 'failure' : 'partial';
+        
+        await fetch(`${supabaseUrl}/functions/v1/send-sync-notification`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: notificationType,
+            results,
+            completedAt,
+          }),
+        });
+        console.log('✅ Notification email sent');
+      } catch (emailError) {
+        console.error('❌ Failed to send notification email:', emailError);
+      }
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         message: `Sincronização concluída: ${results.totalSynced}/${results.totalAccounts} contas atualizadas`,
         results,
-        completedAt: new Date().toISOString(),
+        completedAt,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

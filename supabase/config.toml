@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.test-scrapecreators]
 verify_jwt = false
+
+[functions.send-sync-notification]
+verify_jwt = false
