@@ -189,13 +189,24 @@ export function InstagramTab() {
                 sortedAccounts.map((acc: any) => (
                   <div key={acc.id} className="flex items-center justify-between p-3 rounded-lg border bg-card/50">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold">
+                      {acc.profile_image_url ? (
+                        <img 
+                          src={acc.profile_image_url} 
+                          alt={acc.username}
+                          className="h-10 w-10 rounded-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <div className={`h-10 w-10 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold ${acc.profile_image_url ? 'hidden' : ''}`}>
                         {acc.username?.[0]?.toUpperCase() || 'I'}
                       </div>
                       <div>
-                        <p className="font-medium">@{acc.username}</p>
+                        <p className="font-medium">{acc.display_name || `@${acc.username}`}</p>
                         <p className="text-xs text-muted-foreground">
-                          {acc.followers_count?.toLocaleString() || 0} seguidores
+                          @{acc.username} • {acc.followers_count?.toLocaleString() || 0} seguidores
                         </p>
                       </div>
                     </div>
