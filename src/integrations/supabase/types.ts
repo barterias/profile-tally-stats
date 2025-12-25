@@ -1072,6 +1072,66 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_metrics: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          engagement_rate: number | null
+          followers: number | null
+          following: number | null
+          id: string
+          last_synced_at: string | null
+          platform: string
+          profile_id: string
+          profile_image_url: string | null
+          total_comments: number | null
+          total_likes: number | null
+          total_posts: number | null
+          total_shares: number | null
+          total_views: number | null
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          engagement_rate?: number | null
+          followers?: number | null
+          following?: number | null
+          id?: string
+          last_synced_at?: string | null
+          platform: string
+          profile_id: string
+          profile_image_url?: string | null
+          total_comments?: number | null
+          total_likes?: number | null
+          total_posts?: number | null
+          total_shares?: number | null
+          total_views?: number | null
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          engagement_rate?: number | null
+          followers?: number | null
+          following?: number | null
+          id?: string
+          last_synced_at?: string | null
+          platform?: string
+          profile_id?: string
+          profile_image_url?: string | null
+          total_comments?: number | null
+          total_likes?: number | null
+          total_posts?: number | null
+          total_shares?: number | null
+          total_views?: number | null
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

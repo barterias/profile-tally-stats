@@ -239,6 +239,31 @@ serve(async (req) => {
         views_count: hasAnyViews ? totalViews : null,
       });
 
+      // Update unified profile_metrics table (triggers realtime)
+      const { error: profileMetricsError } = await supabase
+        .from('profile_metrics')
+        .upsert({
+          profile_id: accountId,
+          platform: 'instagram',
+          username: data.username || username,
+          display_name: data.displayName,
+          profile_image_url: data.profileImageUrl,
+          followers: data.followersCount || 0,
+          following: data.followingCount || 0,
+          total_views: hasAnyViews ? totalViews : 0,
+          total_likes: hasAnyLikes ? totalLikes : 0,
+          total_posts: data.postsCount || 0,
+          total_comments: hasAnyComments ? totalComments : 0,
+          last_synced_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'platform,username' });
+
+      if (profileMetricsError) {
+        console.error('[ScrapeCreators] Error updating profile_metrics:', profileMetricsError);
+      } else {
+        console.log('[ScrapeCreators] profile_metrics updated (realtime trigger)');
+      }
+
       // Save posts to database
       if (data.posts && data.posts.length > 0) {
         for (const post of data.posts) {
