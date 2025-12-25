@@ -5,6 +5,7 @@ import MainLayout from '@/components/Layout/MainLayout';
 import { InstagramTab } from '@/components/AccountAnalytics/InstagramTab';
 import { YouTubeTab } from '@/components/AccountAnalytics/YouTubeTab';
 import { TikTokTab } from '@/components/AccountAnalytics/TikTokTab';
+import { BatchSyncButton } from '@/components/Admin/BatchSyncButton';
 
 export type PlatformType = 'instagram' | 'youtube' | 'tiktok';
 
@@ -15,14 +16,17 @@ export default function AccountAnalytics() {
     <MainLayout>
       <div className="container mx-auto py-6 space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <BarChart3 className="h-7 w-7" />
-            Account Analytics
-          </h1>
-          <p className="text-muted-foreground">
-            Monitore métricas de todas as suas contas de redes sociais
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <BarChart3 className="h-7 w-7" />
+              Account Analytics
+            </h1>
+            <p className="text-muted-foreground">
+              Monitore métricas de todas as suas contas de redes sociais
+            </p>
+          </div>
+          <BatchSyncButton />
         </div>
 
         {/* Platform Tabs */}
