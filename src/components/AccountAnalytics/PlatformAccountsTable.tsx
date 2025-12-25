@@ -137,8 +137,12 @@ export function PlatformAccountsTable({
             <TableCell>
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={account.profileImageUrl || undefined} />
-                  <AvatarFallback>
+                  <AvatarImage 
+                    src={account.profileImageUrl || undefined} 
+                    className="object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <AvatarFallback className="bg-gradient-to-br from-pink-500 to-purple-600 text-white font-bold">
                     {account.username?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
