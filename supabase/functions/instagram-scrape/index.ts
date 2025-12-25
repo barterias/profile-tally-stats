@@ -84,19 +84,22 @@ function mapProfileData(data: any): InstagramScrapedData {
   };
 }
 
-// Helper to coerce ScrapeCreators counts that may come as number or string
-function toInt(value: any): number {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === 'number') return Number.isFinite(value) ? Math.trunc(value) : 0;
-  const cleaned = String(value).replace(/[^0-9]/g, '');
-  const n = cleaned ? parseInt(cleaned, 10) : 0;
-  return Number.isFinite(n) ? n : 0;
+// Helper to detect missing vs 0 counts
+function toIntOrNull(value: any): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? Math.trunc(value) : null;
+  const s = String(value).trim();
+  if (!s) return null;
+  const cleaned = s.replace(/[^0-9]/g, '');
+  if (!cleaned) return null;
+  const n = parseInt(cleaned, 10);
+  return Number.isFinite(n) ? n : null;
 }
 
 // Map ScrapeCreators posts to our format
 function mapPosts(postsData: any, profileData: InstagramScrapedData): InstagramScrapedData {
   let edges: any[] = [];
-  
+
   if (Array.isArray(postsData)) {
     edges = postsData;
   } else if (postsData?.data?.user?.edge_owner_to_timeline_media?.edges) {
@@ -104,7 +107,7 @@ function mapPosts(postsData: any, profileData: InstagramScrapedData): InstagramS
   } else if (postsData?.edges) {
     edges = postsData.edges;
   }
-  
+
   if (!edges || edges.length === 0) {
     console.log('[ScrapeCreators] No posts found to map');
     return profileData;
@@ -114,15 +117,22 @@ function mapPosts(postsData: any, profileData: InstagramScrapedData): InstagramS
     const node = edge?.node || edge;
     const isVideo = node?.__typename === 'XDTGraphVideo' || node?.is_video || node?.product_type === 'clips';
 
+    const likes = toIntOrNull(node?.edge_liked_by?.count ?? node?.likesCount ?? node?.like_count);
+    const comments = toIntOrNull(node?.edge_media_to_comment?.count ?? node?.commentsCount ?? node?.comment_count);
+
+    // Views: only when the API actually provides a view field
+    const rawViews = node?.video_view_count ?? node?.video_play_count ?? node?.viewCount;
+    const views = toIntOrNull(rawViews);
+
     return {
       postUrl: node?.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : '',
       type: isVideo ? 'video' : (node?.__typename === 'XDTGraphSidecar' ? 'carousel' : 'post'),
       thumbnailUrl: node?.display_url || node?.thumbnail_src || node?.thumbnailUrl,
       caption: (node?.edge_media_to_caption?.edges?.[0]?.node?.text || node?.caption || '')?.substring(0, 200),
-      likesCount: toInt(node?.edge_liked_by?.count ?? node?.likesCount ?? node?.like_count),
-      commentsCount: toInt(node?.edge_media_to_comment?.count ?? node?.commentsCount ?? node?.comment_count),
-      // Views from video_view_count (reels) or video_play_count (sometimes present)
-      viewsCount: toInt(node?.video_view_count ?? node?.video_play_count ?? node?.viewCount),
+      likesCount: likes ?? 0,
+      commentsCount: comments ?? 0,
+      // If missing, keep as null-ish at persistence layer by passing null below
+      viewsCount: (views ?? 0),
       sharesCount: 0,
     };
   });
@@ -137,7 +147,7 @@ serve(async (req) => {
   }
 
   try {
-    const { profileUrl, accountId, fetchVideos = true } = await req.json();
+    const { profileUrl, accountId, fetchVideos = true, debug = false } = await req.json();
 
     if (!profileUrl) {
       return new Response(
@@ -168,7 +178,7 @@ serve(async (req) => {
     // Fetch profile data - use 'handle' as the parameter name
     const profileResult = await fetchScrapeCreators('/v1/instagram/profile', { handle: username });
     let data = mapProfileData(profileResult);
-    
+
     // Ensure username is set
     if (!data.username) {
       data.username = username;
@@ -176,14 +186,10 @@ serve(async (req) => {
 
     // Fetch posts if requested (profile already includes recent posts)
     if (fetchVideos) {
-      // The profile endpoint returns posts, let's map them
       const user = profileResult?.data?.user || profileResult?.user;
       if (user?.edge_owner_to_timeline_media?.edges) {
         data = mapPosts(user.edge_owner_to_timeline_media.edges, data);
       }
-      
-      // For reels/videos with views, we might need to fetch individual post details
-      // But for now, we'll use what's available from the profile endpoint
     }
 
     console.log('[ScrapeCreators] Parsed data:', data.displayName || data.username, 'with', data.posts?.length || 0, 'posts');
@@ -215,16 +221,22 @@ serve(async (req) => {
       }
 
       // Save metrics history (store aggregated views/likes/comments from fetched posts)
-      const totalViews = (data.posts || []).reduce((sum, p) => sum + (p.viewsCount || 0), 0);
-      const totalLikes = (data.posts || []).reduce((sum, p) => sum + (p.likesCount || 0), 0);
-      const totalComments = (data.posts || []).reduce((sum, p) => sum + (p.commentsCount || 0), 0);
+      const posts = data.posts || [];
+
+      const hasAnyViews = posts.some((p) => p.viewsCount !== undefined && p.viewsCount !== null);
+      const hasAnyLikes = posts.some((p) => p.likesCount !== undefined && p.likesCount !== null);
+      const hasAnyComments = posts.some((p) => p.commentsCount !== undefined && p.commentsCount !== null);
+
+      const totalViews = posts.reduce((sum, p) => sum + (typeof p.viewsCount === 'number' ? p.viewsCount : 0), 0);
+      const totalLikes = posts.reduce((sum, p) => sum + (typeof p.likesCount === 'number' ? p.likesCount : 0), 0);
+      const totalComments = posts.reduce((sum, p) => sum + (typeof p.commentsCount === 'number' ? p.commentsCount : 0), 0);
 
       await supabase.from('instagram_metrics_history').insert({
         account_id: accountId,
         followers_count: data.followersCount,
-        likes_count: totalLikes,
-        comments_count: totalComments,
-        views_count: totalViews,
+        likes_count: hasAnyLikes ? totalLikes : null,
+        comments_count: hasAnyComments ? totalComments : null,
+        views_count: hasAnyViews ? totalViews : null,
       });
 
       // Save posts to database
@@ -246,9 +258,9 @@ serve(async (req) => {
                 post_type: post.type,
                 thumbnail_url: post.thumbnailUrl,
                 caption: post.caption,
-                likes_count: post.likesCount,
-                comments_count: post.commentsCount,
-                views_count: post.viewsCount,
+                likes_count: post.likesCount ?? null,
+                comments_count: post.commentsCount ?? null,
+                views_count: post.viewsCount ?? null,
                 shares_count: post.sharesCount,
                 updated_at: new Date().toISOString(),
               })
@@ -262,9 +274,9 @@ serve(async (req) => {
                 post_type: post.type,
                 thumbnail_url: post.thumbnailUrl,
                 caption: post.caption,
-                likes_count: post.likesCount,
-                comments_count: post.commentsCount,
-                views_count: post.viewsCount,
+                likes_count: post.likesCount ?? null,
+                comments_count: post.commentsCount ?? null,
+                views_count: post.viewsCount ?? null,
                 shares_count: post.sharesCount,
               });
           }
@@ -277,6 +289,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         data,
+        ...(debug ? { raw: { profile: profileResult } } : {}),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

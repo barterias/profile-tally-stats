@@ -218,58 +218,22 @@ export const instagramApi = {
       return { success: false, error: 'Account not found' };
     }
 
-    // Scrape the profile
-    const scrapeResult = await this.scrapeProfile(account.profile_url);
-    
-    if (!scrapeResult.success) {
-      return { success: false, error: scrapeResult.error };
-    }
-
-    // Record metrics history before updating
-    await supabase.from('instagram_metrics_history').insert({
-      account_id: accountId,
-      followers_count: account.followers_count,
-      likes_count: 0,
-      comments_count: 0,
-      views_count: 0,
+    // IMPORTANT: do the sync through the backend function so posts/views/likes
+    // are persisted with service role (avoids RLS/upsert constraint issues)
+    const { data, error } = await supabase.functions.invoke('instagram-scrape', {
+      body: {
+        profileUrl: account.profile_url,
+        accountId,
+        fetchVideos: true,
+      },
     });
 
-    // Update the account
-    const { error: updateError } = await supabase
-      .from('instagram_accounts')
-      .update({
-        display_name: scrapeResult.data?.displayName || account.display_name,
-        profile_image_url: scrapeResult.data?.profileImageUrl || account.profile_image_url,
-        followers_count: scrapeResult.data?.followersCount || account.followers_count,
-        following_count: scrapeResult.data?.followingCount || account.following_count,
-        posts_count: scrapeResult.data?.postsCount || account.posts_count,
-        bio: scrapeResult.data?.bio || account.bio,
-        last_synced_at: new Date().toISOString(),
-      })
-      .eq('id', accountId);
-
-    if (updateError) {
-      return { success: false, error: updateError.message };
+    if (error) {
+      return { success: false, error: error.message };
     }
 
-    // Update or insert posts
-    if (scrapeResult.data?.posts) {
-      for (const post of scrapeResult.data.posts) {
-        await supabase
-          .from('instagram_posts')
-          .upsert({
-            account_id: accountId,
-            post_url: post.postUrl,
-            post_type: post.type,
-            thumbnail_url: post.thumbnailUrl || null,
-            caption: post.caption || null,
-            likes_count: post.likesCount,
-            comments_count: post.commentsCount,
-            views_count: post.viewsCount,
-          }, {
-            onConflict: 'post_url',
-          });
-      }
+    if (!data?.success) {
+      return { success: false, error: data?.error || 'Erro ao sincronizar' };
     }
 
     return { success: true };
