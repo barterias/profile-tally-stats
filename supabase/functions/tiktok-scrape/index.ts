@@ -41,7 +41,7 @@ async function fetchScrapeCreators(endpoint: string, params: Record<string, stri
   const queryParams = new URLSearchParams(params);
   const url = `${SCRAPECREATORS_API_URL}${endpoint}?${queryParams}`;
   
-  console.log(`[ScrapeCreators] Fetching: ${endpoint}`);
+  console.log(`[TikTok Scrape] Fetching: ${url}`);
   
   const response = await fetch(url, {
     method: 'GET',
@@ -53,7 +53,7 @@ async function fetchScrapeCreators(endpoint: string, params: Record<string, stri
   
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`[ScrapeCreators] API error: ${response.status}`, errorText);
+    console.error(`[TikTok Scrape] API error: ${response.status}`, errorText);
     
     if (response.status === 401) {
       throw new Error('API key do ScrapeCreators inválida ou expirada');
@@ -66,7 +66,9 @@ async function fetchScrapeCreators(endpoint: string, params: Record<string, stri
     throw new Error(`ScrapeCreators API error: ${response.status}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log(`[TikTok Scrape] Response received for ${endpoint}`);
+  return data;
 }
 
 Deno.serve(async (req) => {
@@ -86,7 +88,7 @@ Deno.serve(async (req) => {
 
     const apiKey = Deno.env.get('SCRAPECREATORS_API_KEY');
     if (!apiKey) {
-      console.error('[ScrapeCreators] API key not configured');
+      console.error('[TikTok Scrape] API key not configured');
       return new Response(
         JSON.stringify({ success: false, error: 'SCRAPECREATORS_API_KEY não configurada' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -96,15 +98,20 @@ Deno.serve(async (req) => {
     // Clean username
     const cleanUsername = username.replace('@', '').trim();
     
-    console.log(`[ScrapeCreators] Scraping TikTok profile: ${cleanUsername}`);
+    console.log(`[TikTok Scrape] Scraping profile: ${cleanUsername}`);
 
-    // Fetch user profile from ScrapeCreators - use 'handle' as parameter
+    // Fetch user profile from ScrapeCreators
     const profileResult = await fetchScrapeCreators('/v1/tiktok/profile', { handle: cleanUsername });
     
-    const userData = profileResult?.user || profileResult;
-    const statsData = profileResult?.stats || userData?.stats || {};
+    const userData = profileResult?.user || profileResult?.data?.user || profileResult;
+    const statsData = profileResult?.stats || userData?.stats || profileResult?.data?.stats || {};
     
-    console.log('[ScrapeCreators] Profile data received:', userData?.uniqueId || userData?.nickname);
+    console.log('[TikTok Scrape] Profile data:', {
+      uniqueId: userData?.uniqueId,
+      nickname: userData?.nickname,
+      followers: statsData?.followerCount,
+      videos: statsData?.videoCount,
+    });
 
     const data: TikTokScrapedData = {
       username: userData?.uniqueId || cleanUsername,
@@ -121,17 +128,21 @@ Deno.serve(async (req) => {
     // Fetch user videos if requested
     if (fetchVideos) {
       try {
-        // Use the profile videos endpoint - use 'handle' as parameter
-        const videosResult = await fetchScrapeCreators('/v3/tiktok/profile-videos', {
+        // CORRECTED: Use /v3/tiktok/profile/videos (not /v3/tiktok/profile-videos)
+        console.log('[TikTok Scrape] Fetching videos...');
+        const videosResult = await fetchScrapeCreators('/v3/tiktok/profile/videos', {
           handle: cleanUsername,
           count: '30',
         });
+
+        console.log('[TikTok Scrape] Videos response keys:', Object.keys(videosResult || {}));
 
         const videosArray =
           (Array.isArray(videosResult?.itemList) ? videosResult.itemList : null) ||
           (Array.isArray(videosResult?.data?.itemList) ? videosResult.data.itemList : null) ||
           (Array.isArray(videosResult?.data) ? videosResult.data : null) ||
           (Array.isArray(videosResult?.itemListData) ? videosResult.itemListData : null) ||
+          (Array.isArray(videosResult?.videos) ? videosResult.videos : null) ||
           [];
         
         const toInt = (v: any) => {
@@ -141,34 +152,44 @@ Deno.serve(async (req) => {
         };
 
         if (Array.isArray(videosArray) && videosArray.length > 0) {
-          console.log(`[ScrapeCreators] Found ${videosArray.length} videos`);
+          console.log(`[TikTok Scrape] Found ${videosArray.length} videos`);
           
           data.videos = videosArray.slice(0, 50).map((video: any) => {
-            const videoId = video?.id || video?.aweme_id || '';
+            const videoId = video?.id || video?.aweme_id || video?.videoId || '';
             const stats = video?.stats || video?.statistics || {};
             
             return {
               videoId,
               videoUrl: `https://www.tiktok.com/@${cleanUsername}/video/${videoId}`,
-              caption: video?.desc || video?.description || undefined,
-              thumbnailUrl: video?.video?.cover || video?.video?.originCover || video?.cover || undefined,
-              viewsCount: toInt(stats?.playCount ?? stats?.play_count ?? video?.playCount),
-              likesCount: toInt(stats?.diggCount ?? stats?.digg_count ?? video?.diggCount),
-              commentsCount: toInt(stats?.commentCount ?? stats?.comment_count ?? video?.commentCount),
-              sharesCount: toInt(stats?.shareCount ?? stats?.share_count ?? video?.shareCount),
-              musicTitle: video?.music?.title || undefined,
+              caption: video?.desc || video?.description || video?.caption || undefined,
+              thumbnailUrl: video?.video?.cover || video?.video?.originCover || video?.cover || video?.thumbnailUrl || undefined,
+              viewsCount: toInt(stats?.playCount ?? stats?.play_count ?? video?.playCount ?? video?.views),
+              likesCount: toInt(stats?.diggCount ?? stats?.digg_count ?? video?.diggCount ?? video?.likes),
+              commentsCount: toInt(stats?.commentCount ?? stats?.comment_count ?? video?.commentCount ?? video?.comments),
+              sharesCount: toInt(stats?.shareCount ?? stats?.share_count ?? video?.shareCount ?? video?.shares),
+              musicTitle: video?.music?.title || video?.musicTitle || undefined,
               duration: toInt(video?.video?.duration ?? video?.duration),
-              postedAt: video?.createTime ? new Date(video.createTime * 1000).toISOString() : undefined,
+              postedAt: video?.createTime ? new Date(video.createTime * 1000).toISOString() : 
+                       video?.postedAt || video?.posted_at || undefined,
             };
           });
+
+          console.log(`[TikTok Scrape] Mapped ${data.videos.length} videos with metrics`);
+        } else {
+          console.log('[TikTok Scrape] No videos found in response');
         }
       } catch (videosError) {
-        console.error('[ScrapeCreators] Error fetching videos:', videosError);
+        console.error('[TikTok Scrape] Error fetching videos:', videosError);
         // Continue without videos - don't fail the whole request
       }
     }
 
-    console.log('[ScrapeCreators] Parsed profile data:', data.displayName, 'with', data.videos?.length || 0, 'videos');
+    console.log('[TikTok Scrape] Summary:', {
+      username: data.username,
+      displayName: data.displayName,
+      followers: data.followersCount,
+      videos: data.videos?.length || 0,
+    });
 
     // Update database
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -176,11 +197,47 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     if (accountId) {
+      // Download and store profile image in Supabase Storage
+      let storedProfileImageUrl = data.profileImageUrl;
+      if (data.profileImageUrl) {
+        try {
+          console.log('[TikTok Scrape] Downloading profile image...');
+          const imageResponse = await fetch(data.profileImageUrl);
+          if (imageResponse.ok) {
+            const imageBlob = await imageResponse.blob();
+            const imageBuffer = await imageBlob.arrayBuffer();
+            const fileName = `tiktok/${accountId}.png`;
+            
+            // Upload to storage (overwrite if exists)
+            const { error: uploadError } = await supabase.storage
+              .from('profile-avatars')
+              .upload(fileName, imageBuffer, {
+                contentType: 'image/png',
+                upsert: true
+              });
+
+            if (uploadError) {
+              console.error('[TikTok Scrape] Error uploading image:', uploadError);
+            } else {
+              // Get public URL
+              const { data: publicUrlData } = supabase.storage
+                .from('profile-avatars')
+                .getPublicUrl(fileName);
+              
+              storedProfileImageUrl = publicUrlData.publicUrl + `?t=${Date.now()}`;
+              console.log('[TikTok Scrape] Profile image stored:', storedProfileImageUrl);
+            }
+          }
+        } catch (imgError) {
+          console.error('[TikTok Scrape] Error processing profile image:', imgError);
+        }
+      }
+
       const { error: updateError } = await supabase
         .from('tiktok_accounts')
         .update({
           display_name: data.displayName,
-          profile_image_url: data.profileImageUrl,
+          profile_image_url: storedProfileImageUrl,
           bio: data.bio,
           followers_count: data.followersCount,
           following_count: data.followingCount,
@@ -192,26 +249,33 @@ Deno.serve(async (req) => {
         .eq('id', accountId);
 
       if (updateError) {
-        console.error('[ScrapeCreators] Error updating account:', updateError);
+        console.error('[TikTok Scrape] Error updating account:', updateError);
       } else {
-        console.log('[ScrapeCreators] Account updated successfully');
+        console.log('[TikTok Scrape] Account updated successfully');
       }
 
-       // Save metrics history
-       const hasAnyVideos = (data.videos || []).length > 0;
-       const totalViews = (data.videos || []).reduce((sum, v) => sum + (v.viewsCount || 0), 0);
+      // Save metrics history
+      const hasAnyVideos = (data.videos || []).length > 0;
+      const totalViews = (data.videos || []).reduce((sum, v) => sum + (v.viewsCount || 0), 0);
+      const totalLikes = (data.videos || []).reduce((sum, v) => sum + (v.likesCount || 0), 0);
+      const totalComments = (data.videos || []).reduce((sum, v) => sum + (v.commentsCount || 0), 0);
+      const totalShares = (data.videos || []).reduce((sum, v) => sum + (v.sharesCount || 0), 0);
 
-       const { error: metricsError } = await supabase
-         .from('tiktok_metrics_history')
-         .insert({
-           account_id: accountId,
-           followers_count: data.followersCount,
-           likes_count: data.likesCount,
-           views_count: hasAnyVideos ? totalViews : null,
-         });
+      const { error: metricsError } = await supabase
+        .from('tiktok_metrics_history')
+        .insert({
+          account_id: accountId,
+          followers_count: data.followersCount,
+          likes_count: data.likesCount,
+          views_count: hasAnyVideos ? totalViews : null,
+          comments_count: hasAnyVideos ? totalComments : null,
+          shares_count: hasAnyVideos ? totalShares : null,
+        });
 
       if (metricsError) {
-        console.error('[ScrapeCreators] Error saving metrics history:', metricsError);
+        console.error('[TikTok Scrape] Error saving metrics history:', metricsError);
+      } else {
+        console.log('[TikTok Scrape] Metrics history saved');
       }
 
       // Update unified profile_metrics table (triggers realtime)
@@ -222,25 +286,29 @@ Deno.serve(async (req) => {
           platform: 'tiktok',
           username: data.username,
           display_name: data.displayName,
-          profile_image_url: data.profileImageUrl,
+          profile_image_url: storedProfileImageUrl,
           followers: data.followersCount || 0,
           following: data.followingCount || 0,
           total_views: hasAnyVideos ? totalViews : 0,
           total_likes: data.likesCount || 0,
           total_posts: data.videosCount || 0,
-          total_comments: 0,
+          total_comments: hasAnyVideos ? totalComments : 0,
+          total_shares: hasAnyVideos ? totalShares : 0,
           last_synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }, { onConflict: 'platform,username' });
 
       if (profileMetricsError) {
-        console.error('[ScrapeCreators] Error updating profile_metrics:', profileMetricsError);
+        console.error('[TikTok Scrape] Error updating profile_metrics:', profileMetricsError);
       } else {
-        console.log('[ScrapeCreators] profile_metrics updated (realtime trigger)');
+        console.log('[TikTok Scrape] profile_metrics updated');
       }
 
       // Save videos to database
       if (data.videos && data.videos.length > 0) {
+        let savedCount = 0;
+        let updatedCount = 0;
+        
         for (const video of data.videos) {
           if (!video.videoId) continue;
           
@@ -266,6 +334,7 @@ Deno.serve(async (req) => {
                 updated_at: new Date().toISOString(),
               })
               .eq('id', existingVideo.id);
+            updatedCount++;
           } else {
             await supabase
               .from('tiktok_videos')
@@ -283,18 +352,26 @@ Deno.serve(async (req) => {
                 duration: video.duration,
                 posted_at: video.postedAt,
               });
+            savedCount++;
           }
         }
-        console.log(`[ScrapeCreators] Saved ${data.videos.length} videos to database`);
+        console.log(`[TikTok Scrape] Saved ${savedCount} new videos, updated ${updatedCount} existing`);
       }
     }
 
     return new Response(
-      JSON.stringify({ success: true, data, ...(debug ? { raw: { profile: profileResult } } : {}) }),
+      JSON.stringify({ 
+        success: true, 
+        data: {
+          ...data,
+          profileImageUrl: accountId ? undefined : data.profileImageUrl, // Don't expose external URL
+        },
+        ...(debug ? { raw: { profile: profileResult } } : {}) 
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: unknown) {
-    console.error('[ScrapeCreators] Error scraping TikTok:', error);
+    console.error('[TikTok Scrape] Error:', error);
     
     let errorMessage = 'Failed to fetch TikTok data';
     let statusCode = 500;
