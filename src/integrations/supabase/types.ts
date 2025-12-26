@@ -1229,6 +1229,7 @@ export type Database = {
           likes_count: number | null
           profile_image_url: string | null
           profile_url: string
+          total_views: number | null
           updated_at: string
           user_id: string
           username: string
@@ -1249,6 +1250,7 @@ export type Database = {
           likes_count?: number | null
           profile_image_url?: string | null
           profile_url: string
+          total_views?: number | null
           updated_at?: string
           user_id: string
           username: string
@@ -1269,6 +1271,7 @@ export type Database = {
           likes_count?: number | null
           profile_image_url?: string | null
           profile_url?: string
+          total_views?: number | null
           updated_at?: string
           user_id?: string
           username?: string
