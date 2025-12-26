@@ -137,11 +137,13 @@ Deno.serve(async (req) => {
 
         console.log('[TikTok Scrape] Videos response keys:', Object.keys(videosResult || {}));
 
+        // ScrapeCreators v3 returns videos in "aweme_list" field
         const videosArray =
+          (Array.isArray(videosResult?.aweme_list) ? videosResult.aweme_list : null) ||
           (Array.isArray(videosResult?.itemList) ? videosResult.itemList : null) ||
           (Array.isArray(videosResult?.data?.itemList) ? videosResult.data.itemList : null) ||
+          (Array.isArray(videosResult?.data?.aweme_list) ? videosResult.data.aweme_list : null) ||
           (Array.isArray(videosResult?.data) ? videosResult.data : null) ||
-          (Array.isArray(videosResult?.itemListData) ? videosResult.itemListData : null) ||
           (Array.isArray(videosResult?.videos) ? videosResult.videos : null) ||
           [];
         
@@ -158,11 +160,22 @@ Deno.serve(async (req) => {
             const videoId = video?.id || video?.aweme_id || video?.videoId || '';
             const stats = video?.stats || video?.statistics || {};
             
+            // Extract thumbnail URL from various possible formats
+            const coverObj = video?.video?.cover || video?.video?.origin_cover || video?.cover;
+            let thumbnailUrl = undefined;
+            if (typeof coverObj === 'string') {
+              thumbnailUrl = coverObj;
+            } else if (coverObj?.url_list?.[0]) {
+              thumbnailUrl = coverObj.url_list[0];
+            } else if (video?.thumbnailUrl) {
+              thumbnailUrl = typeof video.thumbnailUrl === 'string' ? video.thumbnailUrl : video.thumbnailUrl?.url_list?.[0];
+            }
+            
             return {
               videoId,
               videoUrl: `https://www.tiktok.com/@${cleanUsername}/video/${videoId}`,
               caption: video?.desc || video?.description || video?.caption || undefined,
-              thumbnailUrl: video?.video?.cover || video?.video?.originCover || video?.cover || video?.thumbnailUrl || undefined,
+              thumbnailUrl,
               viewsCount: toInt(stats?.playCount ?? stats?.play_count ?? video?.playCount ?? video?.views),
               likesCount: toInt(stats?.diggCount ?? stats?.digg_count ?? video?.diggCount ?? video?.likes),
               commentsCount: toInt(stats?.commentCount ?? stats?.comment_count ?? video?.commentCount ?? video?.comments),
