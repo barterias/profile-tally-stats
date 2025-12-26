@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Plus, RefreshCw, Users, Heart, Eye, Video, Clock, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import {
   useSyncAllTikTokAccounts,
   useDeleteTikTokAccount,
 } from '@/hooks/useTikTokAccounts';
-import { useTikTokVideos, useAllTikTokVideos } from '@/hooks/useTikTokVideos';
+import { useTikTokVideos } from '@/hooks/useTikTokVideos';
 import { useApproveAccount, useRejectAccount } from '@/hooks/usePendingAccounts';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
@@ -47,7 +47,6 @@ export function TikTokTab() {
     : rawAccounts;
 
   const { data: videos = [], isLoading: videosLoading } = useTikTokVideos(selectedAccount?.id || '');
-  const { data: allVideos = [] } = useAllTikTokVideos();
 
   const addAccount = useAddTikTokAccount();
   const syncAccount = useSyncTikTokAccount();
@@ -55,17 +54,6 @@ export function TikTokTab() {
   const deleteAccount = useDeleteTikTokAccount();
   const approveAccount = useApproveAccount();
   const rejectAccount = useRejectAccount();
-
-  // Calculate total views per account from videos
-  const viewsByAccount = useMemo(() => {
-    const map: Record<string, number> = {};
-    allVideos.forEach(video => {
-      if (video.account_id) {
-        map[video.account_id] = (map[video.account_id] || 0) + (video.views_count || 0);
-      }
-    });
-    return map;
-  }, [allVideos]);
 
   const handleAddAccount = (username: string) => {
     addAccount.mutate({ username, isClientOrAdmin: isAdmin || isClient }, {
@@ -107,7 +95,7 @@ export function TikTokTab() {
   const totalFollowers = visibleAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
   const totalLikes = visibleAccounts.reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0);
   const totalVideos = visibleAccounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
-  const totalViews = visibleAccounts.reduce((sum, acc) => sum + (viewsByAccount[acc.id] || 0), 0);
+  const totalViews = visibleAccounts.reduce((sum, acc: any) => sum + (acc.total_views || 0), 0);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -203,7 +191,7 @@ export function TikTokTab() {
               accounts={sortedAccounts.map((acc: any) => ({
                 id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
                 followersCount: acc.followers_count, postsCount: acc.videos_count, likesCount: acc.likes_count,
-                totalViews: viewsByAccount[acc.id] || 0,
+                totalViews: acc.total_views || 0,
                 lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
               }))}
               isLoading={accountsLoading}

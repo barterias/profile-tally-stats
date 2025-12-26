@@ -246,6 +246,9 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Calculate total views from all videos
+      const totalViewsFromVideos = (data.videos || []).reduce((sum, v) => sum + (v.viewsCount || 0), 0);
+      
       const { error: updateError } = await supabase
         .from('tiktok_accounts')
         .update({
@@ -256,10 +259,13 @@ Deno.serve(async (req) => {
           following_count: data.followingCount,
           likes_count: data.likesCount,
           videos_count: data.videosCount,
+          total_views: totalViewsFromVideos,
           last_synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', accountId);
+      
+      console.log(`[TikTok Scrape] Account total_views calculated: ${totalViewsFromVideos}`);
 
       if (updateError) {
         console.error('[TikTok Scrape] Error updating account:', updateError);
