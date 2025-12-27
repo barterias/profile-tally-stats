@@ -119,20 +119,27 @@ Deno.serve(async (req) => {
     if (accountId && continueFrom) {
       const { data: existingAccount } = await supabase
         .from('tiktok_accounts')
-        .select('next_cursor, scraped_videos_count')
+        .select('next_cursor, scraped_videos_count, videos_count')
         .eq('id', accountId)
         .single();
       
       existingCursor = existingAccount?.next_cursor || null;
       existingScrapedCount = existingAccount?.scraped_videos_count || 0;
+      const totalVideos = existingAccount?.videos_count || 0;
       
-      console.log(`[TikTok Scrape] Continue from cursor: ${existingCursor ? 'yes' : 'no'}, existing count: ${existingScrapedCount}`);
+      console.log(`[TikTok Scrape] Continue from cursor: ${existingCursor ? 'yes' : 'no'}, existing count: ${existingScrapedCount}, total: ${totalVideos}`);
       
-      if (!existingCursor) {
+      // Se não há cursor mas ainda faltam vídeos, fazer coleta sem cursor (do início)
+      if (!existingCursor && existingScrapedCount >= totalVideos && totalVideos > 0) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Não há mais vídeos para coletar' }),
+          JSON.stringify({ success: false, error: 'Todos os vídeos já foram coletados' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      }
+      
+      // Se não há cursor, continuar sem ele (vai buscar os mais recentes)
+      if (!existingCursor) {
+        console.log('[TikTok Scrape] No cursor but videos missing, starting fresh collection');
       }
     }
 

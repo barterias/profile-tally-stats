@@ -236,20 +236,27 @@ serve(async (req) => {
     if (accountId && continueFrom) {
       const { data: existingAccount } = await supabase
         .from('instagram_accounts')
-        .select('next_cursor, scraped_posts_count')
+        .select('next_cursor, scraped_posts_count, posts_count')
         .eq('id', accountId)
         .single();
       
       existingCursor = existingAccount?.next_cursor || null;
       existingScrapedCount = existingAccount?.scraped_posts_count || 0;
+      const totalPosts = existingAccount?.posts_count || 0;
       
-      console.log(`[ScrapeCreators] Continue from cursor: ${existingCursor ? 'yes' : 'no'}, existing count: ${existingScrapedCount}`);
+      console.log(`[ScrapeCreators] Continue from cursor: ${existingCursor ? 'yes' : 'no'}, existing count: ${existingScrapedCount}, total: ${totalPosts}`);
       
-      if (!existingCursor) {
+      // Se não há cursor mas ainda faltam posts, fazer coleta sem cursor (do início)
+      if (!existingCursor && existingScrapedCount >= totalPosts && totalPosts > 0) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Não há mais posts para coletar' }),
+          JSON.stringify({ success: false, error: 'Todos os posts já foram coletados' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      }
+      
+      // Se não há cursor, continuar sem ele (vai buscar os mais recentes)
+      if (!existingCursor) {
+        console.log('[ScrapeCreators] No cursor but posts missing, starting fresh collection');
       }
     }
 
