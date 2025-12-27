@@ -18,6 +18,7 @@ interface InstagramScrapedData {
   postsCount?: number;
   scrapedPostsCount?: number;
   totalViews?: number;
+  nextCursor?: string | null;
   posts?: Array<{
     postUrl: string;
     type: string;
@@ -148,13 +149,55 @@ function mapPosts(postsData: any, profileData: InstagramScrapedData): InstagramS
   return profileData;
 }
 
+// Map posts from /v2/instagram/user/posts endpoint
+function mapPostsFromUserPosts(postsData: any): { posts: any[]; nextCursor: string | null } {
+  let items: any[] = [];
+  let nextCursor: string | null = null;
+
+  // The endpoint returns items directly or in data.items
+  if (Array.isArray(postsData?.items)) {
+    items = postsData.items;
+  } else if (Array.isArray(postsData?.data?.items)) {
+    items = postsData.data.items;
+  } else if (Array.isArray(postsData)) {
+    items = postsData;
+  }
+
+  // Get pagination cursor
+  nextCursor = postsData?.next_max_id || postsData?.data?.next_max_id || postsData?.paging_info?.next_max_id || null;
+
+  console.log(`[ScrapeCreators] Posts from user/posts endpoint: ${items.length}, nextCursor: ${nextCursor ? 'yes' : 'no'}`);
+
+  const posts = items.map((item: any) => {
+    const isVideo = item?.media_type === 2 || item?.product_type === 'clips' || item?.is_video;
+
+    const likes = toIntOrNull(item?.like_count);
+    const comments = toIntOrNull(item?.comment_count);
+    const views = toIntOrNull(item?.play_count ?? item?.video_play_count ?? item?.view_count);
+
+    return {
+      postUrl: item?.code ? `https://www.instagram.com/p/${item.code}/` : (item?.permalink || ''),
+      type: isVideo ? 'video' : (item?.media_type === 8 ? 'carousel' : 'post'),
+      thumbnailUrl: item?.image_versions2?.candidates?.[0]?.url || item?.thumbnail_url || item?.display_url,
+      caption: (item?.caption?.text || '')?.substring(0, 200),
+      likesCount: likes ?? 0,
+      commentsCount: comments ?? 0,
+      viewsCount: views ?? 0,
+      sharesCount: 0,
+      postedAt: item?.taken_at ? new Date(item.taken_at * 1000).toISOString() : null,
+    };
+  });
+
+  return { posts, nextCursor };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { profileUrl, accountId, fetchVideos = true, debug = false } = await req.json();
+    const { profileUrl, accountId, fetchVideos = true, continueFrom = false, debug = false } = await req.json();
 
     if (!profileUrl) {
       return new Response(
@@ -180,41 +223,109 @@ serve(async (req) => {
     }
     username = username.replace('@', '').replace('/', '');
 
-    console.log(`[ScrapeCreators] Fetching Instagram profile: ${username}`);
+    console.log(`[ScrapeCreators] Fetching Instagram profile: ${username}, continueFrom: ${continueFrom}`);
 
-    // Fetch profile data - use 'handle' as the parameter name
-    const profileResult = await fetchScrapeCreators('/v1/instagram/profile', { handle: username });
-    let data = mapProfileData(profileResult);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Ensure username is set
-    if (!data.username) {
-      data.username = username;
-    }
+    // Get existing account data and cursor if continuing
+    let existingCursor: string | null = null;
+    let existingScrapedCount = 0;
 
-    // Fetch posts if requested (profile already includes recent posts)
-    if (fetchVideos) {
-      const user = profileResult?.data?.user || profileResult?.user;
-      if (user?.edge_owner_to_timeline_media?.edges) {
-        data = mapPosts(user.edge_owner_to_timeline_media.edges, data);
+    if (accountId && continueFrom) {
+      const { data: existingAccount } = await supabase
+        .from('instagram_accounts')
+        .select('next_cursor, scraped_posts_count')
+        .eq('id', accountId)
+        .single();
+      
+      existingCursor = existingAccount?.next_cursor || null;
+      existingScrapedCount = existingAccount?.scraped_posts_count || 0;
+      
+      console.log(`[ScrapeCreators] Continue from cursor: ${existingCursor ? 'yes' : 'no'}, existing count: ${existingScrapedCount}`);
+      
+      if (!existingCursor) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Não há mais posts para coletar' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
     }
+
+    // Fetch profile data - only on initial sync, not on continue
+    let data: InstagramScrapedData = {
+      username,
+      scrapedPostsCount: 0,
+      totalViews: 0,
+      posts: [],
+    };
+
+    if (!continueFrom) {
+      // Fetch profile data - use 'handle' as the parameter name
+      const profileResult = await fetchScrapeCreators('/v1/instagram/profile', { handle: username });
+      data = mapProfileData(profileResult);
+
+      // Ensure username is set
+      if (!data.username) {
+        data.username = username;
+      }
+    }
+
+    // Fetch posts if requested
+    let newPosts: any[] = [];
+    let newCursor: string | null = null;
+
+    if (fetchVideos) {
+      console.log('[ScrapeCreators] Fetching posts with /v2/instagram/user/posts endpoint...');
+      
+      const params: Record<string, string> = { handle: username };
+      
+      if (existingCursor) {
+        params.max_id = existingCursor;
+        console.log(`[ScrapeCreators] Using cursor: ${existingCursor}`);
+      }
+
+      try {
+        const postsResult = await fetchScrapeCreators('/v2/instagram/user/posts', params);
+        const mapped = mapPostsFromUserPosts(postsResult);
+        newPosts = mapped.posts;
+        newCursor = mapped.nextCursor;
+        
+        console.log(`[ScrapeCreators] Fetched ${newPosts.length} posts, next cursor: ${newCursor ? 'yes' : 'no'}`);
+      } catch (postsError) {
+        console.error('[ScrapeCreators] Error fetching posts with /v2 endpoint:', postsError);
+        
+        // Fallback: if not continuing and profile has posts embedded, use those
+        if (!continueFrom) {
+          const profileResult = await fetchScrapeCreators('/v1/instagram/profile', { handle: username });
+          const user = profileResult?.data?.user || profileResult?.user;
+          if (user?.edge_owner_to_timeline_media?.edges) {
+            data = mapPosts(user.edge_owner_to_timeline_media.edges, data);
+            newPosts = data.posts || [];
+          }
+        }
+      }
+    }
+
+    data.posts = newPosts;
+    data.scrapedPostsCount = newPosts.length;
+    data.totalViews = newPosts.reduce((sum, p) => sum + (p.viewsCount || 0), 0);
+    data.nextCursor = newCursor;
 
     console.log('[ScrapeCreators] Parsed data:', {
       username: data.displayName || data.username,
       posts: data.posts?.length || 0,
       scrapedPostsCount: data.scrapedPostsCount,
       totalViews: data.totalViews,
+      hasNextCursor: !!data.nextCursor,
     });
 
     // Update database if accountId is provided
     if (accountId) {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
-      // Download and store profile image in Supabase Storage
+      // Download and store profile image in Supabase Storage (only on initial sync)
       let storedProfileImageUrl = data.profileImageUrl;
-      if (data.profileImageUrl) {
+      if (data.profileImageUrl && !continueFrom) {
         try {
           console.log('[ScrapeCreators] Downloading profile image...');
           const imageResponse = await fetch(data.profileImageUrl);
@@ -248,73 +359,10 @@ serve(async (req) => {
         }
       }
 
-      const { error: updateError } = await supabase
-        .from('instagram_accounts')
-        .update({
-          display_name: data.displayName,
-          profile_image_url: storedProfileImageUrl,
-          bio: data.bio,
-          followers_count: data.followersCount,
-          following_count: data.followingCount,
-          posts_count: data.postsCount,
-          total_views: data.totalViews || 0,
-          scraped_posts_count: data.scrapedPostsCount || 0,
-          last_synced_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', accountId);
-
-      if (updateError) {
-        console.error('[ScrapeCreators] Error updating account:', updateError);
-      } else {
-        console.log('[ScrapeCreators] Account updated successfully with total_views and scraped_posts_count');
-      }
-
-      // Save metrics history (store aggregated views/likes/comments from fetched posts)
-      const posts = data.posts || [];
-
-      const hasAnyViews = posts.some((p) => p.viewsCount !== undefined && p.viewsCount !== null);
-      const hasAnyLikes = posts.some((p) => p.likesCount !== undefined && p.likesCount !== null);
-      const hasAnyComments = posts.some((p) => p.commentsCount !== undefined && p.commentsCount !== null);
-
-      const totalViews = posts.reduce((sum, p) => sum + (typeof p.viewsCount === 'number' ? p.viewsCount : 0), 0);
-      const totalLikes = posts.reduce((sum, p) => sum + (typeof p.likesCount === 'number' ? p.likesCount : 0), 0);
-      const totalComments = posts.reduce((sum, p) => sum + (typeof p.commentsCount === 'number' ? p.commentsCount : 0), 0);
-
-      await supabase.from('instagram_metrics_history').insert({
-        account_id: accountId,
-        followers_count: data.followersCount,
-        likes_count: hasAnyLikes ? totalLikes : null,
-        comments_count: hasAnyComments ? totalComments : null,
-        views_count: hasAnyViews ? totalViews : null,
-      });
-
-      // Update unified profile_metrics table (triggers realtime)
-      const { error: profileMetricsError } = await supabase
-        .from('profile_metrics')
-        .upsert({
-          profile_id: accountId,
-          platform: 'instagram',
-          username: data.username || username,
-          display_name: data.displayName,
-          profile_image_url: storedProfileImageUrl,
-          followers: data.followersCount || 0,
-          following: data.followingCount || 0,
-          total_views: hasAnyViews ? totalViews : 0,
-          total_likes: hasAnyLikes ? totalLikes : 0,
-          total_posts: data.postsCount || 0,
-          total_comments: hasAnyComments ? totalComments : 0,
-          last_synced_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'platform,username' });
-
-      if (profileMetricsError) {
-        console.error('[ScrapeCreators] Error updating profile_metrics:', profileMetricsError);
-      } else {
-        console.log('[ScrapeCreators] profile_metrics updated (realtime trigger)');
-      }
-
-      // Save posts to database
+      // Save posts to database FIRST (using UPSERT to avoid duplicates)
+      let savedCount = 0;
+      let updatedCount = 0;
+      
       if (data.posts && data.posts.length > 0) {
         for (const post of data.posts) {
           if (!post.postUrl) continue;
@@ -340,6 +388,7 @@ serve(async (req) => {
                 updated_at: new Date().toISOString(),
               })
               .eq('id', existingPost.id);
+            updatedCount++;
           } else {
             await supabase
               .from('instagram_posts')
@@ -354,17 +403,108 @@ serve(async (req) => {
                 views_count: post.viewsCount ?? null,
                 shares_count: post.sharesCount,
               });
+            savedCount++;
           }
         }
-        console.log(`[ScrapeCreators] Saved ${data.posts.length} posts to database`);
+        console.log(`[ScrapeCreators] Saved ${savedCount} new posts, updated ${updatedCount} existing`);
+      }
+
+      // Calculate total views from ALL posts in database
+      const { data: allPosts } = await supabase
+        .from('instagram_posts')
+        .select('views_count')
+        .eq('account_id', accountId);
+      
+      const totalViewsFromDb = (allPosts || []).reduce((sum, p) => sum + (p.views_count || 0), 0);
+      const totalScrapedCount = (allPosts || []).length;
+      
+      console.log(`[ScrapeCreators] Total from DB: ${totalScrapedCount} posts, ${totalViewsFromDb} views`);
+
+      // Update account with totals and cursor
+      const updateData: any = {
+        total_views: totalViewsFromDb,
+        scraped_posts_count: totalScrapedCount,
+        next_cursor: newCursor,
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      // Only update profile data on initial sync
+      if (!continueFrom) {
+        updateData.display_name = data.displayName;
+        updateData.profile_image_url = storedProfileImageUrl;
+        updateData.bio = data.bio;
+        updateData.followers_count = data.followersCount;
+        updateData.following_count = data.followingCount;
+        updateData.posts_count = data.postsCount;
+      }
+
+      const { error: updateError } = await supabase
+        .from('instagram_accounts')
+        .update(updateData)
+        .eq('id', accountId);
+
+      if (updateError) {
+        console.error('[ScrapeCreators] Error updating account:', updateError);
+      } else {
+        console.log('[ScrapeCreators] Account updated successfully with total_views, scraped_posts_count, and cursor');
+      }
+
+      // Save metrics history (store aggregated views/likes/comments from fetched posts)
+      const posts = data.posts || [];
+
+      const hasAnyViews = posts.some((p) => p.viewsCount !== undefined && p.viewsCount !== null);
+      const hasAnyLikes = posts.some((p) => p.likesCount !== undefined && p.likesCount !== null);
+      const hasAnyComments = posts.some((p) => p.commentsCount !== undefined && p.commentsCount !== null);
+
+      const totalViews = posts.reduce((sum, p) => sum + (typeof p.viewsCount === 'number' ? p.viewsCount : 0), 0);
+      const totalLikes = posts.reduce((sum, p) => sum + (typeof p.likesCount === 'number' ? p.likesCount : 0), 0);
+      const totalComments = posts.reduce((sum, p) => sum + (typeof p.commentsCount === 'number' ? p.commentsCount : 0), 0);
+
+      await supabase.from('instagram_metrics_history').insert({
+        account_id: accountId,
+        followers_count: data.followersCount,
+        likes_count: hasAnyLikes ? totalLikes : null,
+        comments_count: hasAnyComments ? totalComments : null,
+        views_count: hasAnyViews ? totalViews : null,
+      });
+
+      // Update unified profile_metrics table (triggers realtime) - only on initial sync
+      if (!continueFrom && data.followersCount) {
+        const { error: profileMetricsError } = await supabase
+          .from('profile_metrics')
+          .upsert({
+            profile_id: accountId,
+            platform: 'instagram',
+            username: data.username || username,
+            display_name: data.displayName,
+            profile_image_url: storedProfileImageUrl,
+            followers: data.followersCount || 0,
+            following: data.followingCount || 0,
+            total_views: totalViewsFromDb,
+            total_likes: hasAnyLikes ? totalLikes : 0,
+            total_posts: data.postsCount || 0,
+            total_comments: hasAnyComments ? totalComments : 0,
+            last_synced_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'platform,username' });
+
+        if (profileMetricsError) {
+          console.error('[ScrapeCreators] Error updating profile_metrics:', profileMetricsError);
+        } else {
+          console.log('[ScrapeCreators] profile_metrics updated (realtime trigger)');
+        }
       }
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        data,
-        ...(debug ? { raw: { profile: profileResult } } : {}),
+        data: {
+          ...data,
+          hasMore: !!newCursor,
+        },
+        ...(debug ? { raw: {} } : {}),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
