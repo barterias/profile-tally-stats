@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, Heart, MessageCircle, Share2, RefreshCw, Loader2, ExternalLink } from 'lucide-react';
+import { Eye, Heart, MessageCircle, Share2, RefreshCw, Loader2, ExternalLink, Link } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -9,11 +9,11 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useVideoDetails } from '@/hooks/useVideoDetails';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { AddVideoByLinkModal } from './AddVideoByLinkModal';
 
 interface Video {
   id: string;
@@ -61,6 +61,7 @@ export function AccountVideosModal({
   accountId,
 }: AccountVideosModalProps) {
   const [syncingVideoId, setSyncingVideoId] = useState<string | null>(null);
+  const [addByLinkOpen, setAddByLinkOpen] = useState(false);
   const { mutateAsync: fetchVideoDetails } = useVideoDetails();
   const queryClient = useQueryClient();
 
@@ -106,15 +107,34 @@ export function AccountVideosModal({
     // Let the native <a> tag handle the navigation
   };
 
+  const handleAddByLinkSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: [`${platform}-videos`, accountId] });
+    queryClient.invalidateQueries({ queryKey: [`${platform}-accounts`] });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle>{platformLabels[platform]} de @{accountName}</DialogTitle>
-          <DialogDescription>
-            {videos.length} {platformLabels[platform].toLowerCase()} encontrados. Clique para abrir no {platform === 'youtube' ? 'YouTube' : platform === 'instagram' ? 'Instagram' : 'TikTok'}.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl max-h-[90vh]">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>{platformLabels[platform]} de @{accountName}</DialogTitle>
+                <DialogDescription>
+                  {videos.length} {platformLabels[platform].toLowerCase()} encontrados. Clique para abrir no {platform === 'youtube' ? 'YouTube' : platform === 'instagram' ? 'Instagram' : 'TikTok'}.
+                </DialogDescription>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setAddByLinkOpen(true)}
+                className="shrink-0"
+              >
+                <Link className="h-4 w-4 mr-2" />
+                Adicionar por link
+              </Button>
+            </div>
+          </DialogHeader>
 
         <ScrollArea className="h-[70vh] pr-4">
           {isLoading ? (
@@ -197,7 +217,16 @@ export function AccountVideosModal({
             </div>
           )}
         </ScrollArea>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <AddVideoByLinkModal
+        open={addByLinkOpen}
+        onOpenChange={setAddByLinkOpen}
+        platform={platform}
+        accountId={accountId}
+        onSuccess={handleAddByLinkSuccess}
+      />
+    </>
   );
 }
