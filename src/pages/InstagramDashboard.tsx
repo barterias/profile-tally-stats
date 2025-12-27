@@ -47,7 +47,7 @@ export default function InstagramDashboard() {
   };
 
   const handleSyncAccount = (accountId: string) => {
-    syncAccount.mutate(accountId);
+    syncAccount.mutate({ accountId });
   };
 
   const handleDeleteAccount = (accountId: string) => {
@@ -58,7 +58,7 @@ export default function InstagramDashboard() {
 
   const handleSyncAll = () => {
     accounts.forEach((account) => {
-      syncAccount.mutate(account.id);
+      syncAccount.mutate({ accountId: account.id });
     });
   };
 

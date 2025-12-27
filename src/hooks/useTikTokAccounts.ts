@@ -128,7 +128,7 @@ export function useSyncTikTokAccount() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (accountId: string) => {
+    mutationFn: async ({ accountId, continueFrom = false }: { accountId: string; continueFrom?: boolean }) => {
       const { data: account } = await supabase
         .from('tiktok_accounts')
         .select('username')
@@ -138,14 +138,14 @@ export function useSyncTikTokAccount() {
       if (!account) throw new Error('Conta não encontrada');
       
       const { error } = await supabase.functions.invoke('tiktok-scrape', {
-        body: { accountId, username: account.username },
+        body: { accountId, username: account.username, continueFrom },
       });
       
       if (error) throw error;
-      return { success: true };
+      return { success: true, continueFrom };
     },
-    onSuccess: () => {
-      toast.success('Conta sincronizada!');
+    onSuccess: (result) => {
+      toast.success(result.continueFrom ? 'Mais vídeos coletados!' : 'Conta sincronizada!');
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });

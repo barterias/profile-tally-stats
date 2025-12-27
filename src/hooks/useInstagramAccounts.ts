@@ -65,10 +65,11 @@ export function useSyncInstagramAccount() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (accountId: string) => instagramApi.syncAccount(accountId),
-    onSuccess: (result, accountId) => {
+    mutationFn: ({ accountId, continueFrom = false }: { accountId: string; continueFrom?: boolean }) => 
+      instagramApi.syncAccount(accountId, continueFrom),
+    onSuccess: (result) => {
       if (result.success) {
-        toast.success('Métricas atualizadas com sucesso!');
+        toast.success(result.continueFrom ? 'Mais posts coletados!' : 'Métricas atualizadas com sucesso!');
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
         queryClient.invalidateQueries({ queryKey: ['instagram-accounts-all'] });
         queryClient.invalidateQueries({ queryKey: ['instagram-videos'] });

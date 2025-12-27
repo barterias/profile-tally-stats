@@ -77,8 +77,8 @@ export function InstagramTab() {
     });
   };
 
-  const handleSyncAccount = (accountId: string) => {
-    syncAccount.mutate(accountId);
+  const handleSyncAccount = (accountId: string, continueFrom: boolean = false) => {
+    syncAccount.mutate({ accountId, continueFrom });
   };
 
   const handleDeleteAccount = (accountId: string) => {
