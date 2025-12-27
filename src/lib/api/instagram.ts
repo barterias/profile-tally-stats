@@ -207,7 +207,7 @@ export const instagramApi = {
   },
 
   // Sync an account (re-scrape and update)
-  async syncAccount(accountId: string): Promise<{ success: boolean; error?: string }> {
+  async syncAccount(accountId: string, continueFrom: boolean = false): Promise<{ success: boolean; continueFrom?: boolean; error?: string }> {
     // Get the account
     const { data: account, error: fetchError } = await supabase
       .from('instagram_accounts')
@@ -226,6 +226,7 @@ export const instagramApi = {
         profileUrl: account.profile_url,
         accountId,
         fetchVideos: true,
+        continueFrom,
       },
     });
 
@@ -237,7 +238,7 @@ export const instagramApi = {
       return { success: false, error: data?.error || 'Erro ao sincronizar' };
     }
 
-    return { success: true };
+    return { success: true, continueFrom };
   },
 
   // Delete an account and all related data
