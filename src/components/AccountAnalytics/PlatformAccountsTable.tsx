@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { MoreHorizontal, RefreshCw, Trash2, ExternalLink, Video, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { MoreHorizontal, RefreshCw, Trash2, ExternalLink, Video, CheckCircle, XCircle, Clock, AlertCircle, Plus, Loader2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -45,12 +45,13 @@ interface PlatformAccountsTableProps {
   platform: 'instagram' | 'youtube' | 'tiktok';
   accounts: AccountData[];
   isLoading: boolean;
-  onSync: (accountId: string) => void;
+  onSync: (accountId: string, continueFrom?: boolean) => void;
   onDelete: (accountId: string) => void;
   onViewVideos?: (accountId: string, username: string) => void;
   onApprove?: (accountId: string) => void;
   onReject?: (accountId: string) => void;
   isSyncing?: boolean;
+  syncingAccountId?: string | null;
   showApprovalActions?: boolean;
 }
 
@@ -76,6 +77,7 @@ export function PlatformAccountsTable({
   onApprove,
   onReject,
   isSyncing,
+  syncingAccountId,
   showApprovalActions = false,
 }: PlatformAccountsTableProps) {
   const formatNumber = (num: number | bigint | null | undefined) => {
@@ -123,11 +125,12 @@ export function PlatformAccountsTable({
     return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rejeitada</Badge>;
   };
 
-  // Render "X de Y" content count with tooltip
+  // Render "X de Y" content count with tooltip and "Coletar Mais" button
   const renderContentCount = (account: AccountData) => {
     const total = account.postsCount || 0;
     const scraped = account.scrapedCount || 0;
     const hasIncomplete = scraped > 0 && scraped < total;
+    const isCurrentlySyncing = isSyncing && syncingAccountId === account.id;
 
     if (scraped === 0 && total === 0) {
       return <span className="text-muted-foreground">0</span>;
@@ -138,30 +141,66 @@ export function PlatformAccountsTable({
     }
 
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex items-center justify-end gap-1 cursor-help">
-              <span className={hasIncomplete ? 'text-warning' : ''}>
-                {scraped} de {total}
-              </span>
-              {hasIncomplete && (
-                <AlertCircle className="h-3 w-3 text-warning" />
-              )}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p className="text-sm">
-              {scraped} {labels.contentLabel.toLowerCase()} coletados de {total} totais
-              {hasIncomplete && (
-                <span className="block text-xs text-muted-foreground mt-1">
-                  Views baseadas apenas nos coletados
+      <div className="flex items-center justify-end gap-2">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1 cursor-help">
+                <span className={hasIncomplete ? 'text-warning' : ''}>
+                  {scraped} de {total}
                 </span>
-              )}
-            </p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+                {hasIncomplete && (
+                  <AlertCircle className="h-3 w-3 text-warning" />
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="text-sm">
+                {scraped} {labels.contentLabel.toLowerCase()} coletados de {total} totais
+                {hasIncomplete && (
+                  <span className="block text-xs text-muted-foreground mt-1">
+                    Views baseadas apenas nos coletados
+                  </span>
+                )}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        
+        {/* "Coletar Mais" button when there are more to collect */}
+        {hasIncomplete && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => onSync(account.id, true)}
+                  disabled={isSyncing}
+                >
+                  {isCurrentlySyncing ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <>
+                      <Plus className="h-3 w-3 mr-1" />
+                      Mais
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-sm">
+                  Coletar mais {labels.contentLabel.toLowerCase()}
+                  <span className="block text-xs text-muted-foreground">
+                    Aproximadamente +{Math.min(20, total - scraped)} {labels.contentLabel.toLowerCase()}
+                  </span>
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
     );
   };
 
@@ -268,7 +307,7 @@ export function PlatformAccountsTable({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-background">
                     <DropdownMenuItem
-                      onClick={() => onSync(account.id)}
+                      onClick={() => onSync(account.id, false)}
                       disabled={isSyncing}
                     >
                       <RefreshCw className="h-4 w-4 mr-2" />

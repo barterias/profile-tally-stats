@@ -673,6 +673,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           last_synced_at: string | null
+          next_cursor: string | null
           posts_count: number | null
           profile_image_url: string | null
           profile_url: string
@@ -694,6 +695,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_synced_at?: string | null
+          next_cursor?: string | null
           posts_count?: number | null
           profile_image_url?: string | null
           profile_url: string
@@ -715,6 +717,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_synced_at?: string | null
+          next_cursor?: string | null
           posts_count?: number | null
           profile_image_url?: string | null
           profile_url?: string
@@ -1233,6 +1236,7 @@ export type Database = {
           is_active: boolean | null
           last_synced_at: string | null
           likes_count: number | null
+          next_cursor: string | null
           profile_image_url: string | null
           profile_url: string
           scraped_videos_count: number | null
@@ -1255,6 +1259,7 @@ export type Database = {
           is_active?: boolean | null
           last_synced_at?: string | null
           likes_count?: number | null
+          next_cursor?: string | null
           profile_image_url?: string | null
           profile_url: string
           scraped_videos_count?: number | null
@@ -1277,6 +1282,7 @@ export type Database = {
           is_active?: boolean | null
           last_synced_at?: string | null
           likes_count?: number | null
+          next_cursor?: string | null
           profile_image_url?: string | null
           profile_url?: string
           scraped_videos_count?: number | null
