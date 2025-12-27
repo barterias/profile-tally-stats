@@ -220,7 +220,8 @@ export function InstagramTab() {
               platform="instagram"
               accounts={sortedAccounts.map((acc: any) => ({
                 id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
-                followersCount: acc.followers_count, postsCount: acc.posts_count, totalViews: viewsByAccount[acc.id] || 0,
+                followersCount: acc.followers_count, postsCount: acc.posts_count, scrapedCount: acc.scraped_posts_count || 0,
+                totalViews: acc.total_views || viewsByAccount[acc.id] || 0,
                 lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
               }))}
               isLoading={accountsLoading}

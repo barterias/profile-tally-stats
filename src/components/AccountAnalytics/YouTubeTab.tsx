@@ -195,7 +195,8 @@ export function YouTubeTab() {
               platform="youtube"
               accounts={sortedAccounts.map((acc: any) => ({
                 id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
-                followersCount: acc.subscribers_count, postsCount: acc.videos_count, totalViews: acc.total_views,
+                followersCount: acc.subscribers_count, postsCount: acc.videos_count, scrapedCount: acc.scraped_videos_count || 0,
+                totalViews: acc.total_views,
                 lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
               }))}
               isLoading={accountsLoading}

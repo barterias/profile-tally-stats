@@ -6,8 +6,6 @@ const corsHeaders = {
 };
 
 // ScrapeCreators client
-// NOTE: In this runtime (Deno) env vars are read via Deno.env.get(...)
-// (equivalent to process.env.* in Node).
 const SCRAPECREATORS_BASE_URL = 'https://api.scrapecreators.com/v1';
 
 type ScrapeCreatorsParams = Record<string, string | number | boolean | undefined | null>;
@@ -67,6 +65,7 @@ interface YouTubeScrapedData {
   totalViews: number;
   totalLikes?: number;
   totalComments?: number;
+  scrapedVideosCount: number;
   videos?: Array<{
     videoId: string;
     title: string;
@@ -89,7 +88,6 @@ function parseCompactCount(input?: string | number | null): number {
   if (!text) return 0;
 
   // normalize: remove words and spaces
-  // handles examples like: "603K subscribers", "305,644,721 views", "3,708 videos"
   const cleaned = text
     .replace(/subscribers?|inscritos?/gi, '')
     .replace(/views?|visualiza(ç|c)ões?/gi, '')
@@ -142,7 +140,7 @@ function pick<T extends Record<string, any>>(obj: T | null | undefined, keys: (k
 async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean): Promise<{ data: YouTubeScrapedData; raw: any }> {
   const { handle, channelId, url } = normalizeYoutubeIdentifier(identifier);
 
-  // 1) Channel details - using /youtube/channel endpoint (docs say handle WITHOUT @)
+  // 1) Channel details
   const cleanHandle = handle ? handle.replace(/^@/, '') : undefined;
   const profileResult = await scrapeCreatorsClient.get('/youtube/channel', {
     ...(cleanHandle ? { handle: cleanHandle } : {}),
@@ -175,13 +173,14 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
     subscribersCount: parseCompactCount(profileResult?.subscriberCount ?? profileResult?.subscriberCountText),
     videosCount: parseCompactCount(profileResult?.videoCount ?? profileResult?.videoCountText),
     totalViews: parseCompactCount(profileResult?.viewCount ?? profileResult?.viewCountText),
+    scrapedVideosCount: 0,
     videos: [],
   };
 
   let videosResult: any = null;
   let shortsResult: any = null;
 
-  // 2) Channel videos - prefer channelId, fallback to cleanHandle
+  // 2) Channel videos
   if (fetchVideos && (data.channelId || cleanHandle)) {
     try {
       videosResult = await scrapeCreatorsClient.get('/youtube/channel-videos', {
@@ -193,7 +192,7 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
       console.log(`[ScrapeCreators] Found ${videosArray.length} videos`);
       
       if (Array.isArray(videosArray) && videosArray.length > 0) {
-        data.videos = videosArray.slice(0, 30).map((video: any) => ({
+        data.videos = videosArray.slice(0, 50).map((video: any) => ({
           videoId: video?.id || video?.videoId || '',
           title: video?.title || '',
           description: typeof video?.description === 'string' ? video.description.substring(0, 500) : undefined,
@@ -207,17 +206,17 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
         }));
       }
 
-      // 3) Shorts (optional) – keep non-fatal
+      // 3) Shorts (optional)
       try {
         if (data.channelId) {
           shortsResult = await scrapeCreatorsClient.get('/youtube/channel/shorts/simple', {
             channelId: data.channelId,
-            limit: 20,
+            limit: 30,
           });
 
           const shortsArray = shortsResult?.shorts || shortsResult?.data?.shorts || [];
           if (Array.isArray(shortsArray) && shortsArray.length > 0) {
-            const shorts = shortsArray.slice(0, 20).map((short: any) => ({
+            const shorts = shortsArray.slice(0, 30).map((short: any) => ({
               videoId: short?.videoId || short?.video_id || short?.id || '',
               title: short?.title || '',
               description: undefined,
@@ -241,11 +240,21 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
     }
   }
 
+  // Set scraped videos count
+  data.scrapedVideosCount = data.videos?.length || 0;
+
   // Aggregate likes/comments from fetched items (if available)
   if (Array.isArray(data.videos) && data.videos.length > 0) {
     data.totalLikes = data.videos.reduce((sum, v) => sum + (v.likesCount || 0), 0);
     data.totalComments = data.videos.reduce((sum, v) => sum + (v.commentsCount || 0), 0);
   }
+
+  console.log('[ScrapeCreators] Summary:', {
+    username: data.username,
+    videosCount: data.videosCount,
+    scrapedVideosCount: data.scrapedVideosCount,
+    totalViews: data.totalViews,
+  });
 
   const raw = {
     profile: pick(profileResult, [
@@ -286,7 +295,6 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const {
       accountId,
-      // backwards compatible: existing frontend sends "username"
       username,
       identifier,
       channelId,
@@ -317,6 +325,7 @@ Deno.serve(async (req) => {
           totalViews: data.totalViews,
           totalLikes: data.totalLikes,
           videosFetched: data.videos?.length || 0,
+          scrapedVideosCount: data.scrapedVideosCount,
         },
         null,
         0,
@@ -340,6 +349,7 @@ Deno.serve(async (req) => {
           subscribers_count: data.subscribersCount,
           videos_count: data.videosCount,
           total_views: data.totalViews,
+          scraped_videos_count: data.scrapedVideosCount,
           last_synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -347,6 +357,8 @@ Deno.serve(async (req) => {
 
       if (updateError) {
         console.error('[ScrapeCreators] Error updating account:', updateError);
+      } else {
+        console.log('[ScrapeCreators] Account updated with scraped_videos_count');
       }
 
       // Save metrics history (include likes when available)

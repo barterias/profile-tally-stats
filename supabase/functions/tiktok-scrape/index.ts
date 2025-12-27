@@ -16,6 +16,7 @@ interface TikTokScrapedData {
   followingCount: number;
   likesCount: number;
   videosCount: number;
+  scrapedVideosCount: number;
   videos?: Array<{
     videoId: string;
     videoUrl: string;
@@ -71,6 +72,12 @@ async function fetchScrapeCreators(endpoint: string, params: Record<string, stri
   return data;
 }
 
+const toInt = (v: any) => {
+  if (v === null || v === undefined) return 0;
+  const n = typeof v === 'number' ? v : Number(String(v).replace(/[^0-9]/g, ''));
+  return Number.isFinite(n) ? Math.trunc(n) : 0;
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -122,41 +129,64 @@ Deno.serve(async (req) => {
       followingCount: statsData?.followingCount || 0,
       likesCount: statsData?.heartCount || statsData?.heart || 0,
       videosCount: statsData?.videoCount || 0,
+      scrapedVideosCount: 0,
       videos: [],
     };
 
-    // Fetch user videos if requested
+    // Fetch user videos with pagination if requested
     if (fetchVideos) {
       try {
-        // CORRECTED: Use /v3/tiktok/profile/videos (not /v3/tiktok/profile-videos)
-        console.log('[TikTok Scrape] Fetching videos...');
-        const videosResult = await fetchScrapeCreators('/v3/tiktok/profile/videos', {
-          handle: cleanUsername,
-          count: '30',
-        });
-
-        console.log('[TikTok Scrape] Videos response keys:', Object.keys(videosResult || {}));
-
-        // ScrapeCreators v3 returns videos in "aweme_list" field
-        const videosArray =
-          (Array.isArray(videosResult?.aweme_list) ? videosResult.aweme_list : null) ||
-          (Array.isArray(videosResult?.itemList) ? videosResult.itemList : null) ||
-          (Array.isArray(videosResult?.data?.itemList) ? videosResult.data.itemList : null) ||
-          (Array.isArray(videosResult?.data?.aweme_list) ? videosResult.data.aweme_list : null) ||
-          (Array.isArray(videosResult?.data) ? videosResult.data : null) ||
-          (Array.isArray(videosResult?.videos) ? videosResult.videos : null) ||
-          [];
+        console.log('[TikTok Scrape] Fetching videos with pagination...');
         
-        const toInt = (v: any) => {
-          if (v === null || v === undefined) return 0;
-          const n = typeof v === 'number' ? v : Number(String(v).replace(/[^0-9]/g, ''));
-          return Number.isFinite(n) ? Math.trunc(n) : 0;
-        };
-
-        if (Array.isArray(videosArray) && videosArray.length > 0) {
-          console.log(`[TikTok Scrape] Found ${videosArray.length} videos`);
+        const allVideos: any[] = [];
+        let cursor: string | null = null;
+        const maxPages = 3; // Up to 3 pages = ~100 videos
+        const countPerPage = '35'; // Max per request
+        
+        for (let page = 0; page < maxPages; page++) {
+          console.log(`[TikTok Scrape] Fetching page ${page + 1}...`);
           
-          data.videos = videosArray.slice(0, 50).map((video: any) => {
+          const params: Record<string, string> = {
+            handle: cleanUsername,
+            count: countPerPage,
+          };
+          
+          if (cursor) {
+            params.cursor = cursor;
+          }
+          
+          const videosResult = await fetchScrapeCreators('/v3/tiktok/profile/videos', params);
+          
+          console.log('[TikTok Scrape] Videos response keys:', Object.keys(videosResult || {}));
+          
+          // ScrapeCreators v3 returns videos in "aweme_list" field
+          const videosArray =
+            (Array.isArray(videosResult?.aweme_list) ? videosResult.aweme_list : null) ||
+            (Array.isArray(videosResult?.itemList) ? videosResult.itemList : null) ||
+            (Array.isArray(videosResult?.data?.itemList) ? videosResult.data.itemList : null) ||
+            (Array.isArray(videosResult?.data?.aweme_list) ? videosResult.data.aweme_list : null) ||
+            (Array.isArray(videosResult?.data) ? videosResult.data : null) ||
+            (Array.isArray(videosResult?.videos) ? videosResult.videos : null) ||
+            [];
+          
+          if (videosArray.length > 0) {
+            allVideos.push(...videosArray);
+            console.log(`[TikTok Scrape] Page ${page + 1}: Found ${videosArray.length} videos (total: ${allVideos.length})`);
+          }
+          
+          // Check for pagination cursor
+          cursor = videosResult?.cursor || videosResult?.next_cursor || videosResult?.data?.cursor || null;
+          
+          if (!cursor || videosArray.length === 0) {
+            console.log('[TikTok Scrape] No more pages available');
+            break;
+          }
+        }
+
+        if (allVideos.length > 0) {
+          console.log(`[TikTok Scrape] Total videos collected: ${allVideos.length}`);
+          
+          data.videos = allVideos.map((video: any) => {
             const videoId = video?.id || video?.aweme_id || video?.videoId || '';
             const stats = video?.stats || video?.statistics || {};
             
@@ -187,6 +217,7 @@ Deno.serve(async (req) => {
             };
           });
 
+          data.scrapedVideosCount = data.videos.length;
           console.log(`[TikTok Scrape] Mapped ${data.videos.length} videos with metrics`);
         } else {
           console.log('[TikTok Scrape] No videos found in response');
@@ -201,7 +232,8 @@ Deno.serve(async (req) => {
       username: data.username,
       displayName: data.displayName,
       followers: data.followersCount,
-      videos: data.videos?.length || 0,
+      totalVideos: data.videosCount,
+      scrapedVideos: data.scrapedVideosCount,
     });
 
     // Update database
@@ -246,7 +278,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Calculate total views from all videos
+      // Calculate total views from all scraped videos
       const totalViewsFromVideos = (data.videos || []).reduce((sum, v) => sum + (v.viewsCount || 0), 0);
       
       const { error: updateError } = await supabase
@@ -260,12 +292,13 @@ Deno.serve(async (req) => {
           likes_count: data.likesCount,
           videos_count: data.videosCount,
           total_views: totalViewsFromVideos,
+          scraped_videos_count: data.scrapedVideosCount,
           last_synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', accountId);
       
-      console.log(`[TikTok Scrape] Account total_views calculated: ${totalViewsFromVideos}`);
+      console.log(`[TikTok Scrape] Account updated: total_views=${totalViewsFromVideos}, scraped_videos_count=${data.scrapedVideosCount}`);
 
       if (updateError) {
         console.error('[TikTok Scrape] Error updating account:', updateError);
