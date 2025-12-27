@@ -191,7 +191,7 @@ export function TikTokTab() {
               accounts={sortedAccounts.map((acc: any) => ({
                 id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
                 followersCount: acc.followers_count, postsCount: acc.videos_count, likesCount: acc.likes_count,
-                totalViews: acc.total_views || 0,
+                totalViews: acc.total_views || 0, scrapedCount: acc.scraped_videos_count || 0,
                 lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
               }))}
               isLoading={accountsLoading}
