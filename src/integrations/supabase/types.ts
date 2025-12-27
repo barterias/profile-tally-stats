@@ -676,6 +676,8 @@ export type Database = {
           posts_count: number | null
           profile_image_url: string | null
           profile_url: string
+          scraped_posts_count: number | null
+          total_views: number | null
           updated_at: string
           user_id: string
           username: string
@@ -695,6 +697,8 @@ export type Database = {
           posts_count?: number | null
           profile_image_url?: string | null
           profile_url: string
+          scraped_posts_count?: number | null
+          total_views?: number | null
           updated_at?: string
           user_id: string
           username: string
@@ -714,6 +718,8 @@ export type Database = {
           posts_count?: number | null
           profile_image_url?: string | null
           profile_url?: string
+          scraped_posts_count?: number | null
+          total_views?: number | null
           updated_at?: string
           user_id?: string
           username?: string
@@ -1229,6 +1235,7 @@ export type Database = {
           likes_count: number | null
           profile_image_url: string | null
           profile_url: string
+          scraped_videos_count: number | null
           total_views: number | null
           updated_at: string
           user_id: string
@@ -1250,6 +1257,7 @@ export type Database = {
           likes_count?: number | null
           profile_image_url?: string | null
           profile_url: string
+          scraped_videos_count?: number | null
           total_views?: number | null
           updated_at?: string
           user_id: string
@@ -1271,6 +1279,7 @@ export type Database = {
           likes_count?: number | null
           profile_image_url?: string | null
           profile_url?: string
+          scraped_videos_count?: number | null
           total_views?: number | null
           updated_at?: string
           user_id?: string
@@ -1586,6 +1595,7 @@ export type Database = {
           last_synced_at: string | null
           profile_image_url: string | null
           profile_url: string
+          scraped_videos_count: number | null
           subscribers_count: number | null
           total_views: number | null
           updated_at: string
@@ -1607,6 +1617,7 @@ export type Database = {
           last_synced_at?: string | null
           profile_image_url?: string | null
           profile_url: string
+          scraped_videos_count?: number | null
           subscribers_count?: number | null
           total_views?: number | null
           updated_at?: string
@@ -1628,6 +1639,7 @@ export type Database = {
           last_synced_at?: string | null
           profile_image_url?: string | null
           profile_url?: string
+          scraped_videos_count?: number | null
           subscribers_count?: number | null
           total_views?: number | null
           updated_at?: string

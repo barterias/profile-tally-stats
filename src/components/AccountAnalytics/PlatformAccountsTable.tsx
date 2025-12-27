@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { MoreHorizontal, RefreshCw, Trash2, ExternalLink, Video, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { MoreHorizontal, RefreshCw, Trash2, ExternalLink, Video, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -20,6 +19,12 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface AccountData {
   id: string;
@@ -28,6 +33,7 @@ interface AccountData {
   profileImageUrl?: string | null;
   followersCount?: number | null;
   postsCount?: number | null;
+  scrapedCount?: number | null;
   totalViews?: number | bigint | null;
   likesCount?: number | bigint | null;
   lastSyncedAt?: string | null;
@@ -55,9 +61,9 @@ const platformUrls = {
 };
 
 const platformLabels = {
-  instagram: { followers: 'Seguidores', posts: 'Posts', videos: 'Ver Posts' },
-  youtube: { followers: 'Inscritos', posts: 'Vídeos', videos: 'Ver Vídeos' },
-  tiktok: { followers: 'Seguidores', posts: 'Vídeos', videos: 'Ver Vídeos' },
+  instagram: { followers: 'Seguidores', posts: 'Posts', videos: 'Ver Posts', contentLabel: 'Posts' },
+  youtube: { followers: 'Inscritos', posts: 'Vídeos', videos: 'Ver Vídeos', contentLabel: 'Vídeos' },
+  tiktok: { followers: 'Seguidores', posts: 'Vídeos', videos: 'Ver Vídeos', contentLabel: 'Vídeos' },
 };
 
 export function PlatformAccountsTable({
@@ -117,6 +123,48 @@ export function PlatformAccountsTable({
     return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rejeitada</Badge>;
   };
 
+  // Render "X de Y" content count with tooltip
+  const renderContentCount = (account: AccountData) => {
+    const total = account.postsCount || 0;
+    const scraped = account.scrapedCount || 0;
+    const hasIncomplete = scraped > 0 && scraped < total;
+
+    if (scraped === 0 && total === 0) {
+      return <span className="text-muted-foreground">0</span>;
+    }
+
+    if (scraped === 0) {
+      return <span>{formatNumber(total)}</span>;
+    }
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center justify-end gap-1 cursor-help">
+              <span className={hasIncomplete ? 'text-warning' : ''}>
+                {scraped} de {total}
+              </span>
+              {hasIncomplete && (
+                <AlertCircle className="h-3 w-3 text-warning" />
+              )}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-sm">
+              {scraped} {labels.contentLabel.toLowerCase()} coletados de {total} totais
+              {hasIncomplete && (
+                <span className="block text-xs text-muted-foreground mt-1">
+                  Views baseadas apenas nos coletados
+                </span>
+              )}
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
   return (
     <Table>
       <TableHeader>
@@ -156,7 +204,7 @@ export function PlatformAccountsTable({
               {formatNumber(account.followersCount)}
             </TableCell>
             <TableCell className="text-right">
-              {formatNumber(account.postsCount)}
+              {renderContentCount(account)}
             </TableCell>
             <TableCell className="text-right font-semibold text-primary">
               {formatNumber(account.totalViews)}

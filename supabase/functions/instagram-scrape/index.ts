@@ -16,6 +16,8 @@ interface InstagramScrapedData {
   followersCount?: number;
   followingCount?: number;
   postsCount?: number;
+  scrapedPostsCount?: number;
+  totalViews?: number;
   posts?: Array<{
     postUrl: string;
     type: string;
@@ -80,6 +82,8 @@ function mapProfileData(data: any): InstagramScrapedData {
     followersCount: user?.edge_followed_by?.count || user?.followerCount || 0,
     followingCount: user?.edge_follow?.count || user?.followingCount || 0,
     postsCount: user?.edge_owner_to_timeline_media?.count || user?.mediaCount || 0,
+    scrapedPostsCount: 0,
+    totalViews: 0,
     posts: [],
   };
 }
@@ -113,7 +117,7 @@ function mapPosts(postsData: any, profileData: InstagramScrapedData): InstagramS
     return profileData;
   }
 
-  profileData.posts = edges.slice(0, 50).map((edge: any) => {
+  profileData.posts = edges.map((edge: any) => {
     const node = edge?.node || edge;
     const isVideo = node?.__typename === 'XDTGraphVideo' || node?.is_video || node?.product_type === 'clips';
 
@@ -131,13 +135,16 @@ function mapPosts(postsData: any, profileData: InstagramScrapedData): InstagramS
       caption: (node?.edge_media_to_caption?.edges?.[0]?.node?.text || node?.caption || '')?.substring(0, 200),
       likesCount: likes ?? 0,
       commentsCount: comments ?? 0,
-      // If missing, keep as null-ish at persistence layer by passing null below
       viewsCount: (views ?? 0),
       sharesCount: 0,
     };
   });
 
-  console.log(`[ScrapeCreators] Mapped ${profileData.posts?.length || 0} posts`);
+  // Calculate totals
+  profileData.scrapedPostsCount = profileData.posts?.length || 0;
+  profileData.totalViews = profileData.posts?.reduce((sum, p) => sum + (p.viewsCount || 0), 0) || 0;
+
+  console.log(`[ScrapeCreators] Mapped ${profileData.scrapedPostsCount} posts, total views: ${profileData.totalViews}`);
   return profileData;
 }
 
@@ -192,7 +199,12 @@ serve(async (req) => {
       }
     }
 
-    console.log('[ScrapeCreators] Parsed data:', data.displayName || data.username, 'with', data.posts?.length || 0, 'posts');
+    console.log('[ScrapeCreators] Parsed data:', {
+      username: data.displayName || data.username,
+      posts: data.posts?.length || 0,
+      scrapedPostsCount: data.scrapedPostsCount,
+      totalViews: data.totalViews,
+    });
 
     // Update database if accountId is provided
     if (accountId) {
@@ -245,6 +257,8 @@ serve(async (req) => {
           followers_count: data.followersCount,
           following_count: data.followingCount,
           posts_count: data.postsCount,
+          total_views: data.totalViews || 0,
+          scraped_posts_count: data.scrapedPostsCount || 0,
           last_synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -253,7 +267,7 @@ serve(async (req) => {
       if (updateError) {
         console.error('[ScrapeCreators] Error updating account:', updateError);
       } else {
-        console.log('[ScrapeCreators] Account updated successfully');
+        console.log('[ScrapeCreators] Account updated successfully with total_views and scraped_posts_count');
       }
 
       // Save metrics history (store aggregated views/likes/comments from fetched posts)
