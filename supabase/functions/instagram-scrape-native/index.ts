@@ -330,13 +330,48 @@ async function scrapeAllPosts(username: string): Promise<InstagramScrapedData> {
     posts: [],
   };
   
-  // If we have user ID, fetch ALL posts with pagination
-  if (userId) {
-    let cursor: string | undefined;
-    let hasMore = true;
-    let pageCount = 0;
+  // FIRST: Extract posts embedded in userInfo (from web_profile_info)
+  const embeddedEdges = userInfo.edge_owner_to_timeline_media?.edges || [];
+  console.log(`[Instagram Native] Found ${embeddedEdges.length} posts embedded in profile data`);
+  
+  for (const edge of embeddedEdges) {
+    const node = edge.node || edge;
+    if (!node) continue;
     
-    while (hasMore) {
+    const isVideo = node.__typename === 'GraphVideo' || node.is_video || node.media_type === 2;
+    const shortcode = node.shortcode || node.code;
+    
+    if (shortcode) {
+      result.posts.push({
+        postUrl: `https://www.instagram.com/p/${shortcode}/`,
+        type: isVideo ? 'video' : (node.__typename === 'GraphSidecar' || node.carousel_media ? 'carousel' : 'post'),
+        thumbnailUrl: node.display_url || node.thumbnail_src || node.image_versions2?.candidates?.[0]?.url,
+        caption: (node.edge_media_to_caption?.edges?.[0]?.node?.text || node.caption?.text || '').substring(0, 200),
+        likesCount: node.edge_liked_by?.count || node.like_count || 0,
+        commentsCount: node.edge_media_to_comment?.count || node.comment_count || 0,
+        viewsCount: isVideo ? (node.video_view_count || node.view_count || node.play_count || 0) : 0,
+        postedAt: node.taken_at_timestamp 
+          ? new Date(node.taken_at_timestamp * 1000).toISOString() 
+          : node.taken_at 
+            ? new Date(node.taken_at * 1000).toISOString()
+            : undefined,
+      });
+    }
+  }
+  
+  console.log(`[Instagram Native] Extracted ${result.posts.length} posts from embedded data`);
+  
+  // Get cursor for pagination from embedded data
+  const embeddedPageInfo = userInfo.edge_owner_to_timeline_media?.page_info;
+  let cursor = embeddedPageInfo?.end_cursor;
+  let hasMore = embeddedPageInfo?.has_next_page && !!cursor;
+  
+  // If we have user ID and there are more pages, try to fetch them via GraphQL
+  if (userId && hasMore) {
+    let pageCount = 1;
+    const maxPages = 10; // Limit pages to avoid timeouts
+    
+    while (hasMore && pageCount < maxPages) {
       pageCount++;
       console.log(`[Instagram Native] Fetching page ${pageCount}...`);
       
@@ -344,18 +379,22 @@ async function scrapeAllPosts(username: string): Promise<InstagramScrapedData> {
         const { posts, nextCursor, hasNextPage } = await fetchUserMedia(userId, cursor);
         
         if (posts.length === 0) {
-          console.log('[Instagram Native] No more posts found');
+          console.log('[Instagram Native] No more posts from GraphQL');
           break;
         }
         
-        result.posts.push(...posts);
+        // Add only posts not already in the list
+        const existingUrls = new Set(result.posts.map(p => p.postUrl));
+        const newPosts = posts.filter(p => !existingUrls.has(p.postUrl));
+        result.posts.push(...newPosts);
+        
         cursor = nextCursor;
         hasMore = hasNextPage && !!nextCursor;
         
-        console.log(`[Instagram Native] Page ${pageCount}: ${posts.length} posts, total: ${result.posts.length}, hasMore: ${hasMore}`);
+        console.log(`[Instagram Native] Page ${pageCount}: ${newPosts.length} new posts, total: ${result.posts.length}, hasMore: ${hasMore}`);
         
         // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 500));
       } catch (error) {
         console.error(`[Instagram Native] Error fetching page ${pageCount}:`, error);
         break;
@@ -363,24 +402,6 @@ async function scrapeAllPosts(username: string): Promise<InstagramScrapedData> {
     }
     
     result.nextCursor = cursor;
-  } else {
-    // Fallback: use embedded posts from profile
-    const edges = userInfo.edge_owner_to_timeline_media?.edges || [];
-    result.posts = edges.map((edge: any) => {
-      const node = edge.node;
-      const isVideo = node.__typename === 'GraphVideo' || node.is_video;
-      
-      return {
-        postUrl: node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : '',
-        type: isVideo ? 'video' : 'post',
-        thumbnailUrl: node.display_url,
-        caption: node.edge_media_to_caption?.edges?.[0]?.node?.text?.substring(0, 200) || '',
-        likesCount: node.edge_liked_by?.count || 0,
-        commentsCount: node.edge_media_to_comment?.count || 0,
-        viewsCount: isVideo ? (node.video_view_count || 0) : 0,
-        postedAt: node.taken_at_timestamp ? new Date(node.taken_at_timestamp * 1000).toISOString() : undefined,
-      };
-    });
   }
   
   result.scrapedPostsCount = result.posts.length;
