@@ -247,7 +247,7 @@ function parseChannelData(data: any, html: string): Partial<YouTubeScrapedData> 
   const bannerSources = header?.banner?.thumbnails || [];
   bannerUrl = bannerSources[bannerSources.length - 1]?.url || '';
   
-  // Subscribers
+  // Subscribers - try multiple paths
   const subscriberText = header?.subscriberCountText?.simpleText ||
                          header?.subscriberCountText?.runs?.[0]?.text || '';
   subscribersCount = parseCompactCount(subscriberText);
@@ -268,11 +268,78 @@ function parseChannelData(data: any, html: string): Partial<YouTubeScrapedData> 
     if (cidMatch) channelId = cidMatch[1];
   }
   
-  // Extract subscriber count from HTML if needed
+  // Extract subscriber count from HTML if needed - try MANY patterns
   if (subscribersCount === 0) {
-    const subMatch = html.match(/"subscriberCountText":\{"simpleText":"([^"]+)"\}/);
-    if (subMatch) subscribersCount = parseCompactCount(subMatch[1]);
+    // Try simpleText format
+    const subMatch1 = html.match(/"subscriberCountText":\{"simpleText":"([^"]+)"\}/);
+    if (subMatch1) subscribersCount = parseCompactCount(subMatch1[1]);
   }
+  
+  if (subscribersCount === 0) {
+    // Try accessibilityData format
+    const subMatch2 = html.match(/"subscriberCountText":\{[^}]*"accessibilityData":\{"label":"([^"]+)"\}/);
+    if (subMatch2) subscribersCount = parseCompactCount(subMatch2[1]);
+  }
+  
+  if (subscribersCount === 0) {
+    // Try content format used in pageHeaderRenderer
+    const subMatch3 = html.match(/"metadataParts":\[\{"text":\{"content":"([^"]+)"\}/);
+    if (subMatch3) subscribersCount = parseCompactCount(subMatch3[1]);
+  }
+  
+  if (subscribersCount === 0) {
+    // Try description meta tag "X subscribers"
+    const subMatch4 = html.match(/content="[^"]*?([\d,.]+[KMB]?)\s*(?:subscribers|inscritos)/i);
+    if (subMatch4) subscribersCount = parseCompactCount(subMatch4[1]);
+  }
+  
+  if (subscribersCount === 0) {
+    // Try any occurrence of "X subscribers" or "X inscritos" in page
+    const subMatch5 = html.match(/([\d,.]+[KMB]?)\s*(?:subscribers|inscritos)/i);
+    if (subMatch5) subscribersCount = parseCompactCount(subMatch5[1]);
+  }
+  
+  // Also try to find in JSON data recursively
+  if (subscribersCount === 0) {
+    function findSubscriberCount(obj: any, depth = 0): number {
+      if (!obj || typeof obj !== 'object' || depth > 10) return 0;
+      
+      if (obj.subscriberCountText) {
+        const text = obj.subscriberCountText.simpleText || 
+                     obj.subscriberCountText.runs?.[0]?.text ||
+                     obj.subscriberCountText.accessibility?.accessibilityData?.label;
+        if (text) return parseCompactCount(text);
+      }
+      
+      // Check for metadataParts pattern (new YouTube layout)
+      if (obj.metadataParts && Array.isArray(obj.metadataParts)) {
+        for (const part of obj.metadataParts) {
+          const content = part?.text?.content;
+          if (content && /subscriber|inscrit/i.test(content)) {
+            return parseCompactCount(content);
+          }
+        }
+      }
+      
+      if (Array.isArray(obj)) {
+        for (const item of obj) {
+          const result = findSubscriberCount(item, depth + 1);
+          if (result > 0) return result;
+        }
+      } else {
+        for (const key of Object.keys(obj)) {
+          const result = findSubscriberCount(obj[key], depth + 1);
+          if (result > 0) return result;
+        }
+      }
+      
+      return 0;
+    }
+    
+    subscribersCount = findSubscriberCount(data);
+  }
+  
+  console.log(`[YouTube Native] Parsed channel data: subscribers=${subscribersCount}, videos=${videosCount}, displayName=${displayName}`);
   
   return {
     channelId,
