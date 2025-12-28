@@ -95,8 +95,12 @@ function extractVideosFromData(data: any, username: string): TikTokVideo[] {
       item?.aweme_id ||
       item?.itemId;
 
-    if (!videoId || seenIds.has(String(videoId))) return null;
-    seenIds.add(String(videoId));
+    // Validate videoId - must be numeric and at least 10 digits (TikTok video IDs are 19 digits)
+    const videoIdStr = String(videoId || '');
+    const isValidVideoId = /^\d{10,}$/.test(videoIdStr);
+    
+    if (!isValidVideoId || seenIds.has(videoIdStr)) return null;
+    seenIds.add(videoIdStr);
 
     const stats =
       item?.stats ||
