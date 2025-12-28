@@ -42,19 +42,39 @@ interface TikTokScrapedData {
 
 function parseCount(text?: string | number | null): number {
   if (text === null || text === undefined) return 0;
-  if (typeof text === 'number') return Math.round(text);
-  
-  const str = String(text).trim().replace(/,/g, '').replace(/\./g, '');
-  const match = str.match(/([\d,.]+)\s*(K|M|B|mil|mi)?/i);
-  if (!match) return parseInt(str.replace(/\D/g, ''), 10) || 0;
-  
-  let value = parseFloat(match[1].replace(',', '.'));
+  if (typeof text === 'number') return Number.isFinite(text) ? Math.round(text) : 0;
+
+  const raw = String(text).trim();
+  if (!raw) return 0;
+
+  // Examples: "1.2M", "12.345", "12,345", "987" (pt/en variants)
+  const match = raw
+    .replace(/\s+/g, '')
+    .match(/^([\d.,]+)([KMB]|mil|mi)?$/i);
+
+  // Fallback: strip everything except digits
+  if (!match) return parseInt(raw.replace(/\D/g, ''), 10) || 0;
+
+  const numberPart = match[1];
   const suffix = match[2]?.toLowerCase();
-  
+
+  // If there's a suffix, treat "." as decimal separator and "," as thousands
+  // If there's no suffix, treat both "." and "," as thousands separators.
+  let value = 0;
+  if (suffix) {
+    const normalized = numberPart.replace(/,/g, '');
+    value = parseFloat(normalized);
+  } else {
+    const normalized = numberPart.replace(/[.,]/g, '');
+    value = parseFloat(normalized);
+  }
+
+  if (!Number.isFinite(value)) return 0;
+
   if (suffix === 'k' || suffix === 'mil') value *= 1_000;
   else if (suffix === 'm' || suffix === 'mi') value *= 1_000_000;
   else if (suffix === 'b') value *= 1_000_000_000;
-  
+
   return Math.round(value);
 }
 
@@ -62,17 +82,39 @@ function parseCount(text?: string | number | null): number {
 function extractVideosFromData(data: any, username: string): TikTokVideo[] {
   const videos: TikTokVideo[] = [];
   const seenIds = new Set<string>();
-  
-  function extractVideoFromItem(item: any): TikTokVideo | null {
-    const videoId = item?.id || item?.video?.id || item?.itemInfos?.id;
-    if (!videoId || seenIds.has(videoId)) return null;
-    seenIds.add(videoId);
-    
-    const stats = item?.stats || item?.statistics || item?.itemInfos || {};
-    
-    // Get thumbnail
+
+  const normalizeItem = (item: any) => item?.itemStruct || item?.item || item?.aweme_info || item;
+
+  function extractVideoFromItem(rawItem: any): TikTokVideo | null {
+    const item = normalizeItem(rawItem);
+
+    const videoId =
+      item?.id ||
+      item?.video?.id ||
+      item?.itemInfos?.id ||
+      item?.aweme_id ||
+      item?.itemId;
+
+    if (!videoId || seenIds.has(String(videoId))) return null;
+    seenIds.add(String(videoId));
+
+    const stats =
+      item?.stats ||
+      item?.statsV2 ||
+      item?.statistics ||
+      item?.itemInfos ||
+      item?.itemStats ||
+      {};
+
+    // Thumbnail
     let thumbnailUrl: string | undefined;
-    const cover = item?.video?.cover || item?.cover || item?.video?.originCover;
+    const cover =
+      item?.video?.cover ||
+      item?.video?.originCover ||
+      item?.cover ||
+      item?.thumbnail ||
+      item?.image_url;
+
     if (typeof cover === 'string') {
       thumbnailUrl = cover;
     } else if (cover?.url_list?.[0]) {
@@ -80,58 +122,85 @@ function extractVideosFromData(data: any, username: string): TikTokVideo[] {
     } else if (cover?.urlList?.[0]) {
       thumbnailUrl = cover.urlList[0];
     }
-    
-    // Get views
-    const views = stats.playCount || stats.play_count || stats.views || 
-                  item.playCount || item.play_count || item.views || 0;
-    
-    // Get likes
-    const likes = stats.diggCount || stats.digg_count || stats.likes ||
-                  item.diggCount || item.digg_count || item.likes || 0;
-    
-    // Get comments
-    const comments = stats.commentCount || stats.comment_count || stats.comments ||
-                     item.commentCount || item.comment_count || item.comments || 0;
-    
-    // Get shares
-    const shares = stats.shareCount || stats.share_count || stats.shares ||
-                   item.shareCount || item.share_count || item.shares || 0;
-    
-    // Get timestamp
-    const createTime = item.createTime || item.create_time || item.createtime;
-    
+
+    const views =
+      stats.playCount ||
+      stats.play_count ||
+      stats.viewCount ||
+      stats.views ||
+      item?.playCount ||
+      item?.play_count ||
+      item?.views ||
+      0;
+
+    const likes =
+      stats.diggCount ||
+      stats.digg_count ||
+      stats.likeCount ||
+      stats.likes ||
+      item?.diggCount ||
+      item?.digg_count ||
+      item?.likes ||
+      0;
+
+    const comments =
+      stats.commentCount ||
+      stats.comment_count ||
+      item?.commentCount ||
+      item?.comment_count ||
+      item?.comments ||
+      0;
+
+    const shares =
+      stats.shareCount ||
+      stats.share_count ||
+      item?.shareCount ||
+      item?.share_count ||
+      item?.shares ||
+      0;
+
+    const createTime = item?.createTime || item?.create_time || item?.createtime || item?.create_time_str;
+    const createTimeNum = typeof createTime === 'string' ? parseInt(createTime, 10) : createTime;
+
     return {
-      videoId,
-      videoUrl: `https://www.tiktok.com/@${username}/video/${videoId}`,
-      caption: item.desc || item.description || item.title,
+      videoId: String(videoId),
+      videoUrl: `https://www.tiktok.com/@${username}/video/${String(videoId)}`,
+      caption: item?.desc || item?.description || item?.title,
       thumbnailUrl,
       viewsCount: parseCount(views),
       likesCount: parseCount(likes),
       commentsCount: parseCount(comments),
       sharesCount: parseCount(shares),
       duration: item?.video?.duration || item?.duration,
-      postedAt: createTime ? new Date(createTime * 1000).toISOString() : undefined,
+      postedAt: createTimeNum ? new Date(createTimeNum * 1000).toISOString() : undefined,
     };
   }
-  
+
   function walkObject(obj: any, depth = 0): void {
-    if (!obj || typeof obj !== 'object' || depth > 20) return;
-    
-    // Check if this object looks like a video item
-    if (obj.id && (obj.desc !== undefined || obj.video || obj.stats || obj.createTime)) {
-      const video = extractVideoFromItem(obj);
-      if (video) videos.push(video);
-    }
-    
-    // Check for itemList arrays
-    if (obj.itemList && Array.isArray(obj.itemList)) {
-      for (const item of obj.itemList) {
-        const video = extractVideoFromItem(item);
-        if (video) videos.push(video);
+    if (!obj || typeof obj !== 'object' || depth > 30) return;
+
+    const asVideo = extractVideoFromItem(obj);
+    if (asVideo) videos.push(asVideo);
+
+    const lists = [
+      obj.itemList,
+      obj.item_list,
+      obj.itemListData,
+      obj.items,
+      obj.aweme_list,
+      obj.ItemList,
+    ];
+
+    for (const list of lists) {
+      if (Array.isArray(list)) {
+        for (const item of list) {
+          const v = extractVideoFromItem(item);
+          if (v) videos.push(v);
+        }
       }
     }
-    
-    // Check ItemModule (older format)
+
+    // ItemModule (older format)
     if (obj.ItemModule && typeof obj.ItemModule === 'object') {
       for (const key of Object.keys(obj.ItemModule)) {
         const item = obj.ItemModule[key];
@@ -139,21 +208,18 @@ function extractVideosFromData(data: any, username: string): TikTokVideo[] {
         if (video) videos.push(video);
       }
     }
-    
-    // Recurse into arrays and objects
+
     if (Array.isArray(obj)) {
-      for (const item of obj) {
-        walkObject(item, depth + 1);
-      }
+      for (const item of obj) walkObject(item, depth + 1);
     } else {
       for (const key of Object.keys(obj)) {
-        if (key !== 'itemList' && key !== 'ItemModule') {
-          walkObject(obj[key], depth + 1);
-        }
+        // avoid infinite recursion on very large repeated branches
+        if (key === 'ItemModule') continue;
+        walkObject(obj[key], depth + 1);
       }
     }
   }
-  
+
   walkObject(data);
   return videos;
 }

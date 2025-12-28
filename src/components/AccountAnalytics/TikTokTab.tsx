@@ -16,7 +16,7 @@ import {
   useSyncAllTikTokAccounts,
   useDeleteTikTokAccount,
 } from '@/hooks/useTikTokAccounts';
-import { useTikTokVideos } from '@/hooks/useTikTokVideos';
+import { useTikTokVideos, useAllTikTokVideos } from '@/hooks/useTikTokVideos';
 import { useApproveAccount, useRejectAccount } from '@/hooks/usePendingAccounts';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
@@ -47,6 +47,14 @@ export function TikTokTab() {
     : rawAccounts;
 
   const { data: videos = [], isLoading: videosLoading } = useTikTokVideos(selectedAccount?.id || '');
+  const { data: allVideosViews = [] } = useAllTikTokVideos();
+
+  const derivedViewsByAccount = allVideosViews.reduce<Record<string, number>>((acc, row: any) => {
+    const accountId = row?.account_id;
+    const views = Number(row?.views_count || 0);
+    if (accountId) acc[accountId] = (acc[accountId] || 0) + views;
+    return acc;
+  }, {});
 
   const addAccount = useAddTikTokAccount();
   const syncAccount = useSyncTikTokAccount();
@@ -96,7 +104,11 @@ export function TikTokTab() {
   const totalFollowers = visibleAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
   const totalLikes = visibleAccounts.reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0);
   const totalVideos = visibleAccounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
-  const totalViews = visibleAccounts.reduce((sum, acc: any) => sum + (acc.total_views || 0), 0);
+  const totalViews = visibleAccounts.reduce((sum, acc: any) => {
+    const derived = derivedViewsByAccount[acc.id] || 0;
+    const stored = Number(acc.total_views || 0);
+    return sum + (stored > 0 ? stored : derived);
+  }, 0);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -187,23 +199,24 @@ export function TikTokTab() {
               )}
             </div>
           ) : (
-            <PlatformAccountsTable
-              platform="tiktok"
-              accounts={sortedAccounts.map((acc: any) => ({
-                id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
-                followersCount: acc.followers_count, postsCount: acc.videos_count, likesCount: acc.likes_count,
-                totalViews: acc.total_views || 0, scrapedCount: acc.scraped_videos_count || 0,
-                lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
-              }))}
-              isLoading={accountsLoading}
-              onSync={handleSyncAccount}
-              onDelete={handleDeleteAccount}
-              onViewVideos={handleViewVideos}
-              onApprove={handleApprove}
-              onReject={handleReject}
-              isSyncing={syncAccount.isPending}
-              showApprovalActions={isAdmin || isClient}
-            />
+             <PlatformAccountsTable
+               platform="tiktok"
+               accounts={sortedAccounts.map((acc: any) => ({
+                 id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
+                 followersCount: acc.followers_count, postsCount: acc.videos_count, likesCount: acc.likes_count,
+                 totalViews: Number(acc.total_views || 0) > 0 ? acc.total_views : (derivedViewsByAccount[acc.id] || 0),
+                 scrapedCount: acc.scraped_videos_count || 0,
+                 lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
+               }))}
+               isLoading={accountsLoading}
+               onSync={handleSyncAccount}
+               onDelete={handleDeleteAccount}
+               onViewVideos={handleViewVideos}
+               onApprove={handleApprove}
+               onReject={handleReject}
+               isSyncing={syncAccount.isPending}
+               showApprovalActions={isAdmin || isClient}
+             />
           )}
         </CardContent>
       </Card>
