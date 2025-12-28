@@ -167,7 +167,20 @@ function mapApifyItemsToPosts(items: any[]): InstagramPost[] {
     const views = toInt(it?.videoViewCount ?? it?.videoPlayCount ?? it?.viewsCount ?? it?.viewCount ?? 0);
 
     const ts = it?.timestamp || it?.takenAtTimestamp || it?.takenAt || it?.createdAt;
-    const postedAt = ts ? new Date(ts * 1000).toISOString() : null;
+    let postedAt: string | null = null;
+    if (ts) {
+      try {
+        const dateValue = typeof ts === 'number' ? ts * 1000 : new Date(ts).getTime();
+        if (Number.isFinite(dateValue) && dateValue > 0) {
+          const d = new Date(dateValue);
+          if (!isNaN(d.getTime())) {
+            postedAt = d.toISOString();
+          }
+        }
+      } catch {
+        // Invalid date, keep null
+      }
+    }
 
     posts.push({
       postUrl: url,
