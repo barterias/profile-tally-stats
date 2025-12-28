@@ -65,65 +65,82 @@ function parseCount(text?: string | number | null): number {
 // GraphQL query hash for user media
 const QUERY_HASH = 'e769aa130647d2354c40ea6a439bfc08';
 
-async function fetchUserInfo(username: string): Promise<any> {
+async function fetchUserInfo(username: string): Promise<any | null> {
   console.log(`[Instagram Native] Fetching user info for: ${username}`);
   
-  // Try web_profile_info endpoint
-  const response = await fetch(
-    `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`,
-    {
-      headers: {
-        ...browserHeaders,
-        'X-IG-App-ID': '936619743392459',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-    }
-  );
-  
-  if (response.ok) {
-    const data = await response.json();
-    return data?.data?.user;
-  }
-  
-  // Fallback: scrape from HTML
-  console.log('[Instagram Native] Falling back to HTML scraping...');
-  const htmlResponse = await fetch(`https://www.instagram.com/${username}/`, {
-    headers: browserHeaders,
-  });
-  
-  if (!htmlResponse.ok) {
-    throw new Error(`Perfil não encontrado: ${username}`);
-  }
-  
-  const html = await htmlResponse.text();
-  
-  // Try to find shared data
-  const sharedDataMatch = html.match(/window\._sharedData\s*=\s*({.+?});<\/script>/);
-  if (sharedDataMatch) {
-    const sharedData = JSON.parse(sharedDataMatch[1]);
-    return sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user;
-  }
-  
-  // Extract from meta tags
-  const metaMatch = html.match(/<meta\s+content="([^"]+)"\s+property="og:description"/);
-  const imgMatch = html.match(/<meta\s+content="([^"]+)"\s+property="og:image"/);
-  
-  if (metaMatch) {
-    const desc = metaMatch[1];
-    const statsMatch = desc.match(/([\d,.]+[KMB]?)\s*Followers.*?([\d,.]+[KMB]?)\s*Following.*?([\d,.]+[KMB]?)\s*Posts/i);
+  try {
+    // Try web_profile_info endpoint
+    const response = await fetch(
+      `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`,
+      {
+        headers: {
+          ...browserHeaders,
+          'X-IG-App-ID': '936619743392459',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      }
+    );
     
-    if (statsMatch) {
-      return {
-        username,
-        profile_pic_url: imgMatch?.[1],
-        edge_followed_by: { count: parseCount(statsMatch[1]) },
-        edge_follow: { count: parseCount(statsMatch[2]) },
-        edge_owner_to_timeline_media: { count: parseCount(statsMatch[3]) },
-      };
+    if (response.ok) {
+      const data = await response.json();
+      if (data?.data?.user) {
+        return data.data.user;
+      }
     }
+    
+    // Fallback: scrape from HTML
+    console.log('[Instagram Native] Falling back to HTML scraping...');
+    const htmlResponse = await fetch(`https://www.instagram.com/${username}/`, {
+      headers: browserHeaders,
+    });
+    
+    if (!htmlResponse.ok) {
+      console.warn(`[Instagram Native] Profile not found or private: ${username} (status: ${htmlResponse.status})`);
+      return null;
+    }
+    
+    const html = await htmlResponse.text();
+    
+    // Check if profile is private or doesn't exist
+    if (html.includes('Esta página não está disponível') || 
+        html.includes("Sorry, this page isn't available") ||
+        html.includes('Esta conta é privada')) {
+      console.warn(`[Instagram Native] Profile unavailable or private: ${username}`);
+      return null;
+    }
+    
+    // Try to find shared data
+    const sharedDataMatch = html.match(/window\._sharedData\s*=\s*({.+?});<\/script>/);
+    if (sharedDataMatch) {
+      const sharedData = JSON.parse(sharedDataMatch[1]);
+      return sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user;
+    }
+    
+    // Extract from meta tags
+    const metaMatch = html.match(/<meta\s+content="([^"]+)"\s+property="og:description"/);
+    const imgMatch = html.match(/<meta\s+content="([^"]+)"\s+property="og:image"/);
+    
+    if (metaMatch) {
+      const desc = metaMatch[1];
+      const statsMatch = desc.match(/([\d,.]+[KMB]?)\s*Followers.*?([\d,.]+[KMB]?)\s*Following.*?([\d,.]+[KMB]?)\s*Posts/i);
+      
+      if (statsMatch) {
+        return {
+          username,
+          profile_pic_url: imgMatch?.[1],
+          edge_followed_by: { count: parseCount(statsMatch[1]) },
+          edge_follow: { count: parseCount(statsMatch[2]) },
+          edge_owner_to_timeline_media: { count: parseCount(statsMatch[3]) },
+        };
+      }
+    }
+    
+    console.warn(`[Instagram Native] Could not extract profile data: ${username}`);
+    return null;
+  } catch (error) {
+    console.error(`[Instagram Native] Error fetching user info for ${username}:`, error);
+    return null;
   }
-  
-  throw new Error(`Não foi possível extrair dados do perfil: ${username}`);
 }
 
 async function fetchUserMedia(userId: string, endCursor?: string): Promise<{ posts: InstagramPost[]; nextCursor?: string; hasNextPage: boolean }> {
@@ -187,8 +204,22 @@ async function scrapeAllPosts(username: string): Promise<InstagramScrapedData> {
   // Get user info
   const userInfo = await fetchUserInfo(username);
   
+  // If profile not found, return empty data instead of throwing error
   if (!userInfo) {
-    throw new Error(`Perfil não encontrado: ${username}`);
+    console.warn(`[Instagram Native] Profile not found or unavailable: ${username}, returning empty data`);
+    return {
+      username,
+      displayName: undefined,
+      profileImageUrl: undefined,
+      bio: undefined,
+      followersCount: 0,
+      followingCount: 0,
+      postsCount: 0,
+      scrapedPostsCount: 0,
+      totalViews: 0,
+      posts: [],
+      error: `Perfil não encontrado ou privado: ${username}`,
+    } as InstagramScrapedData & { error?: string };
   }
   
   const userId = userInfo.id || userInfo.pk;
@@ -429,8 +460,15 @@ Deno.serve(async (req) => {
       }, { onConflict: 'platform,username' });
     }
 
+    // Check if we got an error from scraping (profile not found but not throwing)
+    const hasError = (data as any).error;
+    
     return new Response(
-      JSON.stringify({ success: true, data }),
+      JSON.stringify({ 
+        success: !hasError, 
+        data,
+        warning: hasError ? (data as any).error : undefined,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: unknown) {
@@ -438,9 +476,22 @@ Deno.serve(async (req) => {
     
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     
+    // Return partial success with error info instead of 500
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        success: false, 
+        error: errorMessage,
+        data: {
+          username: '',
+          followersCount: 0,
+          followingCount: 0,
+          postsCount: 0,
+          scrapedPostsCount: 0,
+          totalViews: 0,
+          posts: [],
+        }
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
