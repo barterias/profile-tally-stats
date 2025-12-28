@@ -125,83 +125,10 @@ export function PlatformAccountsTable({
     return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rejeitada</Badge>;
   };
 
-  // Render "X de Y" content count with tooltip and "Coletar Mais" button
+  // Render content count - show actual videos in database
   const renderContentCount = (account: AccountData) => {
-    const total = account.postsCount || 0;
-    const scraped = account.scrapedCount || 0;
-    const hasIncomplete = scraped > 0 && scraped < total;
-    const isCurrentlySyncing = isSyncing && syncingAccountId === account.id;
-
-    if (scraped === 0 && total === 0) {
-      return <span className="text-muted-foreground">0</span>;
-    }
-
-    if (scraped === 0) {
-      return <span>{formatNumber(total)}</span>;
-    }
-
-    return (
-      <div className="flex items-center justify-end gap-2">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-1 cursor-help">
-                <span className={hasIncomplete ? 'text-warning' : ''}>
-                  {scraped} de {total}
-                </span>
-                {hasIncomplete && (
-                  <AlertCircle className="h-3 w-3 text-warning" />
-                )}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="text-sm">
-                {scraped} {labels.contentLabel.toLowerCase()} coletados de {total} totais
-                {hasIncomplete && (
-                  <span className="block text-xs text-muted-foreground mt-1">
-                    Views baseadas apenas nos coletados
-                  </span>
-                )}
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        
-        {/* "Coletar Mais" button when there are more to collect */}
-        {hasIncomplete && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => onSync(account.id, true)}
-                  disabled={isSyncing}
-                >
-                  {isCurrentlySyncing ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <>
-                      <Plus className="h-3 w-3 mr-1" />
-                      Mais
-                    </>
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-sm">
-                  Coletar mais {labels.contentLabel.toLowerCase()}
-                  <span className="block text-xs text-muted-foreground">
-                    Aproximadamente +{Math.min(20, total - scraped)} {labels.contentLabel.toLowerCase()}
-                  </span>
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-      </div>
-    );
+    const count = account.postsCount || 0;
+    return <span>{formatNumber(count)}</span>;
   };
 
   return (
