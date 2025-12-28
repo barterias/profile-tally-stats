@@ -367,7 +367,12 @@ function extractUserData(data: any, username: string): Partial<TikTokScrapedData
   }
 
   // Keep secUid if present (used for pagination)
-  const secUid = userData?.secUid || userData?.sec_uid || userData?.sec_uid_str;
+  const secUid =
+    userData?.secUid ||
+    userData?.sec_uid ||
+    userData?.sec_uid_str ||
+    userData?.secUidStr;
+
   if (secUid) {
     (result as any).secUid = String(secUid);
   }
@@ -587,17 +592,20 @@ async function scrapeAllVideos(username: string, startCursor?: string): Promise<
     if (v?.videoId) videoMap.set(v.videoId, v);
   }
 
-  let cursor: string | undefined = startCursor ?? initialCursor;
+  // TikTok internal API commonly accepts cursor=0 for the first page.
+  // Sometimes the HTML doesn't expose a cursor, so we still try pagination as long as we have secUid.
+  let cursor: string | undefined = startCursor ?? initialCursor ?? '0';
   let pages = 0;
 
   // Try pagination when possible
-  if (secUid && cursor) {
+  if (secUid) {
     console.log(`[TikTok Native] Pagination enabled. startCursor=${String(cursor).slice(0, 24)}...`);
 
     // Hard limits to avoid timeouts / blocks
-    const maxPages = 6;
+    const maxPages = 10;
+    const targetCount = userData.videosCount && userData.videosCount > 0 ? userData.videosCount : Number.POSITIVE_INFINITY;
 
-    while (pages < maxPages && videoMap.size < (userData.videosCount || 999999)) {
+    while (pages < maxPages && videoMap.size < targetCount) {
       const res = await fetchMoreVideos(username, secUid, String(cursor));
       pages++;
 
@@ -610,15 +618,15 @@ async function scrapeAllVideos(username: string, startCursor?: string): Promise<
         break;
       }
 
-      cursor = res.nextCursor;
-
       // Stop if API returns no new videos
       if (res.videos.length === 0) break;
+
+      cursor = res.nextCursor;
 
       console.log(`[TikTok Native] Page ${pages}: total videos now ${videoMap.size}`);
     }
   } else {
-    console.log('[TikTok Native] Pagination not available (missing secUid/cursor)');
+    console.log('[TikTok Native] Pagination not available (missing secUid)');
   }
 
   const videos = Array.from(videoMap.values());
