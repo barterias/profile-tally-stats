@@ -5,18 +5,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// YouTube Innertube API
-const YOUTUBE_BROWSE_URL = 'https://www.youtube.com/youtubei/v1/browse';
-
-const INNERTUBE_CONTEXT = {
-  context: {
-    client: {
-      clientName: 'WEB',
-      clientVersion: '2.20240101.00.00',
-      hl: 'en',
-      gl: 'US',
-    },
-  },
+const browserHeaders = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Cache-Control': 'no-cache',
 };
 
 interface YouTubeVideo {
@@ -50,23 +43,24 @@ function parseCompactCount(text?: string | number | null): number {
   if (text === null || text === undefined) return 0;
   if (typeof text === 'number') return Math.round(text);
   
-  const str = String(text).trim().replace(/,/g, '');
-  const match = str.match(/([\d.]+)\s*(K|M|B|mil|mi|bi)?/i);
+  const str = String(text).trim().replace(/,/g, '').replace(/\./g, '');
+  
+  // Handle "123 views", "1.5K views", "2M views" etc.
+  const match = str.match(/([\d,.]+)\s*(K|M|B|mil|mi|bi|thousand|million|billion)?/i);
   if (!match) return parseInt(str.replace(/\D/g, ''), 10) || 0;
   
-  let value = parseFloat(match[1]);
-  const suffix = match[2]?.toUpperCase();
+  let value = parseFloat(match[1].replace(',', '.'));
+  const suffix = match[2]?.toLowerCase();
   
-  if (suffix === 'K' || suffix === 'MIL') value *= 1_000;
-  else if (suffix === 'M' || suffix === 'MI') value *= 1_000_000;
-  else if (suffix === 'B' || suffix === 'BI') value *= 1_000_000_000;
+  if (suffix === 'k' || suffix === 'mil' || suffix === 'thousand') value *= 1_000;
+  else if (suffix === 'm' || suffix === 'mi' || suffix === 'million') value *= 1_000_000;
+  else if (suffix === 'b' || suffix === 'bi' || suffix === 'billion') value *= 1_000_000_000;
   
   return Math.round(value);
 }
 
 function parseDuration(duration?: string): number {
   if (!duration) return 0;
-  // Format: "4:30" or "1:23:45"
   const parts = duration.split(':').map(p => parseInt(p, 10));
   if (parts.length === 2) return parts[0] * 60 + parts[1];
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
@@ -94,15 +88,11 @@ async function resolveChannelId(identifier: string): Promise<{ channelId: string
   console.log(`[YouTube Native] Resolving handle: ${handle}`);
   
   const channelUrl = `https://www.youtube.com/@${handle}`;
-  const response = await fetch(channelUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept-Language': 'en-US,en;q=0.9',
-    },
-  });
+  const response = await fetch(channelUrl, { headers: browserHeaders });
   
   if (!response.ok) {
-    throw new Error(`Canal não encontrado: ${handle}`);
+    console.warn(`[YouTube Native] Channel not found: ${handle}`);
+    return { channelId: '', handle };
   }
   
   const html = await response.text();
@@ -112,219 +102,368 @@ async function resolveChannelId(identifier: string): Promise<{ channelId: string
                          html.match(/"externalId":"(UC[\w-]+)"/);
   
   if (!channelIdMatch) {
-    throw new Error(`Não foi possível extrair o Channel ID de: ${handle}`);
+    console.warn(`[YouTube Native] Could not extract channel ID from: ${handle}`);
+    return { channelId: '', handle };
   }
   
   return { channelId: channelIdMatch[1], handle };
 }
 
-async function fetchChannelPage(channelId: string): Promise<any> {
-  const url = `https://www.youtube.com/channel/${channelId}/videos`;
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept-Language': 'en-US,en;q=0.9',
-    },
-  });
+// Extract all video data from ytInitialData
+function extractAllVideos(data: any): YouTubeVideo[] {
+  const videos: YouTubeVideo[] = [];
+  const seenIds = new Set<string>();
   
-  if (!response.ok) {
-    throw new Error(`Erro ao acessar canal: ${response.status}`);
+  function extractFromRenderer(renderer: any, isShort = false): YouTubeVideo | null {
+    const videoId = renderer?.videoId;
+    if (!videoId || seenIds.has(videoId)) return null;
+    seenIds.add(videoId);
+    
+    const viewCountText = renderer?.viewCountText?.simpleText ||
+                         renderer?.viewCountText?.runs?.[0]?.text ||
+                         renderer?.shortViewCountText?.simpleText ||
+                         renderer?.shortViewCountText?.runs?.[0]?.text || '0';
+    
+    const title = renderer?.title?.runs?.[0]?.text || 
+                  renderer?.title?.simpleText ||
+                  renderer?.headline?.simpleText || '';
+    
+    return {
+      videoId,
+      title,
+      description: renderer?.descriptionSnippet?.runs?.[0]?.text,
+      thumbnailUrl: renderer?.thumbnail?.thumbnails?.slice(-1)[0]?.url,
+      viewsCount: parseCompactCount(viewCountText),
+      likesCount: 0,
+      commentsCount: 0,
+      publishedAt: renderer?.publishedTimeText?.simpleText,
+      duration: parseDuration(renderer?.lengthText?.simpleText),
+      isShort,
+    };
   }
   
-  const html = await response.text();
-  const dataMatch = html.match(/var ytInitialData = ({.+?});<\/script>/);
-  if (!dataMatch) {
-    throw new Error('Não foi possível extrair dados do canal');
+  function walkObject(obj: any, depth = 0): void {
+    if (!obj || typeof obj !== 'object' || depth > 20) return;
+    
+    // Check for video renderers
+    if (obj.videoRenderer) {
+      const video = extractFromRenderer(obj.videoRenderer, false);
+      if (video) videos.push(video);
+    }
+    if (obj.gridVideoRenderer) {
+      const video = extractFromRenderer(obj.gridVideoRenderer, false);
+      if (video) videos.push(video);
+    }
+    if (obj.compactVideoRenderer) {
+      const video = extractFromRenderer(obj.compactVideoRenderer, false);
+      if (video) videos.push(video);
+    }
+    if (obj.reelItemRenderer) {
+      const video = extractFromRenderer(obj.reelItemRenderer, true);
+      if (video) videos.push(video);
+    }
+    if (obj.shortsLockupViewModel) {
+      const videoId = obj.shortsLockupViewModel?.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId;
+      if (videoId && !seenIds.has(videoId)) {
+        seenIds.add(videoId);
+        const accessibilityText = obj.shortsLockupViewModel?.accessibilityText || '';
+        const viewsMatch = accessibilityText.match(/([\d,.]+[KMB]?)\s*views/i);
+        videos.push({
+          videoId,
+          title: obj.shortsLockupViewModel?.overlayMetadata?.primaryText?.content || '',
+          thumbnailUrl: obj.shortsLockupViewModel?.thumbnail?.sources?.slice(-1)[0]?.url,
+          viewsCount: viewsMatch ? parseCompactCount(viewsMatch[1]) : 0,
+          likesCount: 0,
+          commentsCount: 0,
+          isShort: true,
+        });
+      }
+    }
+    
+    // Recurse into arrays and objects
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        walkObject(item, depth + 1);
+      }
+    } else {
+      for (const key of Object.keys(obj)) {
+        walkObject(obj[key], depth + 1);
+      }
+    }
   }
   
-  return JSON.parse(dataMatch[1]);
+  walkObject(data);
+  return videos;
 }
 
-async function fetchMoreVideos(continuation: string): Promise<any> {
-  const response = await fetch(YOUTUBE_BROWSE_URL, {
+// Extract continuation token from data
+function extractContinuation(data: any): string | undefined {
+  let token: string | undefined;
+  
+  function walk(obj: any, depth = 0): void {
+    if (!obj || typeof obj !== 'object' || depth > 15 || token) return;
+    
+    if (obj.continuationCommand?.token) {
+      token = obj.continuationCommand.token;
+      return;
+    }
+    if (obj.continuationEndpoint?.continuationCommand?.token) {
+      token = obj.continuationEndpoint.continuationCommand.token;
+      return;
+    }
+    
+    if (Array.isArray(obj)) {
+      for (const item of obj) walk(item, depth + 1);
+    } else {
+      for (const key of Object.keys(obj)) walk(obj[key], depth + 1);
+    }
+  }
+  
+  walk(data);
+  return token;
+}
+
+// Parse channel metadata
+function parseChannelData(data: any, html: string): Partial<YouTubeScrapedData> {
+  const header = data?.header?.c4TabbedHeaderRenderer || 
+                 data?.header?.pageHeaderRenderer;
+  const metadata = data?.metadata?.channelMetadataRenderer || {};
+  
+  // Extract from header
+  let displayName = header?.title || metadata?.title || '';
+  let username = metadata?.vanityChannelUrl?.split('@')[1] || '';
+  let channelId = metadata?.externalId || header?.channelId || '';
+  let profileImageUrl = '';
+  let bannerUrl = '';
+  let subscribersCount = 0;
+  let videosCount = 0;
+  let description = metadata?.description?.substring(0, 500) || '';
+  
+  // Try to get avatar
+  const avatarSources = header?.avatar?.thumbnails || [];
+  profileImageUrl = avatarSources[avatarSources.length - 1]?.url || avatarSources[0]?.url || '';
+  
+  // Try banner
+  const bannerSources = header?.banner?.thumbnails || [];
+  bannerUrl = bannerSources[bannerSources.length - 1]?.url || '';
+  
+  // Subscribers
+  const subscriberText = header?.subscriberCountText?.simpleText ||
+                         header?.subscriberCountText?.runs?.[0]?.text || '';
+  subscribersCount = parseCompactCount(subscriberText);
+  
+  // Video count
+  const videoCountText = header?.videosCountText?.simpleText ||
+                         header?.videosCountText?.runs?.[0]?.text || '';
+  videosCount = parseCompactCount(videoCountText);
+  
+  // Fallback: extract from HTML meta tags
+  if (!displayName) {
+    const titleMatch = html.match(/<meta\s+(?:property="og:title"|name="title")\s+content="([^"]+)"/);
+    if (titleMatch) displayName = titleMatch[1].replace(' - YouTube', '');
+  }
+  
+  if (!channelId) {
+    const cidMatch = html.match(/"channelId":"(UC[\w-]+)"/);
+    if (cidMatch) channelId = cidMatch[1];
+  }
+  
+  // Extract subscriber count from HTML if needed
+  if (subscribersCount === 0) {
+    const subMatch = html.match(/"subscriberCountText":\{"simpleText":"([^"]+)"\}/);
+    if (subMatch) subscribersCount = parseCompactCount(subMatch[1]);
+  }
+  
+  return {
+    channelId,
+    username,
+    displayName,
+    profileImageUrl: profileImageUrl?.replace(/=s\d+/, '=s400'),
+    bannerUrl,
+    description,
+    subscribersCount,
+    videosCount,
+  };
+}
+
+// Fetch more videos with continuation
+async function fetchMoreVideos(continuation: string): Promise<{ videos: YouTubeVideo[]; nextContinuation?: string }> {
+  const response = await fetch('https://www.youtube.com/youtubei/v1/browse', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      ...browserHeaders,
     },
     body: JSON.stringify({
-      ...INNERTUBE_CONTEXT,
+      context: {
+        client: {
+          clientName: 'WEB',
+          clientVersion: '2.20240101.00.00',
+          hl: 'en',
+          gl: 'US',
+        },
+      },
       continuation,
     }),
   });
   
   if (!response.ok) {
-    throw new Error(`Erro ao buscar mais vídeos: ${response.status}`);
+    console.error(`[YouTube Native] Continuation request failed: ${response.status}`);
+    return { videos: [] };
   }
   
-  return response.json();
+  const data = await response.json();
+  const videos = extractAllVideos(data);
+  const nextContinuation = extractContinuation(data);
+  
+  return { videos, nextContinuation };
 }
 
-function parseChannelData(data: any): Partial<YouTubeScrapedData> {
-  const header = data?.header?.c4TabbedHeaderRenderer || 
-                 data?.header?.pageHeaderRenderer ||
-                 data?.metadata?.channelMetadataRenderer;
+// Fetch a specific tab (videos, shorts)
+async function fetchChannelTab(channelId: string, tab: 'videos' | 'shorts'): Promise<{ videos: YouTubeVideo[]; continuation?: string; html: string; data: any }> {
+  const url = `https://www.youtube.com/channel/${channelId}/${tab}`;
+  console.log(`[YouTube Native] Fetching ${tab} tab: ${url}`);
   
-  const metadata = data?.metadata?.channelMetadataRenderer || {};
+  const response = await fetch(url, { headers: browserHeaders });
   
-  const avatarSources = header?.avatar?.thumbnails || header?.image?.thumbnails || [];
-  const profileImageUrl = avatarSources[avatarSources.length - 1]?.url || avatarSources[0]?.url;
-  
-  const bannerSources = header?.banner?.thumbnails || [];
-  const bannerUrl = bannerSources[bannerSources.length - 1]?.url;
-  
-  const subscriberText = header?.subscriberCountText?.simpleText ||
-                         header?.subscriberCountText?.runs?.[0]?.text || '';
-  
-  const videoCountText = header?.videosCountText?.simpleText ||
-                         header?.videosCountText?.runs?.[0]?.text || '';
-  
-  return {
-    channelId: metadata?.externalId || data?.header?.c4TabbedHeaderRenderer?.channelId || '',
-    username: metadata?.vanityChannelUrl?.split('@')[1] || metadata?.title || '',
-    displayName: header?.title || metadata?.title || '',
-    profileImageUrl: profileImageUrl?.replace(/=s\d+/, '=s400'),
-    bannerUrl,
-    description: metadata?.description?.substring(0, 500),
-    subscribersCount: parseCompactCount(subscriberText),
-    videosCount: parseCompactCount(videoCountText),
-    totalViews: 0,
-  };
-}
-
-function extractVideosFromTab(data: any): { videos: YouTubeVideo[]; continuation?: string } {
-  const videos: YouTubeVideo[] = [];
-  let continuation: string | undefined;
-  
-  // Find videos tab
-  const tabs = data?.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
-  const videosTab = tabs.find((t: any) => 
-    t?.tabRenderer?.title === 'Videos' || t?.tabRenderer?.selected
-  );
-  
-  const content = videosTab?.tabRenderer?.content;
-  const gridRenderer = content?.richGridRenderer;
-  const items = gridRenderer?.contents || [];
-  
-  for (const item of items) {
-    // Check for continuation token
-    if (item?.continuationItemRenderer) {
-      continuation = item.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token;
-      continue;
-    }
-    
-    const videoRenderer = item?.richItemRenderer?.content?.videoRenderer;
-    if (!videoRenderer?.videoId) continue;
-    
-    const viewCountText = videoRenderer?.viewCountText?.simpleText ||
-                         videoRenderer?.viewCountText?.runs?.[0]?.text || '0';
-    
-    const publishedText = videoRenderer?.publishedTimeText?.simpleText ||
-                         videoRenderer?.publishedTimeText?.runs?.[0]?.text;
-    
-    const isShort = videoRenderer?.navigationEndpoint?.reelWatchEndpoint !== undefined ||
-                    videoRenderer?.thumbnailOverlays?.some((o: any) => 
-                      o?.thumbnailOverlayTimeStatusRenderer?.style === 'SHORTS'
-                    );
-    
-    videos.push({
-      videoId: videoRenderer.videoId,
-      title: videoRenderer?.title?.runs?.[0]?.text || videoRenderer?.title?.simpleText || '',
-      description: videoRenderer?.descriptionSnippet?.runs?.[0]?.text,
-      thumbnailUrl: videoRenderer?.thumbnail?.thumbnails?.slice(-1)[0]?.url,
-      viewsCount: parseCompactCount(viewCountText),
-      likesCount: 0,
-      commentsCount: 0,
-      publishedAt: publishedText,
-      duration: parseDuration(videoRenderer?.lengthText?.simpleText),
-      isShort,
-    });
+  if (!response.ok) {
+    console.error(`[YouTube Native] Failed to fetch ${tab} tab: ${response.status}`);
+    return { videos: [], html: '', data: {} };
   }
   
-  return { videos, continuation };
-}
-
-function extractVideosFromContinuation(data: any): { videos: YouTubeVideo[]; continuation?: string } {
-  const videos: YouTubeVideo[] = [];
-  let continuation: string | undefined;
+  const html = await response.text();
   
-  const actions = data?.onResponseReceivedActions || [];
-  for (const action of actions) {
-    const items = action?.appendContinuationItemsAction?.continuationItems || [];
-    
-    for (const item of items) {
-      if (item?.continuationItemRenderer) {
-        continuation = item.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token;
-        continue;
-      }
-      
-      const videoRenderer = item?.richItemRenderer?.content?.videoRenderer;
-      if (!videoRenderer?.videoId) continue;
-      
-      const viewCountText = videoRenderer?.viewCountText?.simpleText ||
-                           videoRenderer?.viewCountText?.runs?.[0]?.text || '0';
-      
-      const publishedText = videoRenderer?.publishedTimeText?.simpleText ||
-                           videoRenderer?.publishedTimeText?.runs?.[0]?.text;
-      
-      const isShort = videoRenderer?.navigationEndpoint?.reelWatchEndpoint !== undefined;
-      
-      videos.push({
-        videoId: videoRenderer.videoId,
-        title: videoRenderer?.title?.runs?.[0]?.text || '',
-        description: videoRenderer?.descriptionSnippet?.runs?.[0]?.text,
-        thumbnailUrl: videoRenderer?.thumbnail?.thumbnails?.slice(-1)[0]?.url,
-        viewsCount: parseCompactCount(viewCountText),
-        likesCount: 0,
-        commentsCount: 0,
-        publishedAt: publishedText,
-        duration: parseDuration(videoRenderer?.lengthText?.simpleText),
-        isShort,
-      });
-    }
+  // Extract ytInitialData
+  const dataMatch = html.match(/var ytInitialData = ({.+?});<\/script>/) ||
+                    html.match(/ytInitialData\s*=\s*({.+?});/);
+  
+  if (!dataMatch) {
+    console.warn(`[YouTube Native] Could not extract ytInitialData from ${tab} tab`);
+    return { videos: [], html, data: {} };
   }
   
-  return { videos, continuation };
+  let data: any;
+  try {
+    data = JSON.parse(dataMatch[1]);
+  } catch (e) {
+    console.error(`[YouTube Native] Failed to parse ytInitialData:`, e);
+    return { videos: [], html, data: {} };
+  }
+  
+  const videos = extractAllVideos(data);
+  const continuation = extractContinuation(data);
+  
+  console.log(`[YouTube Native] ${tab} tab: found ${videos.length} videos, continuation: ${!!continuation}`);
+  
+  return { videos, continuation, html, data };
 }
 
-// Main scraping function - fetches ALL videos with pagination
+// Main scraping function
 async function scrapeAllVideos(channelId: string, handle?: string): Promise<YouTubeScrapedData> {
   console.log(`[YouTube Native] Starting full scrape for channel: ${channelId}`);
   
-  // Fetch initial page
-  const initialData = await fetchChannelPage(channelId);
-  const channelData = parseChannelData(initialData);
+  if (!channelId) {
+    console.warn('[YouTube Native] No channel ID provided');
+    return {
+      channelId: '',
+      username: handle || '',
+      displayName: handle || '',
+      subscribersCount: 0,
+      videosCount: 0,
+      totalViews: 0,
+      scrapedVideosCount: 0,
+      videos: [],
+    };
+  }
   
   const allVideos: YouTubeVideo[] = [];
-  let { videos, continuation } = extractVideosFromTab(initialData);
-  allVideos.push(...videos);
+  const seenIds = new Set<string>();
   
-  console.log(`[YouTube Native] Initial batch: ${videos.length} videos, has continuation: ${!!continuation}`);
+  // 1. Fetch regular videos tab
+  const { videos: regularVideos, continuation: videoCont, html, data } = await fetchChannelTab(channelId, 'videos');
+  const channelData = parseChannelData(data, html);
   
-  // Fetch ALL pages until no more continuation
+  for (const v of regularVideos) {
+    if (!seenIds.has(v.videoId)) {
+      seenIds.add(v.videoId);
+      allVideos.push(v);
+    }
+  }
+  
+  console.log(`[YouTube Native] Initial videos: ${allVideos.length}`);
+  
+  // Paginate through all regular videos
+  let continuation = videoCont;
   let pageCount = 1;
   while (continuation) {
     pageCount++;
-    console.log(`[YouTube Native] Fetching page ${pageCount}...`);
+    console.log(`[YouTube Native] Fetching videos page ${pageCount}...`);
     
     try {
-      const moreData = await fetchMoreVideos(continuation);
-      const result = extractVideosFromContinuation(moreData);
+      const { videos, nextContinuation } = await fetchMoreVideos(continuation);
       
-      if (result.videos.length === 0) {
-        console.log('[YouTube Native] No more videos found, stopping pagination');
+      if (videos.length === 0) {
+        console.log('[YouTube Native] No more videos in continuation');
         break;
       }
       
-      allVideos.push(...result.videos);
-      continuation = result.continuation;
+      for (const v of videos) {
+        if (!seenIds.has(v.videoId)) {
+          seenIds.add(v.videoId);
+          allVideos.push(v);
+        }
+      }
       
-      console.log(`[YouTube Native] Page ${pageCount}: ${result.videos.length} videos, total: ${allVideos.length}`);
+      console.log(`[YouTube Native] Page ${pageCount}: +${videos.length} videos, total: ${allVideos.length}`);
+      continuation = nextContinuation;
       
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(r => setTimeout(r, 300));
     } catch (error) {
-      console.error(`[YouTube Native] Error fetching page ${pageCount}:`, error);
+      console.error(`[YouTube Native] Error on page ${pageCount}:`, error);
+      break;
+    }
+  }
+  
+  // 2. Fetch Shorts tab
+  console.log('[YouTube Native] Fetching Shorts tab...');
+  const { videos: shortsVideos, continuation: shortsCont } = await fetchChannelTab(channelId, 'shorts');
+  
+  for (const v of shortsVideos) {
+    if (!seenIds.has(v.videoId)) {
+      seenIds.add(v.videoId);
+      v.isShort = true;
+      allVideos.push(v);
+    }
+  }
+  
+  console.log(`[YouTube Native] Shorts initial: ${shortsVideos.length}, total now: ${allVideos.length}`);
+  
+  // Paginate Shorts
+  let shortsContinuation = shortsCont;
+  let shortsPage = 1;
+  while (shortsContinuation) {
+    shortsPage++;
+    console.log(`[YouTube Native] Fetching Shorts page ${shortsPage}...`);
+    
+    try {
+      const { videos, nextContinuation } = await fetchMoreVideos(shortsContinuation);
+      
+      if (videos.length === 0) break;
+      
+      for (const v of videos) {
+        if (!seenIds.has(v.videoId)) {
+          seenIds.add(v.videoId);
+          v.isShort = true;
+          allVideos.push(v);
+        }
+      }
+      
+      console.log(`[YouTube Native] Shorts page ${shortsPage}: +${videos.length}, total: ${allVideos.length}`);
+      shortsContinuation = nextContinuation;
+      
+      await new Promise(r => setTimeout(r, 300));
+    } catch (error) {
+      console.error(`[YouTube Native] Error on Shorts page ${shortsPage}:`, error);
       break;
     }
   }
@@ -336,7 +475,7 @@ async function scrapeAllVideos(channelId: string, handle?: string): Promise<YouT
   return {
     channelId,
     username: handle || channelData.username || '',
-    displayName: channelData.displayName || '',
+    displayName: channelData.displayName || handle || '',
     profileImageUrl: channelData.profileImageUrl,
     bannerUrl: channelData.bannerUrl,
     description: channelData.description,
@@ -348,14 +487,13 @@ async function scrapeAllVideos(channelId: string, handle?: string): Promise<YouT
   };
 }
 
-// Save videos to database in batches
+// Save videos to database
 async function saveVideosToDB(supabase: any, accountId: string, videos: YouTubeVideo[]) {
   console.log(`[YouTube Native] Saving ${videos.length} videos to database...`);
   
   let savedCount = 0;
   let updatedCount = 0;
   
-  // Process in batches of 50
   const batchSize = 50;
   for (let i = 0; i < videos.length; i += batchSize) {
     const batch = videos.slice(i, i + batchSize);
@@ -403,7 +541,7 @@ async function saveVideosToDB(supabase: any, accountId: string, videos: YouTubeV
       }
     }
     
-    console.log(`[YouTube Native] Processed batch ${Math.ceil((i + 1) / batchSize)}: ${savedCount} new, ${updatedCount} updated`);
+    console.log(`[YouTube Native] Batch ${Math.ceil((i + 1) / batchSize)}: ${savedCount} new, ${updatedCount} updated`);
   }
   
   return { savedCount, updatedCount };
@@ -449,7 +587,7 @@ Deno.serve(async (req) => {
       // Update account
       await supabase.from('youtube_accounts').update({
         channel_id: data.channelId,
-        username: data.username,
+        username: data.username || handle,
         display_name: data.displayName,
         profile_image_url: data.profileImageUrl,
         banner_url: data.bannerUrl,
@@ -473,7 +611,7 @@ Deno.serve(async (req) => {
       await supabase.from('profile_metrics').upsert({
         profile_id: accountId,
         platform: 'youtube',
-        username: data.username,
+        username: data.username || handle,
         display_name: data.displayName,
         profile_image_url: data.profileImageUrl,
         followers: data.subscribersCount,
@@ -499,8 +637,21 @@ Deno.serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        success: false, 
+        error: errorMessage,
+        data: {
+          channelId: '',
+          username: '',
+          displayName: '',
+          subscribersCount: 0,
+          videosCount: 0,
+          totalViews: 0,
+          scrapedVideosCount: 0,
+          videos: [],
+        }
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
