@@ -452,12 +452,22 @@ async function fetchProfilePage(username: string): Promise<{ userData: Partial<T
     
     // Extract user data
     const userData = extractUserData(jsonData, username);
-    
+
+    // If secUid wasn't found in parsed JSON, try extracting directly from the HTML as a fallback.
+    // This is important because pagination depends on secUid.
+    if (!(userData as any)?.secUid) {
+      const secUidMatch = html.match(/"secUid"\s*:\s*"([^"]+)"/);
+      if (secUidMatch?.[1]) {
+        (userData as any).secUid = secUidMatch[1].replace(/\\u002F/g, '/');
+        console.log('[TikTok Native] Found secUid via HTML regex');
+      }
+    }
+
     // Extract videos
     const videos = extractVideosFromData(jsonData, username);
-    
+
     console.log(`[TikTok Native] Extracted: ${Object.keys(userData).length} user fields, ${videos.length} videos`);
-    
+
     // Try to find cursor for pagination
     let cursor: string | undefined;
     const cursorPaths = [
