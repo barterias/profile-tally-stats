@@ -49,12 +49,19 @@ export function TikTokTab() {
   const { data: videos = [], isLoading: videosLoading } = useTikTokVideos(selectedAccount?.id || '');
   const { data: allVideosViews = [] } = useAllTikTokVideos();
 
-  const derivedViewsByAccount = allVideosViews.reduce<Record<string, number>>((acc, row: any) => {
-    const accountId = row?.account_id;
-    const views = Number(row?.views_count || 0);
-    if (accountId) acc[accountId] = (acc[accountId] || 0) + views;
-    return acc;
-  }, {});
+  // Derive views and video counts from actual tiktok_videos table
+  const { derivedViewsByAccount, videoCountByAccount } = allVideosViews.reduce<{ derivedViewsByAccount: Record<string, number>; videoCountByAccount: Record<string, number> }>(
+    (acc, row: any) => {
+      const accountId = row?.account_id;
+      const views = Number(row?.views_count || 0);
+      if (accountId) {
+        acc.derivedViewsByAccount[accountId] = (acc.derivedViewsByAccount[accountId] || 0) + views;
+        acc.videoCountByAccount[accountId] = (acc.videoCountByAccount[accountId] || 0) + 1;
+      }
+      return acc;
+    },
+    { derivedViewsByAccount: {}, videoCountByAccount: {} }
+  );
 
   const addAccount = useAddTikTokAccount();
   const syncAccount = useSyncTikTokAccount();
@@ -103,7 +110,7 @@ export function TikTokTab() {
   const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.likes_count || 0) - Number(a.likes_count || 0));
   const totalFollowers = visibleAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
   const totalLikes = visibleAccounts.reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0);
-  const totalVideos = visibleAccounts.reduce((sum, acc) => sum + (acc.scraped_videos_count || 0), 0);
+  const totalVideos = visibleAccounts.reduce((sum, acc) => sum + (videoCountByAccount[acc.id] || 0), 0);
   const totalViews = visibleAccounts.reduce((sum, acc: any) => {
     const derived = derivedViewsByAccount[acc.id] || 0;
     const stored = Number(acc.total_views || 0);
@@ -203,7 +210,7 @@ export function TikTokTab() {
                platform="tiktok"
                accounts={sortedAccounts.map((acc: any) => ({
                  id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
-                 followersCount: acc.followers_count, postsCount: acc.scraped_videos_count || 0, likesCount: acc.likes_count,
+                 followersCount: acc.followers_count, postsCount: videoCountByAccount[acc.id] || 0, likesCount: acc.likes_count,
                  totalViews: Number(acc.total_views || 0) > 0 ? acc.total_views : (derivedViewsByAccount[acc.id] || 0),
                  scrapedCount: acc.scraped_videos_count || 0,
                  lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
