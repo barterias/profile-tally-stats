@@ -56,15 +56,17 @@ export function InstagramTab() {
   const approveAccount = useApproveAccount();
   const rejectAccount = useRejectAccount();
 
-  // Calculate total views per account from posts
-  const viewsByAccount = useMemo(() => {
-    const map: Record<string, number> = {};
+  // Calculate total views and post counts per account from actual posts in DB
+  const { viewsByAccount, postCountByAccount } = useMemo(() => {
+    const views: Record<string, number> = {};
+    const counts: Record<string, number> = {};
     allPosts.forEach(post => {
       if (post.account_id) {
-        map[post.account_id] = (map[post.account_id] || 0) + (post.views_count || 0);
+        views[post.account_id] = (views[post.account_id] || 0) + (post.views_count || 0);
+        counts[post.account_id] = (counts[post.account_id] || 0) + 1;
       }
     });
-    return map;
+    return { viewsByAccount: views, postCountByAccount: counts };
   }, [allPosts]);
 
   const handleAddAccount = (username: string) => {
@@ -115,7 +117,7 @@ export function InstagramTab() {
   const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.followers_count || 0) - Number(a.followers_count || 0));
   const totalFollowers = visibleAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
   const totalViews = visibleAccounts.reduce((sum, acc) => sum + (viewsByAccount[acc.id] || 0), 0);
-  const totalPosts = visibleAccounts.reduce((sum, acc) => sum + (acc.posts_count || 0), 0);
+  const totalPosts = visibleAccounts.reduce((sum, acc) => sum + (postCountByAccount[acc.id] || 0), 0);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -220,7 +222,7 @@ export function InstagramTab() {
               platform="instagram"
               accounts={sortedAccounts.map((acc: any) => ({
                 id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
-                followersCount: acc.followers_count, postsCount: acc.posts_count, scrapedCount: acc.scraped_posts_count || 0,
+                followersCount: acc.followers_count, postsCount: postCountByAccount[acc.id] || 0, scrapedCount: acc.scraped_posts_count || 0,
                 totalViews: acc.total_views || viewsByAccount[acc.id] || 0,
                 lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
               }))}
