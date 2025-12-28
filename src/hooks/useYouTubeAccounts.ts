@@ -70,7 +70,7 @@ export function useAddYouTubeAccount() {
           if (updateError) throw updateError;
           
           // Sync the account
-          const { error: syncError } = await supabase.functions.invoke('youtube-scrape', {
+          const { error: syncError } = await supabase.functions.invoke('youtube-scrape-native', {
             body: { accountId: existing.id, username },
           });
           
@@ -96,7 +96,7 @@ export function useAddYouTubeAccount() {
       if (insertError) throw insertError;
       
       // Sync the new account
-      const { error: syncError } = await supabase.functions.invoke('youtube-scrape', {
+      const { error: syncError } = await supabase.functions.invoke('youtube-scrape-native', {
         body: { accountId: newAccount.id, username },
       });
       
@@ -135,7 +135,7 @@ export function useSyncYouTubeAccount() {
       
       if (!account) throw new Error('Canal não encontrado');
       
-      const { error } = await supabase.functions.invoke('youtube-scrape', {
+      const { error } = await supabase.functions.invoke('youtube-scrape-native', {
         body: { accountId, username: account.username },
       });
       
@@ -162,7 +162,7 @@ export function useSyncAllYouTubeAccounts() {
     mutationFn: async (accounts: { id: string; username: string }[]) => {
       const results = await Promise.allSettled(
         accounts.map(async (acc) => {
-          const { error } = await supabase.functions.invoke('youtube-scrape', {
+          const { error } = await supabase.functions.invoke('youtube-scrape-native', {
             body: { accountId: acc.id, username: acc.username },
           });
           if (error) throw error;

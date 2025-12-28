@@ -5,14 +5,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// This function syncs all active accounts from all platforms using ScrapeCreators
+// This function syncs all active accounts from all platforms using native APIs (no third-party services)
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('🚀 Starting batch sync for all accounts via ScrapeCreators...');
+    console.log('🚀 Starting batch sync for all accounts via Native APIs...');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
       for (const account of instagramAccounts) {
         try {
           console.log(`  → Syncing Instagram: ${account.username}`);
-          const response = await fetch(`${supabaseUrl}/functions/v1/instagram-scrape`, {
+          const response = await fetch(`${supabaseUrl}/functions/v1/instagram-scrape-native`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${supabaseKey}`,
@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
       for (const account of youtubeAccounts) {
         try {
           console.log(`  → Syncing YouTube: ${account.username}`);
-          const response = await fetch(`${supabaseUrl}/functions/v1/youtube-scrape`, {
+          const response = await fetch(`${supabaseUrl}/functions/v1/youtube-scrape-native`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${supabaseKey}`,
@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
       for (const account of tiktokAccounts) {
         try {
           console.log(`  → Syncing TikTok: ${account.username}`);
-          const response = await fetch(`${supabaseUrl}/functions/v1/tiktok-scrape`, {
+          const response = await fetch(`${supabaseUrl}/functions/v1/tiktok-scrape-native`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${supabaseKey}`,
