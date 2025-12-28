@@ -59,8 +59,8 @@ export interface ScrapeResult {
 export const instagramApi = {
   // Scrape Instagram profile
   async scrapeProfile(profileUrl: string): Promise<ScrapeResult> {
-    const { data, error } = await supabase.functions.invoke('instagram-scrape-native', {
-      body: { profileUrl, action: 'scrape' },
+    const { data, error } = await supabase.functions.invoke('instagram-scrape-apify', {
+      body: { profileUrl },
     });
 
     if (error) {
@@ -221,12 +221,13 @@ export const instagramApi = {
 
     // IMPORTANT: do the sync through the backend function so posts/views/likes
     // are persisted with service role (avoids RLS/upsert constraint issues)
-    const { data, error } = await supabase.functions.invoke('instagram-scrape-native', {
+    const { data, error } = await supabase.functions.invoke('instagram-scrape-apify', {
       body: {
         profileUrl: account.profile_url,
         accountId,
         fetchVideos: true,
-        continueFrom,
+        // grab a generous amount per sync
+        resultsLimit: 200,
       },
     });
 
