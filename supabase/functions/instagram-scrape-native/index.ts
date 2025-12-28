@@ -5,11 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Instagram semi-public endpoints
-const IG_WEB_API = 'https://www.instagram.com/api/v1';
-const IG_GRAPHQL_API = 'https://www.instagram.com/graphql/query';
-
-// Common headers to mimic browser
 const browserHeaders = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -22,8 +17,18 @@ const browserHeaders = {
   'Sec-Fetch-Dest': 'document',
   'Sec-Fetch-Mode': 'navigate',
   'Sec-Fetch-Site': 'none',
-  'Sec-Fetch-User': '?1',
 };
+
+interface InstagramPost {
+  postUrl: string;
+  type: string;
+  thumbnailUrl?: string;
+  caption?: string;
+  likesCount: number;
+  commentsCount: number;
+  viewsCount: number;
+  postedAt?: string;
+}
 
 interface InstagramScrapedData {
   username: string;
@@ -35,19 +40,10 @@ interface InstagramScrapedData {
   postsCount: number;
   scrapedPostsCount: number;
   totalViews: number;
-  posts: Array<{
-    postUrl: string;
-    type: string;
-    thumbnailUrl?: string;
-    caption?: string;
-    likesCount: number;
-    commentsCount: number;
-    viewsCount: number;
-    postedAt?: string;
-  }>;
+  posts: InstagramPost[];
+  nextCursor?: string;
 }
 
-// Parse compact count (1.5M, 500K, etc)
 function parseCount(text?: string | number | null): number {
   if (text === null || text === undefined) return 0;
   if (typeof text === 'number') return Math.round(text);
@@ -66,245 +62,263 @@ function parseCount(text?: string | number | null): number {
   return Math.round(value);
 }
 
-// Scrape profile from web page
-async function scrapeProfileFromWeb(username: string): Promise<InstagramScrapedData> {
-  console.log(`[Instagram Native] Scraping web profile for: ${username}`);
+// GraphQL query hash for user media
+const QUERY_HASH = 'e769aa130647d2354c40ea6a439bfc08';
+
+async function fetchUserInfo(username: string): Promise<any> {
+  console.log(`[Instagram Native] Fetching user info for: ${username}`);
   
-  // Try multiple endpoints
-  const endpoints = [
+  // Try web_profile_info endpoint
+  const response = await fetch(
     `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`,
-    `https://www.instagram.com/${username}/?__a=1&__d=dis`,
-  ];
-  
-  let userData: any = null;
-  let error: Error | null = null;
-  
-  for (const endpoint of endpoints) {
-    try {
-      console.log(`[Instagram Native] Trying endpoint: ${endpoint.substring(0, 80)}...`);
-      
-      const response = await fetch(endpoint, {
-        headers: {
-          ...browserHeaders,
-          'X-IG-App-ID': '936619743392459', // Instagram Web App ID
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        userData = data?.data?.user || data?.graphql?.user || data?.user;
-        
-        if (userData) {
-          console.log(`[Instagram Native] Got user data from API`);
-          break;
-        }
-      } else {
-        console.log(`[Instagram Native] Endpoint returned ${response.status}`);
-      }
-    } catch (e) {
-      error = e as Error;
-      console.log(`[Instagram Native] Endpoint failed:`, e);
+    {
+      headers: {
+        ...browserHeaders,
+        'X-IG-App-ID': '936619743392459',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
     }
+  );
+  
+  if (response.ok) {
+    const data = await response.json();
+    return data?.data?.user;
   }
   
   // Fallback: scrape from HTML
-  if (!userData) {
-    console.log('[Instagram Native] Trying HTML scraping fallback...');
-    userData = await scrapeProfileFromHtml(username);
-  }
+  console.log('[Instagram Native] Falling back to HTML scraping...');
+  const htmlResponse = await fetch(`https://www.instagram.com/${username}/`, {
+    headers: browserHeaders,
+  });
   
-  if (!userData) {
+  if (!htmlResponse.ok) {
     throw new Error(`Perfil não encontrado: ${username}`);
   }
   
-  // Parse user data
+  const html = await htmlResponse.text();
+  
+  // Try to find shared data
+  const sharedDataMatch = html.match(/window\._sharedData\s*=\s*({.+?});<\/script>/);
+  if (sharedDataMatch) {
+    const sharedData = JSON.parse(sharedDataMatch[1]);
+    return sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user;
+  }
+  
+  // Extract from meta tags
+  const metaMatch = html.match(/<meta\s+content="([^"]+)"\s+property="og:description"/);
+  const imgMatch = html.match(/<meta\s+content="([^"]+)"\s+property="og:image"/);
+  
+  if (metaMatch) {
+    const desc = metaMatch[1];
+    const statsMatch = desc.match(/([\d,.]+[KMB]?)\s*Followers.*?([\d,.]+[KMB]?)\s*Following.*?([\d,.]+[KMB]?)\s*Posts/i);
+    
+    if (statsMatch) {
+      return {
+        username,
+        profile_pic_url: imgMatch?.[1],
+        edge_followed_by: { count: parseCount(statsMatch[1]) },
+        edge_follow: { count: parseCount(statsMatch[2]) },
+        edge_owner_to_timeline_media: { count: parseCount(statsMatch[3]) },
+      };
+    }
+  }
+  
+  throw new Error(`Não foi possível extrair dados do perfil: ${username}`);
+}
+
+async function fetchUserMedia(userId: string, endCursor?: string): Promise<{ posts: InstagramPost[]; nextCursor?: string; hasNextPage: boolean }> {
+  console.log(`[Instagram Native] Fetching media for user ${userId}, cursor: ${endCursor ? 'yes' : 'initial'}`);
+  
+  const variables = {
+    id: userId,
+    first: 50,
+    after: endCursor || null,
+  };
+  
+  const url = `https://www.instagram.com/graphql/query/?query_hash=${QUERY_HASH}&variables=${encodeURIComponent(JSON.stringify(variables))}`;
+  
+  const response = await fetch(url, {
+    headers: {
+      ...browserHeaders,
+      'X-IG-App-ID': '936619743392459',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  });
+  
+  if (!response.ok) {
+    console.log(`[Instagram Native] GraphQL request failed: ${response.status}`);
+    return { posts: [], hasNextPage: false };
+  }
+  
+  const data = await response.json();
+  const media = data?.data?.user?.edge_owner_to_timeline_media;
+  
+  if (!media) {
+    return { posts: [], hasNextPage: false };
+  }
+  
+  const posts: InstagramPost[] = media.edges.map((edge: any) => {
+    const node = edge.node;
+    const isVideo = node.__typename === 'GraphVideo' || node.is_video;
+    
+    return {
+      postUrl: node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : '',
+      type: isVideo ? 'video' : (node.__typename === 'GraphSidecar' ? 'carousel' : 'post'),
+      thumbnailUrl: node.display_url || node.thumbnail_src,
+      caption: node.edge_media_to_caption?.edges?.[0]?.node?.text?.substring(0, 200) || '',
+      likesCount: node.edge_liked_by?.count || 0,
+      commentsCount: node.edge_media_to_comment?.count || 0,
+      viewsCount: isVideo ? (node.video_view_count || 0) : 0,
+      postedAt: node.taken_at_timestamp ? new Date(node.taken_at_timestamp * 1000).toISOString() : undefined,
+    };
+  });
+  
+  return {
+    posts,
+    nextCursor: media.page_info?.end_cursor,
+    hasNextPage: media.page_info?.has_next_page || false,
+  };
+}
+
+// Main function - fetches ALL posts with pagination
+async function scrapeAllPosts(username: string): Promise<InstagramScrapedData> {
+  console.log(`[Instagram Native] Starting full scrape for: ${username}`);
+  
+  // Get user info
+  const userInfo = await fetchUserInfo(username);
+  
+  if (!userInfo) {
+    throw new Error(`Perfil não encontrado: ${username}`);
+  }
+  
+  const userId = userInfo.id || userInfo.pk;
+  
   const result: InstagramScrapedData = {
-    username: userData.username || username,
-    displayName: userData.full_name || userData.fullName,
-    profileImageUrl: userData.profile_pic_url_hd || userData.profile_pic_url || userData.profilePicUrl,
-    bio: userData.biography || userData.bio,
-    followersCount: userData.edge_followed_by?.count || userData.follower_count || userData.followersCount || 0,
-    followingCount: userData.edge_follow?.count || userData.following_count || userData.followingCount || 0,
-    postsCount: userData.edge_owner_to_timeline_media?.count || userData.media_count || userData.postsCount || 0,
+    username: userInfo.username || username,
+    displayName: userInfo.full_name,
+    profileImageUrl: userInfo.profile_pic_url_hd || userInfo.profile_pic_url,
+    bio: userInfo.biography,
+    followersCount: userInfo.edge_followed_by?.count || userInfo.follower_count || 0,
+    followingCount: userInfo.edge_follow?.count || userInfo.following_count || 0,
+    postsCount: userInfo.edge_owner_to_timeline_media?.count || userInfo.media_count || 0,
     scrapedPostsCount: 0,
     totalViews: 0,
     posts: [],
   };
   
-  // Parse posts if available
-  const edges = userData.edge_owner_to_timeline_media?.edges || [];
-  
-  for (const edge of edges.slice(0, 50)) {
-    const node = edge.node || edge;
-    const isVideo = node.__typename === 'GraphVideo' || node.is_video;
+  // If we have user ID, fetch ALL posts with pagination
+  if (userId) {
+    let cursor: string | undefined;
+    let hasMore = true;
+    let pageCount = 0;
     
-    result.posts.push({
-      postUrl: node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : '',
-      type: isVideo ? 'video' : (node.__typename === 'GraphSidecar' ? 'carousel' : 'post'),
-      thumbnailUrl: node.display_url || node.thumbnail_src,
-      caption: node.edge_media_to_caption?.edges?.[0]?.node?.text?.substring(0, 200) || '',
-      likesCount: node.edge_liked_by?.count || node.like_count || 0,
-      commentsCount: node.edge_media_to_comment?.count || node.comment_count || 0,
-      viewsCount: isVideo ? (node.video_view_count || node.play_count || 0) : 0,
-      postedAt: node.taken_at_timestamp ? new Date(node.taken_at_timestamp * 1000).toISOString() : undefined,
+    while (hasMore) {
+      pageCount++;
+      console.log(`[Instagram Native] Fetching page ${pageCount}...`);
+      
+      try {
+        const { posts, nextCursor, hasNextPage } = await fetchUserMedia(userId, cursor);
+        
+        if (posts.length === 0) {
+          console.log('[Instagram Native] No more posts found');
+          break;
+        }
+        
+        result.posts.push(...posts);
+        cursor = nextCursor;
+        hasMore = hasNextPage && !!nextCursor;
+        
+        console.log(`[Instagram Native] Page ${pageCount}: ${posts.length} posts, total: ${result.posts.length}, hasMore: ${hasMore}`);
+        
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error(`[Instagram Native] Error fetching page ${pageCount}:`, error);
+        break;
+      }
+    }
+    
+    result.nextCursor = cursor;
+  } else {
+    // Fallback: use embedded posts from profile
+    const edges = userInfo.edge_owner_to_timeline_media?.edges || [];
+    result.posts = edges.map((edge: any) => {
+      const node = edge.node;
+      const isVideo = node.__typename === 'GraphVideo' || node.is_video;
+      
+      return {
+        postUrl: node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : '',
+        type: isVideo ? 'video' : 'post',
+        thumbnailUrl: node.display_url,
+        caption: node.edge_media_to_caption?.edges?.[0]?.node?.text?.substring(0, 200) || '',
+        likesCount: node.edge_liked_by?.count || 0,
+        commentsCount: node.edge_media_to_comment?.count || 0,
+        viewsCount: isVideo ? (node.video_view_count || 0) : 0,
+        postedAt: node.taken_at_timestamp ? new Date(node.taken_at_timestamp * 1000).toISOString() : undefined,
+      };
     });
   }
   
   result.scrapedPostsCount = result.posts.length;
   result.totalViews = result.posts.reduce((sum, p) => sum + p.viewsCount, 0);
   
-  console.log(`[Instagram Native] Parsed ${result.posts.length} posts`);
+  console.log(`[Instagram Native] Scrape complete: ${result.scrapedPostsCount} posts, ${result.totalViews} views`);
   
   return result;
 }
 
-// Fallback: scrape from HTML page
-async function scrapeProfileFromHtml(username: string): Promise<any> {
-  try {
-    const response = await fetch(`https://www.instagram.com/${username}/`, {
-      headers: browserHeaders,
-    });
+// Save posts to database in batches
+async function savePostsToDB(supabase: any, accountId: string, posts: InstagramPost[]) {
+  console.log(`[Instagram Native] Saving ${posts.length} posts to database...`);
+  
+  let savedCount = 0;
+  let updatedCount = 0;
+  
+  const batchSize = 50;
+  for (let i = 0; i < posts.length; i += batchSize) {
+    const batch = posts.slice(i, i + batchSize);
     
-    if (!response.ok) {
-      console.log(`[Instagram Native] HTML page returned ${response.status}`);
-      return null;
-    }
-    
-    const html = await response.text();
-    
-    // Try to find JSON data in various script tags
-    const patterns = [
-      /"user":\s*({[^}]+})/,
-      /window\._sharedData\s*=\s*({.+?});<\/script>/,
-      /{"props":{"pageProps":{.+?"user":\s*({[^}]+})/,
-    ];
-    
-    for (const pattern of patterns) {
-      const match = html.match(pattern);
-      if (match) {
-        try {
-          const parsed = JSON.parse(match[1]);
-          if (parsed.username || parsed.id) {
-            return parsed;
-          }
-        } catch {
-          // Continue to next pattern
-        }
-      }
-    }
-    
-    // Extract basic info from meta tags
-    const metaMatch = html.match(/<meta\s+content="([^"]+)"\s+property="og:description"/);
-    const imgMatch = html.match(/<meta\s+content="([^"]+)"\s+property="og:image"/);
-    const titleMatch = html.match(/<meta\s+content="([^"]+)"\s+property="og:title"/);
-    
-    if (metaMatch) {
-      // Parse "X Followers, Y Following, Z Posts - description"
-      const desc = metaMatch[1];
-      const numbersMatch = desc.match(/([\d,.]+[KMB]?)\s*Followers.*?([\d,.]+[KMB]?)\s*Following.*?([\d,.]+[KMB]?)\s*Posts/i);
+    for (const post of batch) {
+      if (!post.postUrl) continue;
       
-      if (numbersMatch) {
-        return {
-          username,
-          full_name: titleMatch?.[1]?.split('•')?.[0]?.trim() || username,
-          profile_pic_url: imgMatch?.[1],
-          biography: desc.split(' - ').slice(1).join(' - '),
-          followersCount: parseCount(numbersMatch[1]),
-          followingCount: parseCount(numbersMatch[2]),
-          postsCount: parseCount(numbersMatch[3]),
-        };
-      }
-    }
-    
-    console.log('[Instagram Native] Could not extract data from HTML');
-    return null;
-  } catch (e) {
-    console.log('[Instagram Native] HTML scraping failed:', e);
-    return null;
-  }
-}
+      const { data: existing } = await supabase
+        .from('instagram_posts')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('post_url', post.postUrl)
+        .maybeSingle();
 
-// Alternative: Use i.instagram.com mobile API
-async function scrapeMobileApi(username: string): Promise<InstagramScrapedData | null> {
-  console.log(`[Instagram Native] Trying mobile API for: ${username}`);
-  
-  try {
-    // First get user ID
-    const searchResponse = await fetch(
-      `https://www.instagram.com/web/search/topsearch/?query=${username}`,
-      {
-        headers: {
-          ...browserHeaders,
-          'X-IG-App-ID': '936619743392459',
-        },
+      if (existing) {
+        await supabase.from('instagram_posts').update({
+          post_type: post.type,
+          thumbnail_url: post.thumbnailUrl,
+          caption: post.caption,
+          likes_count: post.likesCount,
+          comments_count: post.commentsCount,
+          views_count: post.viewsCount,
+          updated_at: new Date().toISOString(),
+        }).eq('id', existing.id);
+        updatedCount++;
+      } else {
+        await supabase.from('instagram_posts').insert({
+          account_id: accountId,
+          post_url: post.postUrl,
+          post_type: post.type,
+          thumbnail_url: post.thumbnailUrl,
+          caption: post.caption,
+          likes_count: post.likesCount,
+          comments_count: post.commentsCount,
+          views_count: post.viewsCount,
+          posted_at: post.postedAt,
+        });
+        savedCount++;
       }
-    );
-    
-    if (!searchResponse.ok) {
-      return null;
     }
     
-    const searchData = await searchResponse.json();
-    const user = searchData?.users?.find((u: any) => 
-      u?.user?.username?.toLowerCase() === username.toLowerCase()
-    )?.user;
-    
-    if (!user) {
-      return null;
-    }
-    
-    console.log(`[Instagram Native] Found user ID: ${user.pk}`);
-    
-    return {
-      username: user.username,
-      displayName: user.full_name,
-      profileImageUrl: user.profile_pic_url,
-      bio: '',
-      followersCount: user.follower_count || 0,
-      followingCount: user.following_count || 0,
-      postsCount: user.media_count || 0,
-      scrapedPostsCount: 0,
-      totalViews: 0,
-      posts: [],
-    };
-  } catch (e) {
-    console.log('[Instagram Native] Mobile API failed:', e);
-    return null;
-  }
-}
-
-// Main scraping function with multiple fallbacks
-async function scrapeInstagramProfile(username: string): Promise<InstagramScrapedData> {
-  const cleanUsername = username.replace(/^@/, '').replace(/\/$/, '').trim();
-  
-  // Extract from URL if provided
-  let handle = cleanUsername;
-  const urlMatch = cleanUsername.match(/instagram\.com\/([^\/\?]+)/);
-  if (urlMatch) {
-    handle = urlMatch[1];
+    console.log(`[Instagram Native] Batch ${Math.ceil((i + 1) / batchSize)}: ${savedCount} new, ${updatedCount} updated`);
   }
   
-  console.log(`[Instagram Native] Scraping profile: ${handle}`);
-  
-  // Try multiple methods
-  const methods = [
-    () => scrapeProfileFromWeb(handle),
-    () => scrapeMobileApi(handle),
-  ];
-  
-  for (const method of methods) {
-    try {
-      const result = await method();
-      if (result && result.username) {
-        return result;
-      }
-    } catch (e) {
-      console.log('[Instagram Native] Method failed, trying next...', e);
-    }
-  }
-  
-  throw new Error(`Não foi possível obter dados do perfil: ${handle}. O Instagram pode estar bloqueando requisições.`);
+  return { savedCount, updatedCount };
 }
 
 Deno.serve(async (req) => {
@@ -313,7 +327,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { profileUrl, accountId, fetchVideos = true, debug = false } = await req.json();
+    const { profileUrl, accountId, fetchVideos = true } = await req.json();
 
     if (!profileUrl) {
       return new Response(
@@ -322,7 +336,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    const data = await scrapeInstagramProfile(profileUrl);
+    // Clean username
+    let username = profileUrl.trim();
+    const urlMatch = profileUrl.match(/instagram\.com\/([^\/\?]+)/);
+    if (urlMatch) {
+      username = urlMatch[1];
+    }
+    username = username.replace(/^@/, '').replace(/\/$/, '');
+
+    const data = await scrapeAllPosts(username);
 
     console.log('[Instagram Native] Scrape complete:', {
       username: data.username,
@@ -361,60 +383,23 @@ Deno.serve(async (req) => {
       }
 
       // Update account
-      const { error: updateError } = await supabase
-        .from('instagram_accounts')
-        .update({
-          display_name: data.displayName,
-          profile_image_url: storedProfileImageUrl,
-          bio: data.bio,
-          followers_count: data.followersCount,
-          following_count: data.followingCount,
-          posts_count: data.postsCount,
-          total_views: data.totalViews,
-          scraped_posts_count: data.scrapedPostsCount,
-          last_synced_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', accountId);
+      await supabase.from('instagram_accounts').update({
+        display_name: data.displayName,
+        profile_image_url: storedProfileImageUrl,
+        bio: data.bio,
+        followers_count: data.followersCount,
+        following_count: data.followingCount,
+        posts_count: data.postsCount,
+        total_views: data.totalViews,
+        scraped_posts_count: data.scrapedPostsCount,
+        next_cursor: data.nextCursor,
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', accountId);
 
-      if (updateError) {
-        console.error('[Instagram Native] Error updating account:', updateError);
-      }
-
-      // Save posts
-      for (const post of data.posts) {
-        if (!post.postUrl) continue;
-        
-        const { data: existing } = await supabase
-          .from('instagram_posts')
-          .select('id')
-          .eq('account_id', accountId)
-          .eq('post_url', post.postUrl)
-          .maybeSingle();
-
-        if (existing) {
-          await supabase.from('instagram_posts').update({
-            post_type: post.type,
-            thumbnail_url: post.thumbnailUrl,
-            caption: post.caption,
-            likes_count: post.likesCount,
-            comments_count: post.commentsCount,
-            views_count: post.viewsCount,
-            updated_at: new Date().toISOString(),
-          }).eq('id', existing.id);
-        } else {
-          await supabase.from('instagram_posts').insert({
-            account_id: accountId,
-            post_url: post.postUrl,
-            post_type: post.type,
-            thumbnail_url: post.thumbnailUrl,
-            caption: post.caption,
-            likes_count: post.likesCount,
-            comments_count: post.commentsCount,
-            views_count: post.viewsCount,
-            posted_at: post.postedAt,
-          });
-        }
+      // Save all posts
+      if (fetchVideos && data.posts.length > 0) {
+        await savePostsToDB(supabase, accountId, data.posts);
       }
 
       // Save metrics history
@@ -442,8 +427,6 @@ Deno.serve(async (req) => {
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'platform,username' });
-
-      console.log(`[Instagram Native] Saved ${data.posts.length} posts to database`);
     }
 
     return new Response(
