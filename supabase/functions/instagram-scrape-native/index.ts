@@ -243,10 +243,10 @@ async function fetchUserInfo(username: string): Promise<any | null> {
   }
 }
 
-async function fetchUserMedia(userId: string, endCursor?: string): Promise<{ posts: InstagramPost[]; nextCursor?: string; hasNextPage: boolean }> {
+async function fetchUserMedia(userId: string, username: string, endCursor?: string): Promise<{ posts: InstagramPost[]; nextCursor?: string; hasNextPage: boolean }> {
   console.log(`[Instagram Native] Fetching media for user ${userId}, cursor: ${endCursor ? 'yes' : 'initial'}`);
   
-  // Try each query hash
+  // Method 1: Try GraphQL query hashes
   for (const queryHash of QUERY_HASHES) {
     try {
       const variables = {
@@ -286,7 +286,69 @@ async function fetchUserMedia(userId: string, endCursor?: string): Promise<{ pos
     }
   }
   
-  console.log('[Instagram Native] All GraphQL methods failed');
+  console.log('[Instagram Native] GraphQL failed, trying alternative API...');
+  
+  // Method 2: Try the mobile/v1 API
+  try {
+    const apiUrl = `https://i.instagram.com/api/v1/users/${userId}/feed/?count=50${endCursor ? `&max_id=${endCursor}` : ''}`;
+    
+    const response = await fetch(apiUrl, {
+      headers: {
+        ...browserHeaders,
+        'X-IG-App-ID': '936619743392459',
+        'User-Agent': 'Instagram 275.0.0.27.98 Android (33/13; 420dpi; 1080x2400; samsung; SM-G991B; o1s; exynos2100)',
+      },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data?.items?.length > 0) {
+        console.log(`[Instagram Native] Mobile API succeeded: ${data.items.length} items`);
+        const posts = extractPostsFromData(data);
+        return {
+          posts,
+          nextCursor: data.next_max_id,
+          hasNextPage: data.more_available || false,
+        };
+      }
+    } else {
+      console.log(`[Instagram Native] Mobile API failed: ${response.status}`);
+    }
+  } catch (e) {
+    console.log('[Instagram Native] Mobile API error:', e);
+  }
+  
+  // Method 3: Try scraping profile page with scroll simulation (different URL)
+  try {
+    const profileUrl = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`;
+    
+    const response = await fetch(profileUrl, {
+      headers: {
+        ...browserHeaders,
+        'X-IG-App-ID': '936619743392459',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const media = data?.data?.user?.edge_owner_to_timeline_media;
+      
+      if (media?.edges?.length > 0) {
+        console.log(`[Instagram Native] web_profile_info API succeeded: ${media.edges.length} items`);
+        const posts = extractPostsFromData({ edge_owner_to_timeline_media: media });
+        return {
+          posts,
+          nextCursor: media.page_info?.end_cursor,
+          hasNextPage: media.page_info?.has_next_page || false,
+        };
+      }
+    }
+  } catch (e) {
+    console.log('[Instagram Native] web_profile_info error:', e);
+  }
+  
+  console.log('[Instagram Native] All pagination methods failed');
   return { posts: [], hasNextPage: false };
 }
 
@@ -376,7 +438,7 @@ async function scrapeAllPosts(username: string): Promise<InstagramScrapedData> {
       console.log(`[Instagram Native] Fetching page ${pageCount}...`);
       
       try {
-        const { posts, nextCursor, hasNextPage } = await fetchUserMedia(userId, cursor);
+        const { posts, nextCursor, hasNextPage } = await fetchUserMedia(userId, result.username, cursor);
         
         if (posts.length === 0) {
           console.log('[Instagram Native] No more posts from GraphQL');
