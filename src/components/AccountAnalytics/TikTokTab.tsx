@@ -103,7 +103,7 @@ export function TikTokTab() {
   const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.likes_count || 0) - Number(a.likes_count || 0));
   const totalFollowers = visibleAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
   const totalLikes = visibleAccounts.reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0);
-  const totalVideos = visibleAccounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
+  const totalVideos = visibleAccounts.reduce((sum, acc) => sum + (acc.scraped_videos_count || 0), 0);
   const totalViews = visibleAccounts.reduce((sum, acc: any) => {
     const derived = derivedViewsByAccount[acc.id] || 0;
     const stored = Number(acc.total_views || 0);
