@@ -5,12 +5,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const browserHeaders = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Cache-Control': 'no-cache',
-};
+// Multiple user agents to rotate
+const userAgents = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+];
+
+function getRandomUserAgent(): string {
+  return userAgents[Math.floor(Math.random() * userAgents.length)];
+}
+
+function getBrowserHeaders(): Record<string, string> {
+  return {
+    'User-Agent': getRandomUserAgent(),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"Windows"',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
+  };
+}
 
 interface TikTokVideo {
   videoId: string;
@@ -38,6 +62,7 @@ interface TikTokScrapedData {
   totalViews: number;
   videos: TikTokVideo[];
   nextCursor?: string;
+  secUid?: string;
 }
 
 function parseCount(text?: string | number | null): number {
@@ -47,19 +72,12 @@ function parseCount(text?: string | number | null): number {
   const raw = String(text).trim();
   if (!raw) return 0;
 
-  // Examples: "1.2M", "12.345", "12,345", "987" (pt/en variants)
-  const match = raw
-    .replace(/\s+/g, '')
-    .match(/^([\d.,]+)([KMB]|mil|mi)?$/i);
-
-  // Fallback: strip everything except digits
+  const match = raw.replace(/\s+/g, '').match(/^([\d.,]+)([KMB]|mil|mi)?$/i);
   if (!match) return parseInt(raw.replace(/\D/g, ''), 10) || 0;
 
   const numberPart = match[1];
   const suffix = match[2]?.toLowerCase();
 
-  // If there's a suffix, treat "." as decimal separator and "," as thousands
-  // If there's no suffix, treat both "." and "," as thousands separators.
   let value = 0;
   if (suffix) {
     const normalized = numberPart.replace(/,/g, '');
@@ -78,127 +96,73 @@ function parseCount(text?: string | number | null): number {
   return Math.round(value);
 }
 
-// Extract all videos from any JSON structure recursively
+// Extract video from item with multiple field name support
+function extractVideoFromItem(item: any, username: string, seenIds: Set<string>): TikTokVideo | null {
+  const normalized = item?.itemStruct || item?.item || item?.aweme_info || item;
+
+  const videoId =
+    normalized?.id ||
+    normalized?.video?.id ||
+    normalized?.itemInfos?.id ||
+    normalized?.aweme_id ||
+    normalized?.itemId;
+
+  const videoIdStr = String(videoId || '');
+  if (!/^\d{10,}$/.test(videoIdStr) || seenIds.has(videoIdStr)) return null;
+  seenIds.add(videoIdStr);
+
+  const stats = normalized?.stats || normalized?.statsV2 || normalized?.statistics || normalized?.itemInfos || {};
+
+  let thumbnailUrl: string | undefined;
+  const cover = normalized?.video?.cover || normalized?.video?.originCover || normalized?.cover || normalized?.thumbnail;
+  if (typeof cover === 'string') {
+    thumbnailUrl = cover;
+  } else if (cover?.url_list?.[0]) {
+    thumbnailUrl = cover.url_list[0];
+  } else if (cover?.urlList?.[0]) {
+    thumbnailUrl = cover.urlList[0];
+  }
+
+  const views = stats.playCount || stats.play_count || stats.viewCount || normalized?.playCount || normalized?.play_count || 0;
+  const likes = stats.diggCount || stats.digg_count || stats.likeCount || normalized?.diggCount || 0;
+  const comments = stats.commentCount || stats.comment_count || normalized?.commentCount || 0;
+  const shares = stats.shareCount || stats.share_count || normalized?.shareCount || 0;
+
+  const createTime = normalized?.createTime || normalized?.create_time;
+  const createTimeNum = typeof createTime === 'string' ? parseInt(createTime, 10) : createTime;
+
+  return {
+    videoId: videoIdStr,
+    videoUrl: `https://www.tiktok.com/@${username}/video/${videoIdStr}`,
+    caption: normalized?.desc || normalized?.description || normalized?.title,
+    thumbnailUrl,
+    viewsCount: parseCount(views),
+    likesCount: parseCount(likes),
+    commentsCount: parseCount(comments),
+    sharesCount: parseCount(shares),
+    duration: normalized?.video?.duration || normalized?.duration,
+    postedAt: createTimeNum ? new Date(createTimeNum * 1000).toISOString() : undefined,
+  };
+}
+
+// Recursively extract all videos from any JSON structure
 function extractVideosFromData(data: any, username: string): TikTokVideo[] {
   const videos: TikTokVideo[] = [];
   const seenIds = new Set<string>();
 
-  const normalizeItem = (item: any) => item?.itemStruct || item?.item || item?.aweme_info || item;
+  function walk(obj: any, depth = 0): void {
+    if (!obj || typeof obj !== 'object' || depth > 25) return;
 
-  function extractVideoFromItem(rawItem: any): TikTokVideo | null {
-    const item = normalizeItem(rawItem);
+    // Try to extract video from current object
+    const video = extractVideoFromItem(obj, username, seenIds);
+    if (video) videos.push(video);
 
-    const videoId =
-      item?.id ||
-      item?.video?.id ||
-      item?.itemInfos?.id ||
-      item?.aweme_id ||
-      item?.itemId;
-
-    // Validate videoId - must be numeric and at least 10 digits (TikTok video IDs are 19 digits)
-    const videoIdStr = String(videoId || '');
-    const isValidVideoId = /^\d{10,}$/.test(videoIdStr);
-    
-    if (!isValidVideoId || seenIds.has(videoIdStr)) return null;
-    seenIds.add(videoIdStr);
-
-    const stats =
-      item?.stats ||
-      item?.statsV2 ||
-      item?.statistics ||
-      item?.itemInfos ||
-      item?.itemStats ||
-      {};
-
-    // Thumbnail
-    let thumbnailUrl: string | undefined;
-    const cover =
-      item?.video?.cover ||
-      item?.video?.originCover ||
-      item?.cover ||
-      item?.thumbnail ||
-      item?.image_url;
-
-    if (typeof cover === 'string') {
-      thumbnailUrl = cover;
-    } else if (cover?.url_list?.[0]) {
-      thumbnailUrl = cover.url_list[0];
-    } else if (cover?.urlList?.[0]) {
-      thumbnailUrl = cover.urlList[0];
-    }
-
-    const views =
-      stats.playCount ||
-      stats.play_count ||
-      stats.viewCount ||
-      stats.views ||
-      item?.playCount ||
-      item?.play_count ||
-      item?.views ||
-      0;
-
-    const likes =
-      stats.diggCount ||
-      stats.digg_count ||
-      stats.likeCount ||
-      stats.likes ||
-      item?.diggCount ||
-      item?.digg_count ||
-      item?.likes ||
-      0;
-
-    const comments =
-      stats.commentCount ||
-      stats.comment_count ||
-      item?.commentCount ||
-      item?.comment_count ||
-      item?.comments ||
-      0;
-
-    const shares =
-      stats.shareCount ||
-      stats.share_count ||
-      item?.shareCount ||
-      item?.share_count ||
-      item?.shares ||
-      0;
-
-    const createTime = item?.createTime || item?.create_time || item?.createtime || item?.create_time_str;
-    const createTimeNum = typeof createTime === 'string' ? parseInt(createTime, 10) : createTime;
-
-    return {
-      videoId: String(videoId),
-      videoUrl: `https://www.tiktok.com/@${username}/video/${String(videoId)}`,
-      caption: item?.desc || item?.description || item?.title,
-      thumbnailUrl,
-      viewsCount: parseCount(views),
-      likesCount: parseCount(likes),
-      commentsCount: parseCount(comments),
-      sharesCount: parseCount(shares),
-      duration: item?.video?.duration || item?.duration,
-      postedAt: createTimeNum ? new Date(createTimeNum * 1000).toISOString() : undefined,
-    };
-  }
-
-  function walkObject(obj: any, depth = 0): void {
-    if (!obj || typeof obj !== 'object' || depth > 30) return;
-
-    const asVideo = extractVideoFromItem(obj);
-    if (asVideo) videos.push(asVideo);
-
-    const lists = [
-      obj.itemList,
-      obj.item_list,
-      obj.itemListData,
-      obj.items,
-      obj.aweme_list,
-      obj.ItemList,
-    ];
-
+    // Check known list fields
+    const lists = [obj.itemList, obj.item_list, obj.itemListData, obj.items, obj.aweme_list, obj.ItemList];
     for (const list of lists) {
       if (Array.isArray(list)) {
         for (const item of list) {
-          const v = extractVideoFromItem(item);
+          const v = extractVideoFromItem(item, username, seenIds);
           if (v) videos.push(v);
         }
       }
@@ -207,84 +171,55 @@ function extractVideosFromData(data: any, username: string): TikTokVideo[] {
     // ItemModule (older format)
     if (obj.ItemModule && typeof obj.ItemModule === 'object') {
       for (const key of Object.keys(obj.ItemModule)) {
-        const item = obj.ItemModule[key];
-        const video = extractVideoFromItem(item);
-        if (video) videos.push(video);
+        const v = extractVideoFromItem(obj.ItemModule[key], username, seenIds);
+        if (v) videos.push(v);
       }
     }
 
+    // Recurse
     if (Array.isArray(obj)) {
-      for (const item of obj) walkObject(item, depth + 1);
+      for (const item of obj) walk(item, depth + 1);
     } else {
       for (const key of Object.keys(obj)) {
-        // avoid infinite recursion on very large repeated branches
         if (key === 'ItemModule') continue;
-        walkObject(obj[key], depth + 1);
+        walk(obj[key], depth + 1);
       }
     }
   }
 
-  walkObject(data);
+  walk(data);
   return videos;
 }
 
-// Recursively find user/stats data in any JSON structure
-function findUserDataRecursively(obj: any, username: string, depth = 0): { user: any; stats: any } {
-  if (!obj || typeof obj !== 'object' || depth > 15) return { user: null, stats: null };
-  
-  let user: any = null;
-  let stats: any = null;
-  
-  // Check if this object looks like user data
-  if (obj.uniqueId === username || obj.unique_id === username || 
-      (obj.nickname && (obj.followerCount !== undefined || obj.stats))) {
-    user = obj;
-    stats = obj.stats;
-  }
-  
-  // Check for userInfo pattern
-  if (obj.userInfo?.user) {
-    user = obj.userInfo.user;
-    stats = obj.userInfo.stats || obj.userInfo.user.stats;
-  }
-  
-  // Check for stats with followerCount
-  if (!stats && obj.followerCount !== undefined && obj.followingCount !== undefined) {
-    stats = obj;
-  }
-  
-  if (user && stats) return { user, stats };
-  
-  // Recurse into children
-  if (Array.isArray(obj)) {
-    for (const item of obj) {
-      const found = findUserDataRecursively(item, username, depth + 1);
-      if (found.user || found.stats) {
-        user = user || found.user;
-        stats = stats || found.stats;
-        if (user && stats) return { user, stats };
-      }
-    }
-  } else {
-    for (const key of Object.keys(obj)) {
-      const found = findUserDataRecursively(obj[key], username, depth + 1);
-      if (found.user || found.stats) {
-        user = user || found.user;
-        stats = stats || found.stats;
-        if (user && stats) return { user, stats };
+// Extract all possible secUid values from HTML
+function extractSecUid(html: string): string | null {
+  const patterns = [
+    /"secUid"\s*:\s*"([^"]+)"/,
+    /"sec_uid"\s*:\s*"([^"]+)"/,
+    /secUid['"]\s*:\s*['"]([^'"]+)['"]/,
+    /\\"secUid\\":\\"([^\\]+)\\"/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) {
+      const secUid = match[1].replace(/\\u002F/g, '/').replace(/\\\//g, '/');
+      if (secUid.length > 20) {
+        console.log(`[TikTok Native] Found secUid via pattern: ${pattern.source.substring(0, 30)}`);
+        return secUid;
       }
     }
   }
-  
-  return { user, stats };
+
+  return null;
 }
 
-// Extract user data from any JSON structure
+// Extract user data from JSON
 function extractUserData(data: any, username: string): Partial<TikTokScrapedData> {
   let userData: any = null;
   let statsData: any = null;
-  
-  // Try specific known paths first
+
+  // Try specific known paths
   const userPaths = [
     data?.['__DEFAULT_SCOPE__']?.['webapp.user-detail']?.userInfo?.user,
     data?.['__DEFAULT_SCOPE__']?.['webapp.user-detail']?.user,
@@ -293,14 +228,11 @@ function extractUserData(data: any, username: string): Partial<TikTokScrapedData
     data?.userInfo?.user,
     data?.user,
   ];
-  
+
   for (const path of userPaths) {
-    if (path) {
-      userData = path;
-      break;
-    }
+    if (path) { userData = path; break; }
   }
-  
+
   const statsPaths = [
     data?.['__DEFAULT_SCOPE__']?.['webapp.user-detail']?.userInfo?.stats,
     data?.['__DEFAULT_SCOPE__']?.['webapp.user-detail']?.stats,
@@ -309,334 +241,238 @@ function extractUserData(data: any, username: string): Partial<TikTokScrapedData
     data?.userInfo?.stats,
     userData?.stats,
   ];
-  
+
   for (const path of statsPaths) {
-    if (path) {
-      statsData = path;
-      break;
-    }
+    if (path) { statsData = path; break; }
   }
-  
-  // If we didn't find data, try recursive search
-  if (!userData || !statsData) {
-    const found = findUserDataRecursively(data, username);
-    if (!userData && found.user) userData = found.user;
-    if (!statsData && found.stats) statsData = found.stats;
-  }
-  
-  // Extract counts from various possible field names
-  const followers = parseCount(
-    statsData?.followerCount ?? statsData?.follower_count ?? 
-    userData?.followerCount ?? userData?.follower_count ?? 
-    userData?.fans ?? userData?.fansCount ?? 0
-  );
-  
-  const following = parseCount(
-    statsData?.followingCount ?? statsData?.following_count ?? 
-    userData?.followingCount ?? userData?.following_count ?? 0
-  );
-  
-  const likes = parseCount(
-    statsData?.heartCount ?? statsData?.heart ?? statsData?.diggCount ??
-    userData?.heartCount ?? userData?.heart ?? userData?.diggCount ?? 
-    userData?.totalLikes ?? 0
-  );
-  
-  const videos = parseCount(
-    statsData?.videoCount ?? statsData?.video_count ?? 
-    userData?.videoCount ?? userData?.video_count ?? 
-    userData?.aweme_count ?? 0
-  );
-  
+
+  const followers = parseCount(statsData?.followerCount ?? userData?.followerCount ?? 0);
+  const following = parseCount(statsData?.followingCount ?? userData?.followingCount ?? 0);
+  const likes = parseCount(statsData?.heartCount ?? statsData?.heart ?? userData?.heartCount ?? 0);
+  const videosCount = parseCount(statsData?.videoCount ?? userData?.videoCount ?? 0);
+
   const result: Partial<TikTokScrapedData> = {
     username: userData?.uniqueId || userData?.unique_id || username,
-    displayName: userData?.nickname || userData?.name || userData?.display_name,
-    bio: userData?.signature || userData?.bio || userData?.desc,
+    displayName: userData?.nickname || userData?.name,
+    bio: userData?.signature || userData?.bio,
     followersCount: followers,
     followingCount: following,
     likesCount: likes,
-    videosCount: videos,
+    videosCount: videosCount,
   };
-  
-  // Get avatar from various possible fields
-  const avatar = userData?.avatarLarger || userData?.avatarMedium || userData?.avatarThumb ||
-                 userData?.avatar_larger || userData?.avatar_medium || userData?.avatar ||
-                 userData?.avatar_url || userData?.cover_url?.[0];
+
+  const avatar = userData?.avatarLarger || userData?.avatarMedium || userData?.avatarThumb || userData?.avatar;
   if (avatar) {
     result.profileImageUrl = typeof avatar === 'string' ? avatar : avatar?.url_list?.[0];
   }
 
-  // Keep secUid if present (used for pagination)
-  const secUid =
-    userData?.secUid ||
-    userData?.sec_uid ||
-    userData?.sec_uid_str ||
-    userData?.secUidStr;
-
+  const secUid = userData?.secUid || userData?.sec_uid;
   if (secUid) {
-    (result as any).secUid = String(secUid);
+    result.secUid = String(secUid);
   }
-  
-  console.log(`[TikTok Native] extractUserData: followers=${followers}, videos=${videos}, likes=${likes}`);
-  
+
+  console.log(`[TikTok Native] extractUserData: followers=${followers}, videos=${videosCount}, likes=${likes}`);
   return result;
 }
 
-// Fetch and parse TikTok profile page
-async function fetchProfilePage(username: string): Promise<{ userData: Partial<TikTokScrapedData>; videos: TikTokVideo[]; cursor?: string }> {
+// Fetch profile page and extract data
+async function fetchProfilePage(username: string): Promise<{ userData: Partial<TikTokScrapedData>; videos: TikTokVideo[] }> {
   console.log(`[TikTok Native] Fetching profile page for: ${username}`);
-  
+
   const url = `https://www.tiktok.com/@${username}`;
-  
+
   try {
-    const response = await fetch(url, { headers: browserHeaders });
-    
+    const response = await fetch(url, { headers: getBrowserHeaders() });
     if (!response.ok) {
       console.warn(`[TikTok Native] Profile fetch failed: ${response.status}`);
       return { userData: { username }, videos: [] };
     }
-    
+
     const html = await response.text();
-    
-    // Check if profile exists
-    if (html.includes('Could not find this account') || 
-        html.includes("couldn't find this account") ||
-        html.includes('Esta conta não existe')) {
+
+    if (html.includes('Could not find this account') || html.includes("couldn't find this account")) {
       console.warn(`[TikTok Native] Profile not found: ${username}`);
       return { userData: { username }, videos: [] };
     }
-    
-    // Try to extract JSON data from various script tags
-    let jsonData: any = null;
 
-    // IMPORTANT: script contents can contain "<" inside strings, so we must not use [^<]+.
-    const patterns: Array<{ name: string; re: RegExp; preprocess?: (s: string) => string }> = [
-      {
-        name: '__UNIVERSAL_DATA_FOR_REHYDRATION__',
-        re: /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/,
-      },
-      {
-        name: 'SIGI_STATE',
-        re: /<script id="SIGI_STATE"[^>]*>([\s\S]*?)<\/script>/,
-      },
-      {
-        name: "window['SIGI_STATE']",
-        re: /window\['SIGI_STATE'\]\s*=\s*({[\s\S]*?})\s*;?/,
-      },
-      {
-        name: '__INITIAL_STATE__',
-        re: /window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?})\s*;?/,
-      },
+    // Try to extract JSON data
+    let jsonData: any = null;
+    const patterns = [
+      { name: '__UNIVERSAL_DATA_FOR_REHYDRATION__', re: /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/ },
+      { name: 'SIGI_STATE', re: /<script id="SIGI_STATE"[^>]*>([\s\S]*?)<\/script>/ },
+      { name: "window['SIGI_STATE']", re: /window\['SIGI_STATE'\]\s*=\s*({[\s\S]*?})\s*;?/ },
     ];
 
     for (const p of patterns) {
       const match = html.match(p.re);
-      if (!match) continue;
-
-      const raw = (match[1] || '').trim();
-      if (!raw) continue;
-
-      try {
-        jsonData = JSON.parse(raw);
-        console.log(`[TikTok Native] Found JSON via ${p.name}`);
-        break;
-      } catch (e) {
-        console.log(`[TikTok Native] Failed to parse JSON via ${p.name}, trying next pattern`);
-      }
-    }
-    
-    if (!jsonData) {
-      console.log('[TikTok Native] No JSON found, extracting from meta tags');
-      return extractFromMeta(html, username);
-    }
-    
-    // Extract user data
-    const userData = extractUserData(jsonData, username);
-
-    // If secUid wasn't found in parsed JSON, try extracting directly from the HTML as a fallback.
-    // This is important because pagination depends on secUid.
-    if (!(userData as any)?.secUid) {
-      const secUidMatch = html.match(/"secUid"\s*:\s*"([^"]+)"/);
-      if (secUidMatch?.[1]) {
-        (userData as any).secUid = secUidMatch[1].replace(/\\u002F/g, '/');
-        console.log('[TikTok Native] Found secUid via HTML regex');
+      if (match?.[1]) {
+        try {
+          jsonData = JSON.parse(match[1].trim());
+          console.log(`[TikTok Native] Found JSON via ${p.name}`);
+          break;
+        } catch (e) {
+          continue;
+        }
       }
     }
 
-    // Extract videos
-    const videos = extractVideosFromData(jsonData, username);
+    let userData: Partial<TikTokScrapedData> = { username };
+    let videos: TikTokVideo[] = [];
 
-    console.log(`[TikTok Native] Extracted: ${Object.keys(userData).length} user fields, ${videos.length} videos`);
+    if (jsonData) {
+      userData = extractUserData(jsonData, username);
+      videos = extractVideosFromData(jsonData, username);
+    }
 
-    // Try to find cursor for pagination
-    let cursor: string | undefined;
-    const cursorPaths = [
-      jsonData?.['__DEFAULT_SCOPE__']?.['webapp.user-detail']?.cursor,
-      jsonData?.ItemList?.user?.cursor,
-    ];
-    for (const c of cursorPaths) {
-      if (c) {
-        cursor = String(c);
-        break;
+    // Always try to extract secUid from HTML if not found
+    if (!userData.secUid) {
+      const secUid = extractSecUid(html);
+      if (secUid) {
+        userData.secUid = secUid;
       }
     }
-    
-    return { userData, videos, cursor };
+
+    console.log(`[TikTok Native] Extracted: secUid=${!!userData.secUid}, ${videos.length} videos from HTML`);
+    return { userData, videos };
   } catch (error) {
     console.error(`[TikTok Native] Error fetching profile:`, error);
     return { userData: { username }, videos: [] };
   }
 }
 
-// Extract from meta tags as fallback
-function extractFromMeta(html: string, username: string): { userData: Partial<TikTokScrapedData>; videos: TikTokVideo[] } {
-  console.log('[TikTok Native] Extracting from meta tags');
-  
-  const userData: Partial<TikTokScrapedData> = { username };
-  
-  // Extract profile image
-  const imgMatch = html.match(/<meta\s+(?:property="og:image"|name="twitter:image")\s+content="([^"]+)"/) ||
-                   html.match(/content="([^"]+)"\s+(?:property="og:image"|name="twitter:image")/);
-  if (imgMatch) userData.profileImageUrl = imgMatch[1];
-  
-  // Extract display name from title
-  const titleMatch = html.match(/<title>([^<]+)<\/title>/);
-  if (titleMatch) {
-    const parts = titleMatch[1].split(/[(@|]/);
-    if (parts[0]) userData.displayName = parts[0].trim();
-  }
-  
-  // Extract stats from description - handle multiple formats
-  const descMatch = html.match(/<meta\s+(?:name="description"|property="og:description")\s+content="([^"]+)"/) ||
-                    html.match(/content="([^"]+)"\s+(?:name="description"|property="og:description")/);
-  if (descMatch) {
-    const desc = descMatch[1];
-    
-    // Try various patterns for followers/following/likes
-    // English: "123 Followers, 456 Following, 789 Likes"
-    // Portuguese: "123 Seguidores, 456 Seguindo, 789 Curtidas"
-    const followersPatterns = [
-      /([\d.,]+[KMB]?)\s*Followers/i,
-      /([\d.,]+[KMB]?)\s*Seguidores/i,
-      /([\d.,]+[KMB]?)\s*seguidores/i,
-    ];
-    const followingPatterns = [
-      /([\d.,]+[KMB]?)\s*Following/i,
-      /([\d.,]+[KMB]?)\s*Seguindo/i,
-    ];
-    const likesPatterns = [
-      /([\d.,]+[KMB]?)\s*Likes/i,
-      /([\d.,]+[KMB]?)\s*Curtidas/i,
-    ];
-    
-    for (const pattern of followersPatterns) {
-      const match = desc.match(pattern);
-      if (match) { userData.followersCount = parseCount(match[1]); break; }
-    }
-    for (const pattern of followingPatterns) {
-      const match = desc.match(pattern);
-      if (match) { userData.followingCount = parseCount(match[1]); break; }
-    }
-    for (const pattern of likesPatterns) {
-      const match = desc.match(pattern);
-      if (match) { userData.likesCount = parseCount(match[1]); break; }
-    }
-  }
-  
-  console.log(`[TikTok Native] Meta extraction: followers=${userData.followersCount}, likes=${userData.likesCount}`);
-  
-  return { userData, videos: [] };
-}
+// Fetch videos using TikTok's internal API with pagination
+async function fetchVideosFromAPI(username: string, secUid: string, cursor: string = '0'): Promise<{ videos: TikTokVideo[]; nextCursor?: string; hasMore: boolean }> {
+  console.log(`[TikTok Native] API fetch, cursor: ${cursor}`);
 
-// Fetch more videos using TikTok's internal API
-async function fetchMoreVideos(username: string, secUid: string, cursor: string): Promise<{ videos: TikTokVideo[]; nextCursor?: string; hasMore: boolean }> {
-  console.log(`[TikTok Native] Fetching more videos, cursor: ${cursor.substring(0, 20)}...`);
-  
-  const url = `https://www.tiktok.com/api/post/item_list/?WebIdLastTime=1704000000&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=Win32&browser_version=5.0&channel=tiktok_web&cookie_enabled=true&count=30&coverFormat=2&cursor=${cursor}&device_id=1234567890123456789&device_platform=web_pc&focus_state=true&from_page=user&history_len=1&is_fullscreen=false&is_page_visible=true&language=en&os=windows&priority_region=&referer=&region=US&screen_height=1080&screen_width=1920&secUid=${encodeURIComponent(secUid)}&tz_name=America/New_York&webcast_language=en`;
-  
+  // Generate random device_id
+  const deviceId = String(Math.floor(Math.random() * 9000000000000000000) + 1000000000000000000);
+  const webIdLastTime = String(Math.floor(Date.now() / 1000) - 86400);
+
+  const params = new URLSearchParams({
+    WebIdLastTime: webIdLastTime,
+    aid: '1988',
+    app_language: 'en',
+    app_name: 'tiktok_web',
+    browser_language: 'en-US',
+    browser_name: 'Mozilla',
+    browser_online: 'true',
+    browser_platform: 'Win32',
+    browser_version: '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    channel: 'tiktok_web',
+    cookie_enabled: 'true',
+    count: '35',
+    coverFormat: '2',
+    cursor: cursor,
+    device_id: deviceId,
+    device_platform: 'web_pc',
+    focus_state: 'true',
+    from_page: 'user',
+    history_len: String(Math.floor(Math.random() * 10) + 1),
+    is_fullscreen: 'false',
+    is_page_visible: 'true',
+    language: 'en',
+    os: 'windows',
+    priority_region: '',
+    referer: '',
+    region: 'US',
+    screen_height: '1080',
+    screen_width: '1920',
+    secUid: secUid,
+    tz_name: 'America/New_York',
+    webcast_language: 'en',
+  });
+
+  const url = `https://www.tiktok.com/api/post/item_list/?${params.toString()}`;
+
   try {
     const response = await fetch(url, {
       headers: {
-        ...browserHeaders,
+        ...getBrowserHeaders(),
         'Referer': `https://www.tiktok.com/@${username}`,
-        'Accept': 'application/json',
+        'Accept': 'application/json, text/plain, */*',
       },
     });
-    
+
     if (!response.ok) {
-      console.log(`[TikTok Native] API request failed: ${response.status}`);
+      console.log(`[TikTok Native] API failed: ${response.status}`);
       return { videos: [], hasMore: false };
     }
-    
+
     const data = await response.json();
-    
+
     if (!data?.itemList || data.itemList.length === 0) {
+      console.log(`[TikTok Native] API returned no items`);
       return { videos: [], hasMore: false };
     }
-    
+
     const videos = extractVideosFromData(data, username);
-    
+    console.log(`[TikTok Native] API returned ${videos.length} videos, hasMore: ${data.hasMore}`);
+
     return {
       videos,
       nextCursor: data.cursor ? String(data.cursor) : undefined,
-      hasMore: data.hasMore || false,
+      hasMore: data.hasMore === true,
     };
   } catch (error) {
-    console.error('[TikTok Native] Error fetching more videos:', error);
+    console.error('[TikTok Native] API error:', error);
     return { videos: [], hasMore: false };
   }
 }
 
-// Main scraping function
-async function scrapeAllVideos(username: string, startCursor?: string): Promise<TikTokScrapedData> {
+// Main scraping function - combines HTML extraction + API pagination
+async function scrapeAllVideos(username: string): Promise<TikTokScrapedData> {
   console.log(`[TikTok Native] Starting full scrape for: ${username}`);
 
-  // Get initial page
-  const { userData, videos: initialVideos, cursor: initialCursor } = await fetchProfilePage(username);
+  // Step 1: Get initial data from profile page
+  const { userData, videos: initialVideos } = await fetchProfilePage(username);
 
-  const secUid: string | undefined = (userData as any)?.secUid;
-
-  // Merge/dedupe videos by videoId
   const videoMap = new Map<string, TikTokVideo>();
   for (const v of initialVideos) {
     if (v?.videoId) videoMap.set(v.videoId, v);
   }
 
-  // TikTok internal API commonly accepts cursor=0 for the first page.
-  // Sometimes the HTML doesn't expose a cursor, so we still try pagination as long as we have secUid.
-  let cursor: string | undefined = startCursor ?? initialCursor ?? '0';
-  let pages = 0;
+  const secUid = userData.secUid;
+  const targetCount = userData.videosCount || 0;
 
-  // Try pagination when possible
-  if (secUid) {
-    console.log(`[TikTok Native] Pagination enabled. startCursor=${String(cursor).slice(0, 24)}...`);
+  console.log(`[TikTok Native] Initial: ${videoMap.size} videos, target: ${targetCount}, secUid: ${!!secUid}`);
 
-    // Hard limits to avoid timeouts / blocks
-    const maxPages = 10;
-    const targetCount = userData.videosCount && userData.videosCount > 0 ? userData.videosCount : Number.POSITIVE_INFINITY;
+  // Step 2: If we have secUid, paginate through API to get all videos
+  if (secUid && targetCount > 0) {
+    let cursor = '0';
+    let pages = 0;
+    const maxPages = 20; // Up to 20 pages * 35 videos = 700 videos max
 
     while (pages < maxPages && videoMap.size < targetCount) {
-      const res = await fetchMoreVideos(username, secUid, String(cursor));
+      const result = await fetchVideosFromAPI(username, secUid, cursor);
       pages++;
 
-      for (const v of res.videos) {
-        if (v?.videoId) videoMap.set(v.videoId, v);
+      let newCount = 0;
+      for (const v of result.videos) {
+        if (v?.videoId && !videoMap.has(v.videoId)) {
+          videoMap.set(v.videoId, v);
+          newCount++;
+        }
       }
 
-      if (!res.hasMore || !res.nextCursor) {
-        cursor = res.nextCursor;
+      console.log(`[TikTok Native] Page ${pages}: +${newCount} new, total: ${videoMap.size}/${targetCount}`);
+
+      if (!result.hasMore || !result.nextCursor) {
+        console.log(`[TikTok Native] Pagination ended: hasMore=${result.hasMore}`);
         break;
       }
 
-      // Stop if API returns no new videos
-      if (res.videos.length === 0) break;
+      if (newCount === 0 && result.videos.length === 0) {
+        console.log(`[TikTok Native] No new videos, stopping`);
+        break;
+      }
 
-      cursor = res.nextCursor;
+      cursor = result.nextCursor;
 
-      console.log(`[TikTok Native] Page ${pages}: total videos now ${videoMap.size}`);
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
   } else {
-    console.log('[TikTok Native] Pagination not available (missing secUid)');
+    console.log('[TikTok Native] Pagination not available (missing secUid or videosCount)');
   }
 
   const videos = Array.from(videoMap.values());
@@ -653,10 +489,10 @@ async function scrapeAllVideos(username: string, startCursor?: string): Promise<
     scrapedVideosCount: videos.length,
     totalViews: videos.reduce((sum, v) => sum + v.viewsCount, 0),
     videos,
-    nextCursor: cursor,
+    secUid: userData.secUid,
   };
 
-  console.log(`[TikTok Native] Scrape complete: ${result.scrapedVideosCount} videos, ${result.totalViews} views`);
+  console.log(`[TikTok Native] Scrape complete: ${result.scrapedVideosCount}/${result.videosCount} videos, ${result.totalViews} views`);
 
   return result;
 }
@@ -664,57 +500,51 @@ async function scrapeAllVideos(username: string, startCursor?: string): Promise<
 // Save videos to database
 async function saveVideosToDB(supabase: any, accountId: string, username: string, videos: TikTokVideo[]) {
   console.log(`[TikTok Native] Saving ${videos.length} videos to database...`);
-  
+
   let savedCount = 0;
   let updatedCount = 0;
-  
-  const batchSize = 50;
-  for (let i = 0; i < videos.length; i += batchSize) {
-    const batch = videos.slice(i, i + batchSize);
-    
-    for (const video of batch) {
-      if (!video.videoId) continue;
-      
-      const { data: existing } = await supabase
-        .from('tiktok_videos')
-        .select('id')
-        .eq('account_id', accountId)
-        .eq('video_id', video.videoId)
-        .maybeSingle();
 
-      if (existing) {
-        await supabase.from('tiktok_videos').update({
-          caption: video.caption,
-          thumbnail_url: video.thumbnailUrl,
-          views_count: video.viewsCount,
-          likes_count: video.likesCount,
-          comments_count: video.commentsCount,
-          shares_count: video.sharesCount,
-          duration: video.duration,
-          updated_at: new Date().toISOString(),
-        }).eq('id', existing.id);
-        updatedCount++;
-      } else {
-        await supabase.from('tiktok_videos').insert({
-          account_id: accountId,
-          video_id: video.videoId,
-          video_url: video.videoUrl,
-          caption: video.caption,
-          thumbnail_url: video.thumbnailUrl,
-          views_count: video.viewsCount,
-          likes_count: video.likesCount,
-          comments_count: video.commentsCount,
-          shares_count: video.sharesCount,
-          duration: video.duration,
-          posted_at: video.postedAt,
-        });
-        savedCount++;
-      }
+  for (const video of videos) {
+    if (!video.videoId) continue;
+
+    const { data: existing } = await supabase
+      .from('tiktok_videos')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('video_id', video.videoId)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from('tiktok_videos').update({
+        caption: video.caption,
+        thumbnail_url: video.thumbnailUrl,
+        views_count: video.viewsCount,
+        likes_count: video.likesCount,
+        comments_count: video.commentsCount,
+        shares_count: video.sharesCount,
+        duration: video.duration,
+        updated_at: new Date().toISOString(),
+      }).eq('id', existing.id);
+      updatedCount++;
+    } else {
+      await supabase.from('tiktok_videos').insert({
+        account_id: accountId,
+        video_id: video.videoId,
+        video_url: video.videoUrl,
+        caption: video.caption,
+        thumbnail_url: video.thumbnailUrl,
+        views_count: video.viewsCount,
+        likes_count: video.likesCount,
+        comments_count: video.commentsCount,
+        shares_count: video.sharesCount,
+        duration: video.duration,
+        posted_at: video.postedAt,
+      });
+      savedCount++;
     }
-    
-    console.log(`[TikTok Native] Batch ${Math.ceil((i + 1) / batchSize)}: ${savedCount} new, ${updatedCount} updated`);
   }
-  
+
+  console.log(`[TikTok Native] Saved: ${savedCount} new, ${updatedCount} updated`);
   return { savedCount, updatedCount };
 }
 
@@ -724,7 +554,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { accountId, username, fetchVideos = true, continueFrom = false } = await req.json();
+    const { accountId, username, fetchVideos = true } = await req.json();
 
     if (!username) {
       return new Response(
@@ -736,43 +566,39 @@ Deno.serve(async (req) => {
     // Clean username
     let cleanUsername = username.replace(/^@/, '').trim();
     const urlMatch = cleanUsername.match(/tiktok\.com\/@?([^\/\?]+)/);
-    if (urlMatch) {
-      cleanUsername = urlMatch[1];
-    }
+    if (urlMatch) cleanUsername = urlMatch[1];
 
-    // If we are continuing, load the stored cursor so we can paginate further
-    let storedCursor: string | null = null;
-    let existingAccount: any = null;
+    // Scrape all videos
+    const data = await scrapeAllVideos(cleanUsername);
 
+    console.log('[TikTok Native] Scrape result:', {
+      username: data.username,
+      displayName: data.displayName,
+      followers: data.followersCount,
+      videosCount: data.videosCount,
+      scrapedVideos: data.scrapedVideosCount,
+      totalViews: data.totalViews,
+    });
+
+    // If accountId provided, save to database
     if (accountId) {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      const { data: acc } = await supabase
+      // Get existing account data to avoid overwriting with zeros
+      const { data: existingAccount } = await supabase
         .from('tiktok_accounts')
-        .select('id, next_cursor, scraped_videos_count, total_views, followers_count, likes_count, videos_count')
+        .select('followers_count, likes_count, videos_count, total_views, scraped_videos_count')
         .eq('id', accountId)
         .maybeSingle();
 
-      existingAccount = acc;
-      storedCursor = acc?.next_cursor ?? null;
-
-      if (continueFrom) {
-        console.log('[TikTok Native] ContinueFrom requested, stored cursor:', storedCursor);
-      }
-
-      // Scrape
-      const data = await scrapeAllVideos(cleanUsername, continueFrom ? storedCursor ?? undefined : undefined);
-
-      console.log('[TikTok Native] Scrape complete:', {
-        username: data.username,
-        displayName: data.displayName,
-        followers: data.followersCount,
-        videos: data.scrapedVideosCount,
-        totalViews: data.totalViews,
-        continueFrom,
-      });
+      // Use new values if > 0, otherwise keep existing
+      const safeFollowers = data.followersCount > 0 ? data.followersCount : (existingAccount?.followers_count || 0);
+      const safeLikes = data.likesCount > 0 ? data.likesCount : (existingAccount?.likes_count || 0);
+      const safeVideosCount = data.videosCount > 0 ? data.videosCount : (existingAccount?.videos_count || 0);
+      const safeTotalViews = data.totalViews > 0 ? data.totalViews : (existingAccount?.total_views || 0);
+      const safeScraped = data.scrapedVideosCount > 0 ? data.scrapedVideosCount : (existingAccount?.scraped_videos_count || 0);
 
       // Download and store profile image
       let storedProfileImageUrl = data.profileImageUrl;
@@ -782,12 +608,10 @@ Deno.serve(async (req) => {
           if (imageResponse.ok) {
             const imageBuffer = await imageResponse.arrayBuffer();
             const fileName = `tiktok/${accountId}.png`;
-
             await supabase.storage.from('profile-avatars').upload(fileName, imageBuffer, {
               contentType: 'image/png',
               upsert: true,
             });
-
             const { data: publicUrlData } = supabase.storage.from('profile-avatars').getPublicUrl(fileName);
             storedProfileImageUrl = publicUrlData.publicUrl + `?t=${Date.now()}`;
           }
@@ -795,13 +619,6 @@ Deno.serve(async (req) => {
           console.error('[TikTok Native] Error storing image:', e);
         }
       }
-
-      // Avoid overwriting existing totals with zeros when TikTok blocks scraping
-      const safeFollowers = data.followersCount > 0 ? data.followersCount : Number(existingAccount?.followers_count || 0);
-      const safeLikes = data.likesCount > 0 ? data.likesCount : Number(existingAccount?.likes_count || 0);
-      const safeVideosCount = data.videosCount > 0 ? data.videosCount : Number(existingAccount?.videos_count || 0);
-      const safeScraped = data.scrapedVideosCount > 0 ? data.scrapedVideosCount : Number(existingAccount?.scraped_videos_count || 0);
-      const safeTotalViews = data.totalViews > 0 ? data.totalViews : Number(existingAccount?.total_views || 0);
 
       // Update account
       await supabase.from('tiktok_accounts').update({
@@ -814,17 +631,16 @@ Deno.serve(async (req) => {
         videos_count: safeVideosCount,
         total_views: safeTotalViews,
         scraped_videos_count: safeScraped,
-        next_cursor: data.nextCursor ?? storedCursor,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', accountId);
 
-      // Save videos we managed to fetch
+      // Save videos
       if (fetchVideos && data.videos.length > 0) {
         await saveVideosToDB(supabase, accountId, cleanUsername, data.videos);
       }
 
-      // Save metrics history (only if we got something useful)
+      // Save metrics history
       if (safeFollowers > 0 || safeTotalViews > 0) {
         await supabase.from('tiktok_metrics_history').insert({
           account_id: accountId,
@@ -853,15 +669,7 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         }, { onConflict: 'platform,username' });
       }
-
-      return new Response(
-        JSON.stringify({ success: true, data }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
-
-    // No accountId: just scrape and return
-    const data = await scrapeAllVideos(cleanUsername);
 
     return new Response(
       JSON.stringify({ success: true, data }),
@@ -869,10 +677,8 @@ Deno.serve(async (req) => {
     );
   } catch (error: unknown) {
     console.error('[TikTok Native] Error:', error);
-
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
 
-    // Return partial success instead of 500
     return new Response(
       JSON.stringify({
         success: false,
