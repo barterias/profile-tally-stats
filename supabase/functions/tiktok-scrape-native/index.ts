@@ -361,6 +361,12 @@ function extractUserData(data: any, username: string): Partial<TikTokScrapedData
   if (avatar) {
     result.profileImageUrl = typeof avatar === 'string' ? avatar : avatar?.url_list?.[0];
   }
+
+  // Keep secUid if present (used for pagination)
+  const secUid = userData?.secUid || userData?.sec_uid || userData?.sec_uid_str;
+  if (secUid) {
+    (result as any).secUid = String(secUid);
+  }
   
   console.log(`[TikTok Native] extractUserData: followers=${followers}, videos=${videos}, likes=${likes}`);
   
@@ -393,24 +399,40 @@ async function fetchProfilePage(username: string): Promise<{ userData: Partial<T
     
     // Try to extract JSON data from various script tags
     let jsonData: any = null;
-    
-    const patterns = [
-      /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([^<]+)<\/script>/,
-      /<script id="SIGI_STATE"[^>]*>([^<]+)<\/script>/,
-      /window\['SIGI_STATE'\]\s*=\s*({.+?});/,
-      /<script[^>]*>\s*window\.__INITIAL_STATE__\s*=\s*({.+?});?\s*<\/script>/,
+
+    // IMPORTANT: script contents can contain "<" inside strings, so we must not use [^<]+.
+    const patterns: Array<{ name: string; re: RegExp; preprocess?: (s: string) => string }> = [
+      {
+        name: '__UNIVERSAL_DATA_FOR_REHYDRATION__',
+        re: /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/,
+      },
+      {
+        name: 'SIGI_STATE',
+        re: /<script id="SIGI_STATE"[^>]*>([\s\S]*?)<\/script>/,
+      },
+      {
+        name: "window['SIGI_STATE']",
+        re: /window\['SIGI_STATE'\]\s*=\s*({[\s\S]*?})\s*;?/,
+      },
+      {
+        name: '__INITIAL_STATE__',
+        re: /window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?})\s*;?/,
+      },
     ];
-    
-    for (const pattern of patterns) {
-      const match = html.match(pattern);
-      if (match) {
-        try {
-          jsonData = JSON.parse(match[1]);
-          console.log('[TikTok Native] Found JSON data in HTML');
-          break;
-        } catch (e) {
-          console.log('[TikTok Native] Failed to parse JSON, trying next pattern');
-        }
+
+    for (const p of patterns) {
+      const match = html.match(p.re);
+      if (!match) continue;
+
+      const raw = (match[1] || '').trim();
+      if (!raw) continue;
+
+      try {
+        jsonData = JSON.parse(raw);
+        console.log(`[TikTok Native] Found JSON via ${p.name}`);
+        break;
+      } catch (e) {
+        console.log(`[TikTok Native] Failed to parse JSON via ${p.name}, trying next pattern`);
       }
     }
     
@@ -547,12 +569,56 @@ async function fetchMoreVideos(username: string, secUid: string, cursor: string)
 }
 
 // Main scraping function
-async function scrapeAllVideos(username: string): Promise<TikTokScrapedData> {
+async function scrapeAllVideos(username: string, startCursor?: string): Promise<TikTokScrapedData> {
   console.log(`[TikTok Native] Starting full scrape for: ${username}`);
-  
+
   // Get initial page
   const { userData, videos: initialVideos, cursor: initialCursor } = await fetchProfilePage(username);
-  
+
+  const secUid: string | undefined = (userData as any)?.secUid;
+
+  // Merge/dedupe videos by videoId
+  const videoMap = new Map<string, TikTokVideo>();
+  for (const v of initialVideos) {
+    if (v?.videoId) videoMap.set(v.videoId, v);
+  }
+
+  let cursor: string | undefined = startCursor ?? initialCursor;
+  let pages = 0;
+
+  // Try pagination when possible
+  if (secUid && cursor) {
+    console.log(`[TikTok Native] Pagination enabled. startCursor=${String(cursor).slice(0, 24)}...`);
+
+    // Hard limits to avoid timeouts / blocks
+    const maxPages = 6;
+
+    while (pages < maxPages && videoMap.size < (userData.videosCount || 999999)) {
+      const res = await fetchMoreVideos(username, secUid, String(cursor));
+      pages++;
+
+      for (const v of res.videos) {
+        if (v?.videoId) videoMap.set(v.videoId, v);
+      }
+
+      if (!res.hasMore || !res.nextCursor) {
+        cursor = res.nextCursor;
+        break;
+      }
+
+      cursor = res.nextCursor;
+
+      // Stop if API returns no new videos
+      if (res.videos.length === 0) break;
+
+      console.log(`[TikTok Native] Page ${pages}: total videos now ${videoMap.size}`);
+    }
+  } else {
+    console.log('[TikTok Native] Pagination not available (missing secUid/cursor)');
+  }
+
+  const videos = Array.from(videoMap.values());
+
   const result: TikTokScrapedData = {
     username: userData.username || username,
     displayName: userData.displayName,
@@ -562,28 +628,14 @@ async function scrapeAllVideos(username: string): Promise<TikTokScrapedData> {
     followingCount: userData.followingCount || 0,
     likesCount: userData.likesCount || 0,
     videosCount: userData.videosCount || 0,
-    scrapedVideosCount: 0,
-    totalViews: 0,
-    videos: [...initialVideos],
+    scrapedVideosCount: videos.length,
+    totalViews: videos.reduce((sum, v) => sum + v.viewsCount, 0),
+    videos,
+    nextCursor: cursor,
   };
-  
-  console.log(`[TikTok Native] Initial: ${initialVideos.length} videos, followers: ${result.followersCount}`);
-  
-  // Note: TikTok's API requires secUid for pagination which is harder to get without cookies
-  // The initial page usually contains the most recent videos (up to 30-35)
-  // For now, we'll work with what we can get from the initial page
-  
-  result.scrapedVideosCount = result.videos.length;
-  result.totalViews = result.videos.reduce((sum, v) => sum + v.viewsCount, 0);
-  
-  // If we got 0 videos but the account has videos, try alternative approach
-  if (result.videos.length === 0 && result.videosCount > 0) {
-    console.log('[TikTok Native] No videos from initial scrape, trying alternative...');
-    // The videos might be loaded client-side - we can only get the profile info
-  }
-  
+
   console.log(`[TikTok Native] Scrape complete: ${result.scrapedVideosCount} videos, ${result.totalViews} views`);
-  
+
   return result;
 }
 
@@ -650,7 +702,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { accountId, username, fetchVideos = true } = await req.json();
+    const { accountId, username, fetchVideos = true, continueFrom = false } = await req.json();
 
     if (!username) {
       return new Response(
@@ -666,21 +718,39 @@ Deno.serve(async (req) => {
       cleanUsername = urlMatch[1];
     }
 
-    const data = await scrapeAllVideos(cleanUsername);
+    // If we are continuing, load the stored cursor so we can paginate further
+    let storedCursor: string | null = null;
+    let existingAccount: any = null;
 
-    console.log('[TikTok Native] Scrape complete:', {
-      username: data.username,
-      displayName: data.displayName,
-      followers: data.followersCount,
-      videos: data.scrapedVideosCount,
-      totalViews: data.totalViews,
-    });
-
-    // Update database if accountId provided
     if (accountId) {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const { data: acc } = await supabase
+        .from('tiktok_accounts')
+        .select('id, next_cursor, scraped_videos_count, total_views, followers_count, likes_count, videos_count')
+        .eq('id', accountId)
+        .maybeSingle();
+
+      existingAccount = acc;
+      storedCursor = acc?.next_cursor ?? null;
+
+      if (continueFrom) {
+        console.log('[TikTok Native] ContinueFrom requested, stored cursor:', storedCursor);
+      }
+
+      // Scrape
+      const data = await scrapeAllVideos(cleanUsername, continueFrom ? storedCursor ?? undefined : undefined);
+
+      console.log('[TikTok Native] Scrape complete:', {
+        username: data.username,
+        displayName: data.displayName,
+        followers: data.followersCount,
+        videos: data.scrapedVideosCount,
+        totalViews: data.totalViews,
+        continueFrom,
+      });
 
       // Download and store profile image
       let storedProfileImageUrl = data.profileImageUrl;
@@ -690,7 +760,7 @@ Deno.serve(async (req) => {
           if (imageResponse.ok) {
             const imageBuffer = await imageResponse.arrayBuffer();
             const fileName = `tiktok/${accountId}.png`;
-            
+
             await supabase.storage.from('profile-avatars').upload(fileName, imageBuffer, {
               contentType: 'image/png',
               upsert: true,
@@ -704,55 +774,72 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Avoid overwriting existing totals with zeros when TikTok blocks scraping
+      const safeFollowers = data.followersCount > 0 ? data.followersCount : Number(existingAccount?.followers_count || 0);
+      const safeLikes = data.likesCount > 0 ? data.likesCount : Number(existingAccount?.likes_count || 0);
+      const safeVideosCount = data.videosCount > 0 ? data.videosCount : Number(existingAccount?.videos_count || 0);
+      const safeScraped = data.scrapedVideosCount > 0 ? data.scrapedVideosCount : Number(existingAccount?.scraped_videos_count || 0);
+      const safeTotalViews = data.totalViews > 0 ? data.totalViews : Number(existingAccount?.total_views || 0);
+
       // Update account
       await supabase.from('tiktok_accounts').update({
         display_name: data.displayName,
         profile_image_url: storedProfileImageUrl,
         bio: data.bio,
-        followers_count: data.followersCount,
+        followers_count: safeFollowers,
         following_count: data.followingCount,
-        likes_count: data.likesCount,
-        videos_count: data.videosCount,
-        total_views: data.totalViews,
-        scraped_videos_count: data.scrapedVideosCount,
-        next_cursor: data.nextCursor,
+        likes_count: safeLikes,
+        videos_count: safeVideosCount,
+        total_views: safeTotalViews,
+        scraped_videos_count: safeScraped,
+        next_cursor: data.nextCursor ?? storedCursor,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', accountId);
 
-      // Save all videos
+      // Save videos we managed to fetch
       if (fetchVideos && data.videos.length > 0) {
         await saveVideosToDB(supabase, accountId, cleanUsername, data.videos);
       }
 
-      // Save metrics history
-      await supabase.from('tiktok_metrics_history').insert({
-        account_id: accountId,
-        followers_count: data.followersCount,
-        likes_count: data.likesCount,
-        views_count: data.totalViews,
-        comments_count: data.videos.reduce((sum, v) => sum + v.commentsCount, 0),
-        shares_count: data.videos.reduce((sum, v) => sum + v.sharesCount, 0),
-      });
+      // Save metrics history (only if we got something useful)
+      if (safeFollowers > 0 || safeTotalViews > 0) {
+        await supabase.from('tiktok_metrics_history').insert({
+          account_id: accountId,
+          followers_count: safeFollowers,
+          likes_count: safeLikes,
+          views_count: safeTotalViews,
+          comments_count: data.videos.reduce((sum, v) => sum + v.commentsCount, 0),
+          shares_count: data.videos.reduce((sum, v) => sum + v.sharesCount, 0),
+        });
 
-      // Update profile_metrics
-      await supabase.from('profile_metrics').upsert({
-        profile_id: accountId,
-        platform: 'tiktok',
-        username: data.username,
-        display_name: data.displayName,
-        profile_image_url: storedProfileImageUrl,
-        followers: data.followersCount,
-        following: data.followingCount,
-        total_views: data.totalViews,
-        total_posts: data.videosCount,
-        total_likes: data.likesCount,
-        total_comments: data.videos.reduce((sum, v) => sum + v.commentsCount, 0),
-        total_shares: data.videos.reduce((sum, v) => sum + v.sharesCount, 0),
-        last_synced_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'platform,username' });
+        // Update profile_metrics
+        await supabase.from('profile_metrics').upsert({
+          profile_id: accountId,
+          platform: 'tiktok',
+          username: data.username,
+          display_name: data.displayName,
+          profile_image_url: storedProfileImageUrl,
+          followers: safeFollowers,
+          following: data.followingCount,
+          total_views: safeTotalViews,
+          total_posts: safeVideosCount,
+          total_likes: safeLikes,
+          total_comments: data.videos.reduce((sum, v) => sum + v.commentsCount, 0),
+          total_shares: data.videos.reduce((sum, v) => sum + v.sharesCount, 0),
+          last_synced_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'platform,username' });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    // No accountId: just scrape and return
+    const data = await scrapeAllVideos(cleanUsername);
 
     return new Response(
       JSON.stringify({ success: true, data }),
@@ -760,13 +847,13 @@ Deno.serve(async (req) => {
     );
   } catch (error: unknown) {
     console.error('[TikTok Native] Error:', error);
-    
+
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    
+
     // Return partial success instead of 500
     return new Response(
-      JSON.stringify({ 
-        success: false, 
+      JSON.stringify({
+        success: false,
         error: errorMessage,
         data: {
           username: '',
@@ -777,7 +864,7 @@ Deno.serve(async (req) => {
           scrapedVideosCount: 0,
           totalViews: 0,
           videos: [],
-        }
+        },
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
