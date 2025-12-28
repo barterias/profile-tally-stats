@@ -69,9 +69,9 @@ export function useAddTikTokAccount() {
           
           if (updateError) throw updateError;
           
-          // Sync the account
-          const { error: syncError } = await supabase.functions.invoke('tiktok-scrape-native', {
-            body: { accountId: existing.id, username },
+          // Sync the account using Apify
+          const { error: syncError } = await supabase.functions.invoke('tiktok-scrape-apify', {
+            body: { accountId: existing.id, username, resultsLimit: 300 },
           });
           
           if (syncError) throw syncError;
@@ -95,9 +95,9 @@ export function useAddTikTokAccount() {
       
       if (insertError) throw insertError;
       
-      // Sync the new account
-      const { error: syncError } = await supabase.functions.invoke('tiktok-scrape-native', {
-        body: { accountId: newAccount.id, username },
+      // Sync the new account using Apify
+      const { error: syncError } = await supabase.functions.invoke('tiktok-scrape-apify', {
+        body: { accountId: newAccount.id, username, resultsLimit: 300 },
       });
       
       if (syncError) {
@@ -137,8 +137,8 @@ export function useSyncTikTokAccount() {
       
       if (!account) throw new Error('Conta não encontrada');
       
-      const { error } = await supabase.functions.invoke('tiktok-scrape-native', {
-        body: { accountId, username: account.username, continueFrom },
+      const { error } = await supabase.functions.invoke('tiktok-scrape-apify', {
+        body: { accountId, username: account.username, resultsLimit: 300 },
       });
       
       if (error) throw error;
@@ -165,8 +165,8 @@ export function useSyncAllTikTokAccounts() {
     mutationFn: async (accounts: { id: string; username: string }[]) => {
       const results = await Promise.allSettled(
         accounts.map(async (acc) => {
-          const { error } = await supabase.functions.invoke('tiktok-scrape-native', {
-            body: { accountId: acc.id, username: acc.username },
+          const { error } = await supabase.functions.invoke('tiktok-scrape-apify', {
+            body: { accountId: acc.id, username: acc.username, resultsLimit: 300 },
           });
           if (error) throw error;
           return { success: true };
