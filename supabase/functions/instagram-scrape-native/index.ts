@@ -62,14 +62,62 @@ function parseCount(text?: string | number | null): number {
   return Math.round(value);
 }
 
-// GraphQL query hash for user media
-const QUERY_HASH = 'e769aa130647d2354c40ea6a439bfc08';
+// Multiple GraphQL query hashes to try
+const QUERY_HASHES = [
+  'e769aa130647d2354c40ea6a439bfc08',
+  '003056d32c2554def87228bc3fd9668a',
+  '42323d64886122307be10013ad2dcc44',
+  '472f257a40c653c64c666ce877d59d2b',
+];
+
+// Extract posts from various JSON structures
+function extractPostsFromData(data: any): InstagramPost[] {
+  const posts: InstagramPost[] = [];
+  
+  function processNode(node: any) {
+    if (!node) return;
+    
+    const isVideo = node.__typename === 'GraphVideo' || node.is_video || node.media_type === 2;
+    const shortcode = node.shortcode || node.code;
+    
+    if (!shortcode) return;
+    
+    posts.push({
+      postUrl: `https://www.instagram.com/p/${shortcode}/`,
+      type: isVideo ? 'video' : (node.__typename === 'GraphSidecar' || node.carousel_media ? 'carousel' : 'post'),
+      thumbnailUrl: node.display_url || node.thumbnail_src || node.image_versions2?.candidates?.[0]?.url,
+      caption: (node.edge_media_to_caption?.edges?.[0]?.node?.text || node.caption?.text || '').substring(0, 200),
+      likesCount: node.edge_liked_by?.count || node.like_count || 0,
+      commentsCount: node.edge_media_to_comment?.count || node.comment_count || 0,
+      viewsCount: isVideo ? (node.video_view_count || node.view_count || node.play_count || 0) : 0,
+      postedAt: node.taken_at_timestamp 
+        ? new Date(node.taken_at_timestamp * 1000).toISOString() 
+        : node.taken_at 
+          ? new Date(node.taken_at * 1000).toISOString()
+          : undefined,
+    });
+  }
+  
+  // Try different paths
+  const edges = data?.edge_owner_to_timeline_media?.edges 
+    || data?.edge_felix_video_timeline?.edges
+    || data?.user?.edge_owner_to_timeline_media?.edges
+    || [];
+    
+  edges.forEach((edge: any) => processNode(edge.node || edge));
+  
+  // Try items array (API v1 format)
+  const items = data?.items || data?.user?.items || [];
+  items.forEach((item: any) => processNode(item));
+  
+  return posts;
+}
 
 async function fetchUserInfo(username: string): Promise<any | null> {
   console.log(`[Instagram Native] Fetching user info for: ${username}`);
   
   try {
-    // Try web_profile_info endpoint
+    // Method 1: web_profile_info API
     const response = await fetch(
       `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`,
       {
@@ -77,6 +125,8 @@ async function fetchUserInfo(username: string): Promise<any | null> {
           ...browserHeaders,
           'X-IG-App-ID': '936619743392459',
           'X-Requested-With': 'XMLHttpRequest',
+          'X-ASBD-ID': '129477',
+          'X-IG-WWW-Claim': '0',
         },
       }
     );
@@ -84,14 +134,18 @@ async function fetchUserInfo(username: string): Promise<any | null> {
     if (response.ok) {
       const data = await response.json();
       if (data?.data?.user) {
+        console.log('[Instagram Native] Got user data from web_profile_info API');
         return data.data.user;
       }
     }
     
-    // Fallback: scrape from HTML
-    console.log('[Instagram Native] Falling back to HTML scraping...');
+    // Method 2: Profile page HTML with embedded JSON
+    console.log('[Instagram Native] Trying HTML scraping...');
     const htmlResponse = await fetch(`https://www.instagram.com/${username}/`, {
-      headers: browserHeaders,
+      headers: {
+        ...browserHeaders,
+        'Cookie': 'ig_cb=2',
+      },
     });
     
     if (!htmlResponse.ok) {
@@ -104,33 +158,79 @@ async function fetchUserInfo(username: string): Promise<any | null> {
     // Check if profile is private or doesn't exist
     if (html.includes('Esta página não está disponível') || 
         html.includes("Sorry, this page isn't available") ||
-        html.includes('Esta conta é privada')) {
+        html.includes('Esta conta é privada') ||
+        html.includes('This account is private')) {
       console.warn(`[Instagram Native] Profile unavailable or private: ${username}`);
       return null;
     }
     
-    // Try to find shared data
-    const sharedDataMatch = html.match(/window\._sharedData\s*=\s*({.+?});<\/script>/);
+    // Try multiple JSON extraction methods
+    let userData = null;
+    
+    // Try _sharedData
+    const sharedDataMatch = html.match(/window\._sharedData\s*=\s*({.+?});<\/script>/s);
     if (sharedDataMatch) {
-      const sharedData = JSON.parse(sharedDataMatch[1]);
-      return sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user;
+      try {
+        const sharedData = JSON.parse(sharedDataMatch[1]);
+        userData = sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user;
+        if (userData) {
+          console.log('[Instagram Native] Got user data from _sharedData');
+          return userData;
+        }
+      } catch (e) {}
     }
     
-    // Extract from meta tags
-    const metaMatch = html.match(/<meta\s+content="([^"]+)"\s+property="og:description"/);
-    const imgMatch = html.match(/<meta\s+content="([^"]+)"\s+property="og:image"/);
+    // Try __additionalData
+    const additionalDataMatch = html.match(/window\.__additionalDataLoaded\s*\([^,]+,\s*({.+?})\);/s);
+    if (additionalDataMatch) {
+      try {
+        const additionalData = JSON.parse(additionalDataMatch[1]);
+        userData = additionalData?.graphql?.user || additionalData?.user;
+        if (userData) {
+          console.log('[Instagram Native] Got user data from __additionalDataLoaded');
+          return userData;
+        }
+      } catch (e) {}
+    }
+    
+    // Try require("PolarisQueryPreloaderCache") format
+    const preloaderMatch = html.match(/"user":\s*({[^}]+?"username":\s*"[^"]+?"[^}]*})/);
+    if (preloaderMatch) {
+      try {
+        // This is partial, need to build user object from meta
+        console.log('[Instagram Native] Found partial user data in preloader');
+      } catch (e) {}
+    }
+    
+    // Extract from meta tags as last resort
+    const metaMatch = html.match(/<meta\s+(?:content="([^"]+)"\s+property="og:description"|property="og:description"\s+content="([^"]+)")/i);
+    const imgMatch = html.match(/<meta\s+(?:content="([^"]+)"\s+property="og:image"|property="og:image"\s+content="([^"]+)")/i);
+    const titleMatch = html.match(/<title>([^<]+)<\/title>/);
     
     if (metaMatch) {
-      const desc = metaMatch[1];
-      const statsMatch = desc.match(/([\d,.]+[KMB]?)\s*Followers.*?([\d,.]+[KMB]?)\s*Following.*?([\d,.]+[KMB]?)\s*Posts/i);
+      const desc = metaMatch[1] || metaMatch[2];
+      // Try different patterns
+      let statsMatch = desc.match(/([\d,.]+[KMB]?)\s*Followers[,\s]+([\d,.]+[KMB]?)\s*Following[,\s]+([\d,.]+[KMB]?)\s*Posts/i);
+      if (!statsMatch) {
+        statsMatch = desc.match(/([\d,.]+[KMB]?)\s*seguidores[,\s]+([\d,.]+[KMB]?)\s*seguindo[,\s]+([\d,.]+[KMB]?)\s*publica/i);
+      }
+      
+      // Extract display name from title
+      let displayName = '';
+      if (titleMatch) {
+        const titleParts = titleMatch[1].match(/^([^(@]+)/);
+        if (titleParts) displayName = titleParts[1].trim();
+      }
       
       if (statsMatch) {
+        console.log('[Instagram Native] Extracted from meta tags:', { followers: statsMatch[1], following: statsMatch[2], posts: statsMatch[3] });
         return {
           username,
-          profile_pic_url: imgMatch?.[1],
+          full_name: displayName,
+          profile_pic_url: imgMatch?.[1] || imgMatch?.[2],
           edge_followed_by: { count: parseCount(statsMatch[1]) },
           edge_follow: { count: parseCount(statsMatch[2]) },
-          edge_owner_to_timeline_media: { count: parseCount(statsMatch[3]) },
+          edge_owner_to_timeline_media: { count: parseCount(statsMatch[3]), edges: [] },
         };
       }
     }
@@ -146,55 +246,48 @@ async function fetchUserInfo(username: string): Promise<any | null> {
 async function fetchUserMedia(userId: string, endCursor?: string): Promise<{ posts: InstagramPost[]; nextCursor?: string; hasNextPage: boolean }> {
   console.log(`[Instagram Native] Fetching media for user ${userId}, cursor: ${endCursor ? 'yes' : 'initial'}`);
   
-  const variables = {
-    id: userId,
-    first: 50,
-    after: endCursor || null,
-  };
-  
-  const url = `https://www.instagram.com/graphql/query/?query_hash=${QUERY_HASH}&variables=${encodeURIComponent(JSON.stringify(variables))}`;
-  
-  const response = await fetch(url, {
-    headers: {
-      ...browserHeaders,
-      'X-IG-App-ID': '936619743392459',
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-  });
-  
-  if (!response.ok) {
-    console.log(`[Instagram Native] GraphQL request failed: ${response.status}`);
-    return { posts: [], hasNextPage: false };
+  // Try each query hash
+  for (const queryHash of QUERY_HASHES) {
+    try {
+      const variables = {
+        id: userId,
+        first: 50,
+        after: endCursor || null,
+      };
+      
+      const url = `https://www.instagram.com/graphql/query/?query_hash=${queryHash}&variables=${encodeURIComponent(JSON.stringify(variables))}`;
+      
+      const response = await fetch(url, {
+        headers: {
+          ...browserHeaders,
+          'X-IG-App-ID': '936619743392459',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-ASBD-ID': '129477',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const media = data?.data?.user?.edge_owner_to_timeline_media;
+        
+        if (media?.edges?.length > 0) {
+          console.log(`[Instagram Native] GraphQL succeeded with hash ${queryHash.substring(0, 8)}...`);
+          const posts = extractPostsFromData({ edge_owner_to_timeline_media: media });
+          
+          return {
+            posts,
+            nextCursor: media.page_info?.end_cursor,
+            hasNextPage: media.page_info?.has_next_page || false,
+          };
+        }
+      }
+    } catch (e) {
+      console.log(`[Instagram Native] Query hash ${queryHash.substring(0, 8)}... failed`);
+    }
   }
   
-  const data = await response.json();
-  const media = data?.data?.user?.edge_owner_to_timeline_media;
-  
-  if (!media) {
-    return { posts: [], hasNextPage: false };
-  }
-  
-  const posts: InstagramPost[] = media.edges.map((edge: any) => {
-    const node = edge.node;
-    const isVideo = node.__typename === 'GraphVideo' || node.is_video;
-    
-    return {
-      postUrl: node.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : '',
-      type: isVideo ? 'video' : (node.__typename === 'GraphSidecar' ? 'carousel' : 'post'),
-      thumbnailUrl: node.display_url || node.thumbnail_src,
-      caption: node.edge_media_to_caption?.edges?.[0]?.node?.text?.substring(0, 200) || '',
-      likesCount: node.edge_liked_by?.count || 0,
-      commentsCount: node.edge_media_to_comment?.count || 0,
-      viewsCount: isVideo ? (node.video_view_count || 0) : 0,
-      postedAt: node.taken_at_timestamp ? new Date(node.taken_at_timestamp * 1000).toISOString() : undefined,
-    };
-  });
-  
-  return {
-    posts,
-    nextCursor: media.page_info?.end_cursor,
-    hasNextPage: media.page_info?.has_next_page || false,
-  };
+  console.log('[Instagram Native] All GraphQL methods failed');
+  return { posts: [], hasNextPage: false };
 }
 
 // Main function - fetches ALL posts with pagination
