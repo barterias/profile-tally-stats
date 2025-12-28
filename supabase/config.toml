@@ -58,3 +58,13 @@ verify_jwt = true
 
 [functions.api-metrics-history]
 verify_jwt = true
+
+# Native scraping functions (no third-party API)
+[functions.youtube-scrape-native]
+verify_jwt = false
+
+[functions.instagram-scrape-native]
+verify_jwt = false
+
+[functions.tiktok-scrape-native]
+verify_jwt = false
