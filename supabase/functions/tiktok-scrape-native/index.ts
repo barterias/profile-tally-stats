@@ -224,17 +224,70 @@ function extractVideosFromData(data: any, username: string): TikTokVideo[] {
   return videos;
 }
 
+// Recursively find user/stats data in any JSON structure
+function findUserDataRecursively(obj: any, username: string, depth = 0): { user: any; stats: any } {
+  if (!obj || typeof obj !== 'object' || depth > 15) return { user: null, stats: null };
+  
+  let user: any = null;
+  let stats: any = null;
+  
+  // Check if this object looks like user data
+  if (obj.uniqueId === username || obj.unique_id === username || 
+      (obj.nickname && (obj.followerCount !== undefined || obj.stats))) {
+    user = obj;
+    stats = obj.stats;
+  }
+  
+  // Check for userInfo pattern
+  if (obj.userInfo?.user) {
+    user = obj.userInfo.user;
+    stats = obj.userInfo.stats || obj.userInfo.user.stats;
+  }
+  
+  // Check for stats with followerCount
+  if (!stats && obj.followerCount !== undefined && obj.followingCount !== undefined) {
+    stats = obj;
+  }
+  
+  if (user && stats) return { user, stats };
+  
+  // Recurse into children
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const found = findUserDataRecursively(item, username, depth + 1);
+      if (found.user || found.stats) {
+        user = user || found.user;
+        stats = stats || found.stats;
+        if (user && stats) return { user, stats };
+      }
+    }
+  } else {
+    for (const key of Object.keys(obj)) {
+      const found = findUserDataRecursively(obj[key], username, depth + 1);
+      if (found.user || found.stats) {
+        user = user || found.user;
+        stats = stats || found.stats;
+        if (user && stats) return { user, stats };
+      }
+    }
+  }
+  
+  return { user, stats };
+}
+
 // Extract user data from any JSON structure
 function extractUserData(data: any, username: string): Partial<TikTokScrapedData> {
   let userData: any = null;
   let statsData: any = null;
   
-  // Try different paths
+  // Try specific known paths first
   const userPaths = [
     data?.['__DEFAULT_SCOPE__']?.['webapp.user-detail']?.userInfo?.user,
+    data?.['__DEFAULT_SCOPE__']?.['webapp.user-detail']?.user,
     data?.UserModule?.users?.[username],
     data?.UserPage?.userInfo?.user,
     data?.userInfo?.user,
+    data?.user,
   ];
   
   for (const path of userPaths) {
@@ -246,6 +299,7 @@ function extractUserData(data: any, username: string): Partial<TikTokScrapedData
   
   const statsPaths = [
     data?.['__DEFAULT_SCOPE__']?.['webapp.user-detail']?.userInfo?.stats,
+    data?.['__DEFAULT_SCOPE__']?.['webapp.user-detail']?.stats,
     data?.UserModule?.stats?.[username],
     data?.UserPage?.userInfo?.stats,
     data?.userInfo?.stats,
@@ -259,21 +313,56 @@ function extractUserData(data: any, username: string): Partial<TikTokScrapedData
     }
   }
   
+  // If we didn't find data, try recursive search
+  if (!userData || !statsData) {
+    const found = findUserDataRecursively(data, username);
+    if (!userData && found.user) userData = found.user;
+    if (!statsData && found.stats) statsData = found.stats;
+  }
+  
+  // Extract counts from various possible field names
+  const followers = parseCount(
+    statsData?.followerCount ?? statsData?.follower_count ?? 
+    userData?.followerCount ?? userData?.follower_count ?? 
+    userData?.fans ?? userData?.fansCount ?? 0
+  );
+  
+  const following = parseCount(
+    statsData?.followingCount ?? statsData?.following_count ?? 
+    userData?.followingCount ?? userData?.following_count ?? 0
+  );
+  
+  const likes = parseCount(
+    statsData?.heartCount ?? statsData?.heart ?? statsData?.diggCount ??
+    userData?.heartCount ?? userData?.heart ?? userData?.diggCount ?? 
+    userData?.totalLikes ?? 0
+  );
+  
+  const videos = parseCount(
+    statsData?.videoCount ?? statsData?.video_count ?? 
+    userData?.videoCount ?? userData?.video_count ?? 
+    userData?.aweme_count ?? 0
+  );
+  
   const result: Partial<TikTokScrapedData> = {
     username: userData?.uniqueId || userData?.unique_id || username,
-    displayName: userData?.nickname || userData?.name,
-    bio: userData?.signature || userData?.bio,
-    followersCount: parseCount(statsData?.followerCount || userData?.followerCount || userData?.fans || 0),
-    followingCount: parseCount(statsData?.followingCount || userData?.followingCount || userData?.following || 0),
-    likesCount: parseCount(statsData?.heartCount || statsData?.heart || userData?.heartCount || userData?.heart || 0),
-    videosCount: parseCount(statsData?.videoCount || userData?.videoCount || userData?.video || 0),
+    displayName: userData?.nickname || userData?.name || userData?.display_name,
+    bio: userData?.signature || userData?.bio || userData?.desc,
+    followersCount: followers,
+    followingCount: following,
+    likesCount: likes,
+    videosCount: videos,
   };
   
-  // Get avatar
-  const avatar = userData?.avatarLarger || userData?.avatarMedium || userData?.avatar_larger || userData?.avatar;
+  // Get avatar from various possible fields
+  const avatar = userData?.avatarLarger || userData?.avatarMedium || userData?.avatarThumb ||
+                 userData?.avatar_larger || userData?.avatar_medium || userData?.avatar ||
+                 userData?.avatar_url || userData?.cover_url?.[0];
   if (avatar) {
-    result.profileImageUrl = avatar;
+    result.profileImageUrl = typeof avatar === 'string' ? avatar : avatar?.url_list?.[0];
   }
+  
+  console.log(`[TikTok Native] extractUserData: followers=${followers}, videos=${videos}, likes=${likes}`);
   
   return result;
 }
@@ -376,21 +465,44 @@ function extractFromMeta(html: string, username: string): { userData: Partial<Ti
     if (parts[0]) userData.displayName = parts[0].trim();
   }
   
-  // Extract stats from description
+  // Extract stats from description - handle multiple formats
   const descMatch = html.match(/<meta\s+(?:name="description"|property="og:description")\s+content="([^"]+)"/) ||
                     html.match(/content="([^"]+)"\s+(?:name="description"|property="og:description")/);
   if (descMatch) {
     const desc = descMatch[1];
     
-    // Try to parse "123 Followers, 456 Following, 789 Likes"
-    const followersMatch = desc.match(/([\d.]+[KMB]?)\s*Followers/i);
-    const followingMatch = desc.match(/([\d.]+[KMB]?)\s*Following/i);
-    const likesMatch = desc.match(/([\d.]+[KMB]?)\s*Likes/i);
+    // Try various patterns for followers/following/likes
+    // English: "123 Followers, 456 Following, 789 Likes"
+    // Portuguese: "123 Seguidores, 456 Seguindo, 789 Curtidas"
+    const followersPatterns = [
+      /([\d.,]+[KMB]?)\s*Followers/i,
+      /([\d.,]+[KMB]?)\s*Seguidores/i,
+      /([\d.,]+[KMB]?)\s*seguidores/i,
+    ];
+    const followingPatterns = [
+      /([\d.,]+[KMB]?)\s*Following/i,
+      /([\d.,]+[KMB]?)\s*Seguindo/i,
+    ];
+    const likesPatterns = [
+      /([\d.,]+[KMB]?)\s*Likes/i,
+      /([\d.,]+[KMB]?)\s*Curtidas/i,
+    ];
     
-    if (followersMatch) userData.followersCount = parseCount(followersMatch[1]);
-    if (followingMatch) userData.followingCount = parseCount(followingMatch[1]);
-    if (likesMatch) userData.likesCount = parseCount(likesMatch[1]);
+    for (const pattern of followersPatterns) {
+      const match = desc.match(pattern);
+      if (match) { userData.followersCount = parseCount(match[1]); break; }
+    }
+    for (const pattern of followingPatterns) {
+      const match = desc.match(pattern);
+      if (match) { userData.followingCount = parseCount(match[1]); break; }
+    }
+    for (const pattern of likesPatterns) {
+      const match = desc.match(pattern);
+      if (match) { userData.likesCount = parseCount(match[1]); break; }
+    }
   }
+  
+  console.log(`[TikTok Native] Meta extraction: followers=${userData.followersCount}, likes=${userData.likesCount}`);
   
   return { userData, videos: [] };
 }
