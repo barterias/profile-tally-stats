@@ -49,11 +49,11 @@ serve(async (req) => {
 
   try {
     const INSTAGRAM_TOKEN = Deno.env.get('INSTAGRAM_TOKEN');
-    const INSTAGRAM_BUSINESS_ID = Deno.env.get('INSTAGRAM_BUSINESS_ID');
+    const FACEBOOK_PAGE_ID = Deno.env.get('INSTAGRAM_BUSINESS_ID'); // This is actually Facebook Page ID
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    if (!INSTAGRAM_TOKEN || !INSTAGRAM_BUSINESS_ID) {
+    if (!INSTAGRAM_TOKEN || !FACEBOOK_PAGE_ID) {
       throw new Error('Instagram API credentials not configured');
     }
 
@@ -62,9 +62,27 @@ serve(async (req) => {
 
     console.log(`[Instagram Official API] Action: ${action}, Username: ${username || 'N/A'}`);
 
+    // First, get the Instagram Business Account ID from the Facebook Page
+    const pageUrl = `https://graph.facebook.com/v21.0/${FACEBOOK_PAGE_ID}?fields=instagram_business_account&access_token=${INSTAGRAM_TOKEN}`;
+    console.log('[Instagram Official API] Fetching Instagram Business Account from Page...');
+    const pageRes = await fetch(pageUrl);
+    const pageData = await pageRes.json();
+    
+    if (pageData.error) {
+      console.error('[Instagram Official API] Page error:', pageData.error);
+      throw new Error(pageData.error.message || 'Failed to fetch page data');
+    }
+
+    const instagramAccountId = pageData.instagram_business_account?.id;
+    if (!instagramAccountId) {
+      throw new Error('No Instagram Business Account connected to this Facebook Page');
+    }
+    
+    console.log('[Instagram Official API] Instagram Business Account ID:', instagramAccountId);
+
     if (action === 'get_profile') {
-      // Get profile info
-      const profileUrl = `https://graph.facebook.com/v21.0/${INSTAGRAM_BUSINESS_ID}?fields=id,username,name,biography,profile_picture_url,followers_count,follows_count,media_count&access_token=${INSTAGRAM_TOKEN}`;
+      // Get profile info using Instagram Business Account ID
+      const profileUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}?fields=id,username,name,biography,profile_picture_url,followers_count,follows_count,media_count&access_token=${INSTAGRAM_TOKEN}`;
       
       console.log('[Instagram Official API] Fetching profile...');
       const profileRes = await fetch(profileUrl);
@@ -96,7 +114,7 @@ serve(async (req) => {
 
     if (action === 'get_media') {
       // Get media list with insights
-      const mediaUrl = `https://graph.facebook.com/v21.0/${INSTAGRAM_BUSINESS_ID}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=50&access_token=${INSTAGRAM_TOKEN}`;
+      const mediaUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=50&access_token=${INSTAGRAM_TOKEN}`;
       
       console.log('[Instagram Official API] Fetching media...');
       const mediaRes = await fetch(mediaUrl);
@@ -159,8 +177,8 @@ serve(async (req) => {
       // Sync account: get profile + media and save to DB
       console.log('[Instagram Official API] Starting full sync...');
 
-      // 1. Get profile
-      const profileUrl = `https://graph.facebook.com/v21.0/${INSTAGRAM_BUSINESS_ID}?fields=id,username,name,biography,profile_picture_url,followers_count,follows_count,media_count&access_token=${INSTAGRAM_TOKEN}`;
+      // 1. Get profile using instagramAccountId
+      const profileUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}?fields=id,username,name,biography,profile_picture_url,followers_count,follows_count,media_count&access_token=${INSTAGRAM_TOKEN}`;
       const profileRes = await fetch(profileUrl);
       const profile: InstagramProfile = await profileRes.json();
 
@@ -172,7 +190,7 @@ serve(async (req) => {
 
       // 2. Get all media with pagination
       let allMedia: InstagramMedia[] = [];
-      let nextUrl: string | null = `https://graph.facebook.com/v21.0/${INSTAGRAM_BUSINESS_ID}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=50&access_token=${INSTAGRAM_TOKEN}`;
+      let nextUrl: string | null = `https://graph.facebook.com/v21.0/${instagramAccountId}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=50&access_token=${INSTAGRAM_TOKEN}`;
       
       while (nextUrl && allMedia.length < 500) {
         const mediaRes: Response = await fetch(nextUrl);
