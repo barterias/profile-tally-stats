@@ -377,17 +377,23 @@ Deno.serve(async (req) => {
     console.error('[TikTok Apify] Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
 
-    // Surface Apify billing/limits as proper HTTP status so the client can handle it
-    const status = errorMessage.includes('Apify start failed: 402') ? 402 : 500;
+    const isApifyLimit = errorMessage.includes('Apify start failed: 402');
+
+    // Return 200 for quota/plan limits so the client can handle it without a hard failure
+    if (isApifyLimit) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          code: 'APIFY_LIMIT',
+          error: 'Limite do Apify atingido (memória/conta). Finalize runs em andamento ou faça upgrade no Apify.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: status === 402
-          ? 'Limite do Apify atingido (memória/conta). Finalize runs em andamento ou faça upgrade no Apify.'
-          : errorMessage,
-      }),
-      { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: false, error: errorMessage }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

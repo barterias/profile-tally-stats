@@ -96,13 +96,21 @@ export function useAddTikTokAccount() {
 
           if (updateError) throw updateError;
 
-          const { error: syncError } = await supabase.functions.invoke('tiktok-scrape-apify', {
+          const { data: syncData, error: syncError } = await supabase.functions.invoke('tiktok-scrape-apify', {
             body: { accountId: existing.id, username, resultsLimit: 300 },
           });
 
           if (syncError) {
             const parsed = parseInvokeError(syncError);
             return { success: false, error: parsed.message, status: parsed.status } satisfies FunctionInvokeFailure;
+          }
+
+          if (syncData && (syncData as any).success === false) {
+            return {
+              success: false,
+              error: (syncData as any).error || 'Limite do Apify atingido.',
+              status: 402,
+            } satisfies FunctionInvokeFailure;
           }
 
           return { success: true, reactivated: true };
@@ -125,13 +133,21 @@ export function useAddTikTokAccount() {
 
       if (insertError) throw insertError;
 
-      const { error: syncError } = await supabase.functions.invoke('tiktok-scrape-apify', {
+      const { data: syncData, error: syncError } = await supabase.functions.invoke('tiktok-scrape-apify', {
         body: { accountId: newAccount.id, username, resultsLimit: 300 },
       });
 
       if (syncError) {
         const parsed = parseInvokeError(syncError);
         return { success: false, error: parsed.message, status: parsed.status } satisfies FunctionInvokeFailure;
+      }
+
+      if (syncData && (syncData as any).success === false) {
+        return {
+          success: false,
+          error: (syncData as any).error || 'Limite do Apify atingido.',
+          status: 402,
+        } satisfies FunctionInvokeFailure;
       }
 
       return { success: true };
@@ -176,7 +192,15 @@ export function useSyncTikTokAccount() {
         return { success: false, error: parsed.message, status: parsed.status } satisfies FunctionInvokeFailure;
       }
 
-      return { success: true, videosCount: result?.data?.scrapedVideosCount || 0 };
+      if (result && (result as any).success === false) {
+        return {
+          success: false,
+          error: (result as any).error || 'Limite do Apify atingido.',
+          status: 402,
+        } satisfies FunctionInvokeFailure;
+      }
+
+      return { success: true, videosCount: (result as any)?.data?.scrapedVideosCount || 0 };
     },
     onSuccess: (result: any) => {
       if (result?.success) {
@@ -203,14 +227,21 @@ export function useSyncAllTikTokAccounts() {
     mutationFn: async (accounts: { id: string; username: string }[]) => {
       const results = await Promise.allSettled(
         accounts.map(async (acc) => {
-          const { error } = await supabase.functions.invoke('tiktok-scrape-apify', {
+          const { data, error } = await supabase.functions.invoke('tiktok-scrape-apify', {
             body: { accountId: acc.id, username: acc.username, resultsLimit: 300 },
           });
 
           if (error) {
-            // Mark as failure but don't throw to avoid crashing the UI
             const parsed = parseInvokeError(error);
             return { success: false, error: parsed.message, status: parsed.status } as FunctionInvokeFailure;
+          }
+
+          if (data && (data as any).success === false) {
+            return {
+              success: false,
+              error: (data as any).error || 'Limite do Apify atingido.',
+              status: 402,
+            } as FunctionInvokeFailure;
           }
 
           return { success: true } as const;
