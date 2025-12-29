@@ -127,7 +127,8 @@ export function useSocialMetrics() {
       const ytComments = (youtubeVids.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
 
       const totalFollowers = instagramFollowers + tiktokFollowers + youtubeSubscribers;
-      const totalViews = igViews + ttViews + ytViews + youtubeViews;
+      // Use only content views (from videos/posts) to avoid double-counting YouTube channel views
+      const totalViews = igViews + ttViews + ytViews;
       const totalLikes = igLikes + ttLikes + tiktokLikes + ytLikes;
       const totalComments = igComments + ttComments + ytComments;
       const totalVideos = (instagramPosts.data?.length || 0) + (tiktokVids.data?.length || 0) + (youtubeVids.data?.length || 0);
@@ -150,7 +151,7 @@ export function useSocialMetrics() {
         {
           platform: 'YouTube',
           followers: youtubeSubscribers,
-          views: ytViews + youtubeViews,
+          views: ytViews, // Only content views, not channel total_views
           likes: ytLikes,
           accounts: youtubeAccounts.length,
         },
