@@ -38,14 +38,14 @@ export function useInstagramVideos(accountId: string) {
   });
 }
 
-// Hook to fetch all posts for all accounts (for calculating total views)
+// Hook to fetch all posts for all accounts (for calculating totals)
 export function useAllInstagramVideos() {
   return useQuery({
     queryKey: ['instagram-videos-all'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('instagram_posts')
-        .select('account_id, views_count');
+        .select('account_id, views_count, likes_count, comments_count');
 
       if (error) {
         console.error('Error fetching all Instagram posts:', error);
