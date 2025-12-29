@@ -96,8 +96,8 @@ export function useAddTikTokAccount() {
 
           if (updateError) throw updateError;
 
-          const { data: syncData, error: syncError } = await supabase.functions.invoke('tiktok-scrape-rapidapi', {
-            body: { accountId: existing.id, username, resultsLimit: 100 },
+          const { data: syncData, error: syncError } = await supabase.functions.invoke('tiktok-scrape-native', {
+            body: { accountId: existing.id, username },
           });
 
           if (syncError) {
@@ -133,8 +133,8 @@ export function useAddTikTokAccount() {
 
       if (insertError) throw insertError;
 
-      const { data: syncData, error: syncError } = await supabase.functions.invoke('tiktok-scrape-rapidapi', {
-        body: { accountId: newAccount.id, username, resultsLimit: 100 },
+      const { data: syncData, error: syncError } = await supabase.functions.invoke('tiktok-scrape-native', {
+        body: { accountId: newAccount.id, username },
       });
 
       if (syncError) {
@@ -183,8 +183,8 @@ export function useSyncTikTokAccount() {
 
       if (!account) throw new Error('Conta não encontrada');
 
-      const { data: result, error } = await supabase.functions.invoke('tiktok-scrape-rapidapi', {
-        body: { accountId, username: account.username, resultsLimit: 100 },
+      const { data: result, error } = await supabase.functions.invoke('tiktok-scrape-native', {
+        body: { accountId, username: account.username },
       });
 
       if (error) {
@@ -227,8 +227,8 @@ export function useSyncAllTikTokAccounts() {
     mutationFn: async (accounts: { id: string; username: string }[]) => {
       const results = await Promise.allSettled(
         accounts.map(async (acc) => {
-          const { data, error } = await supabase.functions.invoke('tiktok-scrape-rapidapi', {
-            body: { accountId: acc.id, username: acc.username, resultsLimit: 100 },
+          const { data, error } = await supabase.functions.invoke('tiktok-scrape-native', {
+            body: { accountId: acc.id, username: acc.username },
           });
 
           if (error) {
