@@ -78,8 +78,8 @@ export function TikTokTab() {
     });
   };
 
-  const handleSyncAccount = (accountId: string, continueFrom: boolean = false) => 
-    syncAccount.mutate({ accountId, continueFrom });
+  const handleSyncAccount = (accountId: string) => 
+    syncAccount.mutate({ accountId });
   const handleDeleteAccount = (accountId: string) => {
     if (confirm(t('analytics.confirm_remove_account'))) deleteAccount.mutate(accountId);
   };
