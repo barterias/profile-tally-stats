@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, RefreshCw, Users, Eye, Heart, Video, Clock, CheckCircle, MessageCircle } from 'lucide-react';
+import { Plus, RefreshCw, Users, Eye, Heart, Video, Clock, CheckCircle, MessageCircle, Link2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -8,6 +8,7 @@ import { MetricCardGlow } from '@/components/ui/MetricCardGlow';
 import { AddAccountModal } from '@/components/AccountAnalytics/AddAccountModal';
 import { PlatformAccountsTable } from '@/components/AccountAnalytics/PlatformAccountsTable';
 import { AccountVideosModal } from '@/components/AccountAnalytics/AccountVideosModal';
+import { LinkProfessionalAccountModal } from '@/components/Instagram/LinkProfessionalAccountModal';
 import {
   useInstagramAccounts,
   useAllInstagramAccounts,
@@ -25,6 +26,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 export function InstagramTab() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [videosModalOpen, setVideosModalOpen] = useState(false);
+  const [linkProfessionalModalOpen, setLinkProfessionalModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<{ id: string; username: string } | null>(null);
   const { user } = useAuth();
   const { role, isClipper, isAdmin, isClient } = useUserRole();
@@ -160,6 +162,10 @@ export function InstagramTab() {
             {t('analytics.update_all_fem')}
           </Button>
         )}
+        <Button variant="outline" onClick={() => setLinkProfessionalModalOpen(true)} className="border-purple-500/50 text-purple-500 hover:bg-purple-500/10">
+          <Link2 className="h-4 w-4 mr-2" />
+          Linkar Conta Profissional
+        </Button>
         <Button onClick={() => setAddModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           {t('analytics.add_account')}
@@ -284,6 +290,11 @@ export function InstagramTab() {
         isLoading={postsLoading}
         open={videosModalOpen}
         onOpenChange={setVideosModalOpen}
+      />
+
+      <LinkProfessionalAccountModal
+        open={linkProfessionalModalOpen}
+        onOpenChange={setLinkProfessionalModalOpen}
       />
     </div>
   );
