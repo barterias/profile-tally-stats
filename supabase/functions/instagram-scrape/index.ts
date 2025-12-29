@@ -225,6 +225,15 @@ serve(async (req) => {
     }
     username = username.replace('@', '').replace('/', '');
 
+    const SCRAPECREATORS_API_KEY = Deno.env.get('SCRAPECREATORS_API_KEY');
+    if (!SCRAPECREATORS_API_KEY) {
+      console.error('[ScrapeCreators] API key not configured');
+      return new Response(
+        JSON.stringify({ success: false, error: 'SCRAPECREATORS_API_KEY não configurada. Adicione a chave nas variáveis de ambiente.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log(`[ScrapeCreators] Fetching Instagram profile: ${username}, continueFrom: ${continueFrom}`);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
