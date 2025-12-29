@@ -42,20 +42,54 @@ interface YouTubeScrapedData {
 function parseCompactCount(text?: string | number | null): number {
   if (text === null || text === undefined) return 0;
   if (typeof text === 'number') return Math.round(text);
-  
-  const str = String(text).trim().replace(/,/g, '').replace(/\./g, '');
-  
-  // Handle "123 views", "1.5K views", "2M views" etc.
-  const match = str.match(/([\d,.]+)\s*(K|M|B|mil|mi|bi|thousand|million|billion)?/i);
-  if (!match) return parseInt(str.replace(/\D/g, ''), 10) || 0;
-  
-  let value = parseFloat(match[1].replace(',', '.'));
-  const suffix = match[2]?.toLowerCase();
-  
+
+  const raw = String(text).trim();
+  const lower = raw.toLowerCase();
+
+  // Extract numeric token + optional suffix in many locales
+  // Examples: "1.4K", "1,4 mil", "12.345", "12,345", "1.234.567", "1 234"
+  const match = lower.match(/([\d][\d\s.,]*)\s*(k|m|b|mil|mi|bi|thousand|million|billion)?/i);
+  if (!match) return parseInt(lower.replace(/\D/g, ''), 10) || 0;
+
+  const numToken = (match[1] || '').replace(/\s+/g, '');
+  const suffix = (match[2] || '').toLowerCase();
+
+  // Normalize number token to a JS float:
+  // - If both '.' and ',' exist, assume the last one is the decimal separator.
+  // - If only one exists and there are 3 digits after it and no suffix, treat as thousands separator.
+  // - Otherwise treat as decimal separator.
+  const hasDot = numToken.includes('.');
+  const hasComma = numToken.includes(',');
+
+  let normalized = numToken;
+  if (hasDot && hasComma) {
+    const lastDot = numToken.lastIndexOf('.');
+    const lastComma = numToken.lastIndexOf(',');
+    const decimalSep = lastDot > lastComma ? '.' : ',';
+    const thousandsSep = decimalSep === '.' ? ',' : '.';
+    normalized = numToken.split(thousandsSep).join('');
+    normalized = normalized.replace(decimalSep, '.');
+  } else if (hasDot || hasComma) {
+    const sep = hasDot ? '.' : ',';
+    const parts = numToken.split(sep);
+    const decimals = parts[1] || '';
+
+    if (!suffix && decimals.length === 3) {
+      // Likely thousands separator (e.g. 12.345)
+      normalized = parts.join('');
+    } else {
+      // Treat as decimal separator
+      normalized = parts[0] + '.' + decimals;
+    }
+  }
+
+  let value = parseFloat(normalized.replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(value)) value = parseInt(lower.replace(/\D/g, ''), 10) || 0;
+
   if (suffix === 'k' || suffix === 'mil' || suffix === 'thousand') value *= 1_000;
   else if (suffix === 'm' || suffix === 'mi' || suffix === 'million') value *= 1_000_000;
   else if (suffix === 'b' || suffix === 'bi' || suffix === 'billion') value *= 1_000_000_000;
-  
+
   return Math.round(value);
 }
 
