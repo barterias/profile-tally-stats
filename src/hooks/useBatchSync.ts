@@ -50,7 +50,7 @@ export function useBatchSync() {
       for (const account of accounts) {
         const username = account.username;
         try {
-          const { error } = await supabase.functions.invoke("instagram-scrape-native", {
+          const { error } = await supabase.functions.invoke("instagram-scrape", {
             body: { accountId: account.id, username, fetchVideos: true },
           });
 
