@@ -74,11 +74,14 @@ async function getUserInfo(rapidApiKey: string, username: string): Promise<any> 
   }
 }
 
-// Get user posts
-async function getUserPosts(rapidApiKey: string, username: string, count: number = 30): Promise<any> {
-  console.log(`[Instagram RapidAPI] Getting posts for: ${username}, count: ${count}`);
+// Get user posts with pagination
+async function getUserPosts(rapidApiKey: string, username: string, count: number = 50, cursor?: string): Promise<any> {
+  console.log(`[Instagram RapidAPI] Getting posts for: ${username}, count: ${count}, cursor: ${cursor || 'initial'}`);
 
-  const url = `https://${RAPIDAPI_HOST}/userposts?username_or_id=${encodeURIComponent(username)}&count=${count}`;
+  let url = `https://${RAPIDAPI_HOST}/userposts?username_or_id=${encodeURIComponent(username)}&count=${count}`;
+  if (cursor) {
+    url += `&end_cursor=${encodeURIComponent(cursor)}`;
+  }
   
   const response = await fetch(url, {
     method: 'GET',
@@ -104,11 +107,52 @@ async function getUserPosts(rapidApiKey: string, username: string, count: number
   }
 }
 
-// Get user reels
-async function getUserReels(rapidApiKey: string, username: string, count: number = 30): Promise<any> {
-  console.log(`[Instagram RapidAPI] Getting reels for: ${username}, count: ${count}`);
+// Get ALL posts with pagination
+async function getAllPosts(rapidApiKey: string, username: string, maxPosts: number = 500): Promise<any[]> {
+  const allPosts: any[] = [];
+  let cursor: string | undefined;
+  let hasMore = true;
+  let pageCount = 0;
+  const postsPerPage = 50;
 
-  const url = `https://${RAPIDAPI_HOST}/userreels?username_or_id=${encodeURIComponent(username)}&count=${count}`;
+  while (hasMore && allPosts.length < maxPosts && pageCount < 20) {
+    try {
+      const response = await getUserPosts(rapidApiKey, username, postsPerPage, cursor);
+      const items = response.data?.items || response.items || response.posts || [];
+      
+      if (!Array.isArray(items) || items.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      allPosts.push(...items);
+      cursor = response.data?.end_cursor || response.end_cursor || response.next_cursor || response.pagination?.end_cursor;
+      hasMore = !!cursor && items.length >= postsPerPage;
+      pageCount++;
+
+      console.log(`[Instagram RapidAPI] Posts page ${pageCount}: got ${items.length}, total: ${allPosts.length}, hasMore: ${hasMore}`);
+
+      // Small delay to avoid rate limiting
+      if (hasMore && allPosts.length < maxPosts) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    } catch (error) {
+      console.error(`[Instagram RapidAPI] Error on posts page ${pageCount + 1}:`, error);
+      break;
+    }
+  }
+
+  return allPosts;
+}
+
+// Get user reels with pagination
+async function getUserReels(rapidApiKey: string, username: string, count: number = 50, cursor?: string): Promise<any> {
+  console.log(`[Instagram RapidAPI] Getting reels for: ${username}, count: ${count}, cursor: ${cursor || 'initial'}`);
+
+  let url = `https://${RAPIDAPI_HOST}/userreels?username_or_id=${encodeURIComponent(username)}&count=${count}`;
+  if (cursor) {
+    url += `&end_cursor=${encodeURIComponent(cursor)}`;
+  }
   
   const response = await fetch(url, {
     method: 'GET',
@@ -122,7 +166,6 @@ async function getUserReels(rapidApiKey: string, username: string, count: number
   console.log(`[Instagram RapidAPI] Reels response status: ${response.status}`);
 
   if (!response.ok) {
-    // Reels endpoint might fail for accounts without reels, don't throw
     console.warn(`[Instagram RapidAPI] Reels failed: ${response.status} - ${text.slice(0, 300)}`);
     return { items: [] };
   }
@@ -133,6 +176,44 @@ async function getUserReels(rapidApiKey: string, username: string, count: number
     console.warn(`[Instagram RapidAPI] Invalid JSON for reels`);
     return { items: [] };
   }
+}
+
+// Get ALL reels with pagination
+async function getAllReels(rapidApiKey: string, username: string, maxReels: number = 500): Promise<any[]> {
+  const allReels: any[] = [];
+  let cursor: string | undefined;
+  let hasMore = true;
+  let pageCount = 0;
+  const reelsPerPage = 50;
+
+  while (hasMore && allReels.length < maxReels && pageCount < 20) {
+    try {
+      const response = await getUserReels(rapidApiKey, username, reelsPerPage, cursor);
+      const items = response.data?.items || response.items || response.reels || [];
+      
+      if (!Array.isArray(items) || items.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      allReels.push(...items);
+      cursor = response.data?.end_cursor || response.end_cursor || response.next_cursor || response.pagination?.end_cursor;
+      hasMore = !!cursor && items.length >= reelsPerPage;
+      pageCount++;
+
+      console.log(`[Instagram RapidAPI] Reels page ${pageCount}: got ${items.length}, total: ${allReels.length}, hasMore: ${hasMore}`);
+
+      // Small delay to avoid rate limiting
+      if (hasMore && allReels.length < maxReels) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    } catch (error) {
+      console.error(`[Instagram RapidAPI] Error on reels page ${pageCount + 1}:`, error);
+      break;
+    }
+  }
+
+  return allReels;
 }
 
 // Map API response to our post format
@@ -247,7 +328,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { profileUrl, accountId, username: inputUsername, resultsLimit = 100 } = await req.json();
+    const { profileUrl, accountId, username: inputUsername, resultsLimit = 500, fetchAll = true } = await req.json();
 
     // Extract username from profileUrl or use inputUsername
     let username = inputUsername;
@@ -266,7 +347,7 @@ Deno.serve(async (req) => {
     // Clean username
     username = username.replace(/^@/, '').trim();
 
-    console.log(`[Instagram RapidAPI] Starting scrape for: ${username}`);
+    console.log(`[Instagram RapidAPI] Starting scrape for: ${username}, fetchAll: ${fetchAll}, limit: ${resultsLimit}`);
 
     // Get user info
     const userInfoResponse = await getUserInfo(rapidApiKey, username);
@@ -274,21 +355,17 @@ Deno.serve(async (req) => {
 
     console.log(`[Instagram RapidAPI] User info received:`, JSON.stringify(userData).slice(0, 500));
 
-    // Get posts and reels
-    const [postsResponse, reelsResponse] = await Promise.all([
-      getUserPosts(rapidApiKey, username, Math.min(resultsLimit, 50)),
-      getUserReels(rapidApiKey, username, Math.min(resultsLimit, 30)),
+    // Get ALL posts and reels with pagination
+    const [allPostsItems, allReelsItems] = await Promise.all([
+      getAllPosts(rapidApiKey, username, resultsLimit),
+      getAllReels(rapidApiKey, username, resultsLimit),
     ]);
 
-    const postsItems = postsResponse.data?.items || postsResponse.items || postsResponse.posts || postsResponse.data || [];
-    const reelsItems = reelsResponse.data?.items || reelsResponse.items || reelsResponse.reels || reelsResponse.data || [];
+    console.log(`[Instagram RapidAPI] Got ${allPostsItems.length} posts, ${allReelsItems.length} reels`);
 
-    console.log(`[Instagram RapidAPI] Got ${Array.isArray(postsItems) ? postsItems.length : 0} posts, ${Array.isArray(reelsItems) ? reelsItems.length : 0} reels`);
-
-    // Map and combine posts
-    const allItems = [...(Array.isArray(postsItems) ? postsItems : []), ...(Array.isArray(reelsItems) ? reelsItems : [])];
+    // Map and combine all content
+    const allItems = [...allPostsItems, ...allReelsItems];
     const mappedPosts = mapPosts(allItems);
-    const limitedPosts = mappedPosts.slice(0, resultsLimit);
 
     const result: InstagramScrapedData = {
       username: userData.username || username,
@@ -298,9 +375,9 @@ Deno.serve(async (req) => {
       followersCount: toInt(userData.follower_count || userData.followers_count || userData.followers),
       followingCount: toInt(userData.following_count || userData.followings_count || userData.following),
       postsCount: toInt(userData.media_count || userData.posts_count || userData.posts),
-      scrapedPostsCount: limitedPosts.length,
-      totalViews: limitedPosts.reduce((sum, p) => sum + p.viewsCount, 0),
-      posts: limitedPosts,
+      scrapedPostsCount: mappedPosts.length,
+      totalViews: mappedPosts.reduce((sum: number, p: InstagramPost) => sum + p.viewsCount, 0),
+      posts: mappedPosts,
     };
 
     console.log(`[Instagram RapidAPI] Scrape complete: ${result.scrapedPostsCount} posts, ${result.totalViews} views`);
@@ -308,8 +385,8 @@ Deno.serve(async (req) => {
     // If accountId provided, save to database
     if (accountId) {
       // Save posts
-      if (limitedPosts.length > 0) {
-        await savePostsToDB(supabase, accountId, limitedPosts);
+      if (mappedPosts.length > 0) {
+        await savePostsToDB(supabase, accountId, mappedPosts);
       }
 
       // Download and store profile image
