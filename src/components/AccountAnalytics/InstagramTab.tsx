@@ -193,6 +193,14 @@ export function InstagramTab() {
         </div>
       )}
 
+      <Card className="bg-muted/30 border-dashed">
+        <CardContent className="py-3">
+          <p className="text-sm text-muted-foreground text-center">
+            Para visualizar mais vídeos, entre no perfil
+          </p>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>{t('analytics.monitored_accounts')}</CardTitle>
