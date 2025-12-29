@@ -61,9 +61,13 @@ function safeString(value: any): string | undefined {
 // Start Apify TikTok Profile Scraper run
 async function startApifyRun(apifyToken: string, profileUrl: string, resultsLimit: number): Promise<ApifyRunResponse> {
   console.log(`[TikTok Apify] Starting run for: ${profileUrl}, limit: ${resultsLimit}`);
-  
+
+  // Apify run options (not part of actor input)
+  // Use low memory to reduce the chance of hitting plan limits
+  const memoryMbytes = 1024;
+
   const response = await fetch(
-    `https://api.apify.com/v2/acts/clockworks~tiktok-profile-scraper/runs?token=${apifyToken}`,
+    `https://api.apify.com/v2/acts/clockworks~tiktok-profile-scraper/runs?token=${apifyToken}&memory_mbytes=${memoryMbytes}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -74,8 +78,6 @@ async function startApifyRun(apifyToken: string, profileUrl: string, resultsLimi
         shouldDownloadCovers: false,
         shouldDownloadSubtitles: false,
         shouldDownloadSlideshowImages: false,
-        // Use minimal memory to avoid hitting free tier limits
-        memory: 1024,
       }),
     }
   );
@@ -375,9 +377,17 @@ Deno.serve(async (req) => {
     console.error('[TikTok Apify] Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
 
+    // Surface Apify billing/limits as proper HTTP status so the client can handle it
+    const status = errorMessage.includes('Apify start failed: 402') ? 402 : 500;
+
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        success: false,
+        error: status === 402
+          ? 'Limite do Apify atingido (memória/conta). Finalize runs em andamento ou faça upgrade no Apify.'
+          : errorMessage,
+      }),
+      { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
