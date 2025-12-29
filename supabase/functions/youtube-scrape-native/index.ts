@@ -660,17 +660,23 @@ async function saveVideosToDB(supabase: any, accountId: string, videos: YouTubeV
 
       const { data: existingVideo } = await supabase
         .from('youtube_videos')
-        .select('id')
+        .select('id, views_count')
         .eq('account_id', accountId)
         .eq('video_id', video.videoId)
         .maybeSingle();
 
       if (existingVideo) {
+        // PROTECTION: Don't overwrite existing views_count > 0 with 0
+        // This prevents sync from "breaking" views that were correctly set via video-details
+        const existingViews = Number(existingVideo.views_count || 0);
+        const newViews = video.viewsCount;
+        const finalViews = (newViews === 0 && existingViews > 0) ? existingViews : Math.max(newViews, existingViews);
+        
         await supabase.from('youtube_videos').update({
           title: video.title,
           description: video.description,
           thumbnail_url: video.thumbnailUrl,
-          views_count: video.viewsCount,
+          views_count: finalViews,
           likes_count: video.likesCount,
           comments_count: video.commentsCount,
           duration: video.duration,

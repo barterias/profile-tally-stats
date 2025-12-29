@@ -38,3 +38,25 @@ export function useYouTubeVideos(accountId: string) {
     enabled: !!accountId,
   });
 }
+
+export function useAllYouTubeVideos(accountIds: string[]) {
+  return useQuery({
+    queryKey: ['youtube-videos-all', accountIds],
+    queryFn: async () => {
+      if (accountIds.length === 0) return [];
+      
+      const { data, error } = await supabase
+        .from('youtube_videos')
+        .select('id, account_id, views_count, likes_count, comments_count')
+        .in('account_id', accountIds);
+
+      if (error) {
+        console.error('Error fetching all YouTube videos:', error);
+        return [];
+      }
+
+      return data as Pick<YouTubeVideo, 'id' | 'account_id' | 'views_count' | 'likes_count' | 'comments_count'>[];
+    },
+    enabled: accountIds.length > 0,
+  });
+}
