@@ -398,7 +398,20 @@ async function fetchVideosFromAPI(username: string, secUid: string, cursor: stri
       return { videos: [], hasMore: false };
     }
 
-    const data = await response.json();
+    // Get response text first to check if it's valid
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      console.log(`[TikTok Native] API returned empty response`);
+      return { videos: [], hasMore: false };
+    }
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseError) {
+      console.log(`[TikTok Native] API returned invalid JSON, length: ${text.length}`);
+      return { videos: [], hasMore: false };
+    }
 
     if (!data?.itemList || data.itemList.length === 0) {
       console.log(`[TikTok Native] API returned no items`);
