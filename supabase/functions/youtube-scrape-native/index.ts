@@ -608,7 +608,7 @@ async function saveVideosToDB(supabase: any, accountId: string, videos: YouTubeV
           likes_count: video.likesCount,
           comments_count: video.commentsCount,
           duration: video.duration,
-          published_at: video.publishedAt,
+          // Don't include published_at - it contains text like "4 years ago" which is not a valid timestamp
         });
         savedCount++;
       }
