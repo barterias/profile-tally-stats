@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Instagram, Loader2, CheckCircle2, User } from 'lucide-react';
+import { Instagram, Loader2, User } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -82,32 +82,14 @@ export function LinkProfessionalAccountModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Instagram className="h-5 w-5" />
-            Vincular Conta Instagram
+            Adicionar Conta Instagram
           </DialogTitle>
           <DialogDescription>
-            Adicione sua conta Instagram para acompanhar métricas e estatísticas
+            Insira o nome de usuário da conta que deseja acompanhar
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
-          {/* Info */}
-          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-            <p className="font-medium text-sm">Como funciona:</p>
-            <ul className="space-y-2">
-              <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 shrink-0" />
-                <span>Insira seu nome de usuário do Instagram</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 shrink-0" />
-                <span>Suas métricas serão sincronizadas automaticamente</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 shrink-0" />
-                <span>Dados atualizados periodicamente</span>
-              </li>
-            </ul>
-          </div>
 
           {/* Username Input */}
           <div className="space-y-2">
@@ -132,7 +114,6 @@ export function LinkProfessionalAccountModal({
             </Alert>
           )}
 
-          {/* Connect Button */}
           <Button
             onClick={handleConnect}
             disabled={isConnecting || !username.trim()}
@@ -142,12 +123,12 @@ export function LinkProfessionalAccountModal({
             {isConnecting ? (
               <>
                 <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Vinculando conta...
+                Adicionando conta...
               </>
             ) : (
               <>
                 <Instagram className="h-5 w-5 mr-2" />
-                Vincular Conta
+                Adicionar Conta
               </>
             )}
           </Button>
