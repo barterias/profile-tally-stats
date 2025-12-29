@@ -41,18 +41,25 @@ function safeString(value: any): string | undefined {
   return s.length > 0 ? s : undefined;
 }
 
-// Get user info from RapidAPI Instagram Scraper
+const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
+
+// Get user info from RapidAPI Instagram Scraper Stable API
 async function getUserInfo(rapidApiKey: string, username: string): Promise<any> {
   console.log(`[Instagram RapidAPI] Getting user info for: ${username}`);
   
+  const formData = new URLSearchParams();
+  formData.append('username_or_url', username);
+
   const response = await fetch(
-    `https://instagram-scraper-api2.p.rapidapi.com/v1/info?username_or_id_or_url=${encodeURIComponent(username)}`,
+    `https://${RAPIDAPI_HOST}/get_ig_user_info.php`,
     {
-      method: 'GET',
+      method: 'POST',
       headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
         'x-rapidapi-key': rapidApiKey,
-        'x-rapidapi-host': 'instagram-scraper-api2.p.rapidapi.com',
+        'x-rapidapi-host': RAPIDAPI_HOST,
       },
+      body: formData.toString(),
     }
   );
 
@@ -67,22 +74,29 @@ async function getUserInfo(rapidApiKey: string, username: string): Promise<any> 
   return data;
 }
 
-// Get user posts from RapidAPI Instagram Scraper
-async function getUserPosts(rapidApiKey: string, username: string, paginationToken?: string): Promise<any> {
-  console.log(`[Instagram RapidAPI] Getting posts for: ${username}, token: ${paginationToken || 'initial'}`);
+// Get user posts from RapidAPI Instagram Scraper Stable API
+async function getUserPosts(rapidApiKey: string, username: string, amount: number = 30, paginationToken?: string): Promise<any> {
+  console.log(`[Instagram RapidAPI] Getting posts for: ${username}, amount: ${amount}, token: ${paginationToken || 'initial'}`);
   
-  let url = `https://instagram-scraper-api2.p.rapidapi.com/v1/posts?username_or_id_or_url=${encodeURIComponent(username)}`;
+  const formData = new URLSearchParams();
+  formData.append('username_or_url', username);
+  formData.append('amount', String(amount));
   if (paginationToken) {
-    url += `&pagination_token=${encodeURIComponent(paginationToken)}`;
+    formData.append('pagination_token', paginationToken);
   }
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'x-rapidapi-key': rapidApiKey,
-      'x-rapidapi-host': 'instagram-scraper-api2.p.rapidapi.com',
-    },
-  });
+  const response = await fetch(
+    `https://${RAPIDAPI_HOST}/get_ig_user_posts.php`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'x-rapidapi-key': rapidApiKey,
+        'x-rapidapi-host': RAPIDAPI_HOST,
+      },
+      body: formData.toString(),
+    }
+  );
 
   if (!response.ok) {
     const text = await response.text();
@@ -99,21 +113,27 @@ function mapRapidAPIPosts(items: any[]): InstagramPost[] {
   const seenUrls = new Set<string>();
 
   for (const item of items) {
-    const code = item.code || item.shortcode;
-    if (!code) continue;
+    // Try to extract post URL from various possible fields
+    const code = item.code || item.shortcode || item.id;
+    let postUrl = item.post_url || item.url || item.link;
     
-    const postUrl = `https://www.instagram.com/p/${code}/`;
+    if (!postUrl && code) {
+      postUrl = `https://www.instagram.com/p/${code}/`;
+    }
+    
+    if (!postUrl) continue;
     if (seenUrls.has(postUrl)) continue;
     seenUrls.add(postUrl);
 
-    const isVideo = item.is_video || item.media_type === 2 || item.product_type === 'clips';
+    const isVideo = item.is_video || item.media_type === 2 || item.product_type === 'clips' || item.type === 'video';
     
     let postedAt: string | undefined;
-    if (item.taken_at) {
+    const timestamp = item.taken_at || item.taken_at_timestamp || item.timestamp || item.created_at;
+    if (timestamp) {
       try {
-        const timestamp = typeof item.taken_at === 'number' ? item.taken_at * 1000 : new Date(item.taken_at).getTime();
-        if (Number.isFinite(timestamp) && timestamp > 0) {
-          postedAt = new Date(timestamp).toISOString();
+        const ts = typeof timestamp === 'number' ? timestamp * 1000 : new Date(timestamp).getTime();
+        if (Number.isFinite(ts) && ts > 0) {
+          postedAt = new Date(ts).toISOString();
         }
       } catch {
         // Invalid date
@@ -123,11 +143,11 @@ function mapRapidAPIPosts(items: any[]): InstagramPost[] {
     posts.push({
       postUrl,
       type: isVideo ? 'video' : 'post',
-      thumbnailUrl: safeString(item.thumbnail_url || item.display_url || item.image_versions2?.candidates?.[0]?.url),
-      caption: safeString(item.caption?.text || item.caption),
-      likesCount: toInt(item.like_count || item.likes?.count),
-      commentsCount: toInt(item.comment_count || item.comments?.count),
-      viewsCount: toInt(item.play_count || item.video_view_count || item.view_count || 0),
+      thumbnailUrl: safeString(item.thumbnail_url || item.display_url || item.image_url || item.thumbnail),
+      caption: safeString(item.caption?.text || item.caption || item.text),
+      likesCount: toInt(item.like_count || item.likes_count || item.likes),
+      commentsCount: toInt(item.comment_count || item.comments_count || item.comments),
+      viewsCount: toInt(item.play_count || item.video_view_count || item.view_count || item.views || 0),
       postedAt,
     });
   }
@@ -222,21 +242,22 @@ Deno.serve(async (req) => {
 
     // Get user info
     const userInfo = await getUserInfo(rapidApiKey, username);
-    const userData = userInfo.data || userInfo;
+    const userData = userInfo.data || userInfo.user || userInfo;
 
     // Get user posts with pagination
     const allPosts: InstagramPost[] = [];
     let paginationToken: string | undefined;
     let hasMore = true;
     let pageCount = 0;
-    const maxPages = Math.ceil(resultsLimit / 12); // Instagram typically returns ~12 posts per page
+    const postsPerPage = 30;
+    const maxPages = Math.ceil(resultsLimit / postsPerPage);
 
     while (hasMore && pageCount < maxPages && allPosts.length < resultsLimit) {
       try {
-        const postsResponse = await getUserPosts(rapidApiKey, username, paginationToken);
-        const items = postsResponse.data?.items || postsResponse.items || [];
+        const postsResponse = await getUserPosts(rapidApiKey, username, postsPerPage, paginationToken);
+        const items = postsResponse.data?.items || postsResponse.items || postsResponse.posts || postsResponse.data || [];
         
-        if (items.length === 0) {
+        if (!Array.isArray(items) || items.length === 0) {
           hasMore = false;
           break;
         }
@@ -244,7 +265,7 @@ Deno.serve(async (req) => {
         const mappedPosts = mapRapidAPIPosts(items);
         allPosts.push(...mappedPosts);
         
-        paginationToken = postsResponse.pagination_token || postsResponse.data?.pagination_token;
+        paginationToken = postsResponse.pagination_token || postsResponse.data?.pagination_token || postsResponse.next_cursor;
         hasMore = !!paginationToken && items.length > 0;
         pageCount++;
 
@@ -265,12 +286,12 @@ Deno.serve(async (req) => {
 
     const result: InstagramScrapedData = {
       username: userData.username || username,
-      displayName: safeString(userData.full_name || userData.fullname),
-      profileImageUrl: safeString(userData.profile_pic_url || userData.profile_pic_url_hd),
+      displayName: safeString(userData.full_name || userData.fullname || userData.name),
+      profileImageUrl: safeString(userData.profile_pic_url || userData.profile_pic_url_hd || userData.profile_image || userData.avatar),
       bio: safeString(userData.biography || userData.bio),
-      followersCount: toInt(userData.follower_count || userData.followers_count),
-      followingCount: toInt(userData.following_count || userData.followings_count),
-      postsCount: toInt(userData.media_count || userData.posts_count),
+      followersCount: toInt(userData.follower_count || userData.followers_count || userData.followers),
+      followingCount: toInt(userData.following_count || userData.followings_count || userData.following),
+      postsCount: toInt(userData.media_count || userData.posts_count || userData.posts),
       scrapedPostsCount: limitedPosts.length,
       totalViews: limitedPosts.reduce((sum, p) => sum + p.viewsCount, 0),
       posts: limitedPosts,
