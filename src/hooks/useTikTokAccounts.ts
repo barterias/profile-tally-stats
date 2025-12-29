@@ -96,7 +96,7 @@ export function useAddTikTokAccount() {
 
           if (updateError) throw updateError;
 
-          const { data: syncData, error: syncError } = await supabase.functions.invoke('tiktok-scrape-native', {
+          const { data: syncData, error: syncError } = await supabase.functions.invoke('tiktok-scrape-rapidapi', {
             body: { accountId: existing.id, username },
           });
 
@@ -133,7 +133,7 @@ export function useAddTikTokAccount() {
 
       if (insertError) throw insertError;
 
-      const { data: syncData, error: syncError } = await supabase.functions.invoke('tiktok-scrape-native', {
+      const { data: syncData, error: syncError } = await supabase.functions.invoke('tiktok-scrape-rapidapi', {
         body: { accountId: newAccount.id, username },
       });
 
@@ -183,7 +183,7 @@ export function useSyncTikTokAccount() {
 
       if (!account) throw new Error('Conta não encontrada');
 
-      const { data: result, error } = await supabase.functions.invoke('tiktok-scrape-native', {
+      const { data: result, error } = await supabase.functions.invoke('tiktok-scrape-rapidapi', {
         body: { accountId, username: account.username },
       });
 
@@ -227,7 +227,7 @@ export function useSyncAllTikTokAccounts() {
     mutationFn: async (accounts: { id: string; username: string }[]) => {
       const results = await Promise.allSettled(
         accounts.map(async (acc) => {
-          const { data, error } = await supabase.functions.invoke('tiktok-scrape-native', {
+          const { data, error } = await supabase.functions.invoke('tiktok-scrape-rapidapi', {
             body: { accountId: acc.id, username: acc.username },
           });
 
