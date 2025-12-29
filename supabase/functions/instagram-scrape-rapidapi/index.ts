@@ -47,19 +47,24 @@ const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
 async function getUserInfo(rapidApiKey: string, username: string): Promise<any> {
   console.log(`[Instagram RapidAPI] Getting user info for: ${username}`);
 
-  const candidates = [
-    // Most common naming patterns on this provider
-    'get_user_data.php',
-    'get_ig_user_data.php',
-    'get_user_info.php',
-    'get_ig_user_info.php',
+  // Try GET User About first (based on API docs screenshot)
+  const getEndpoints = [
+    'get_user_about.php',
+    'get_basic_user_posts.php',
+  ];
+
+  const postEndpoints = [
+    'account_data.php',
+    'account_data_v2.php',
   ];
 
   let lastStatus = 0;
   let lastText = '';
 
-  for (const path of candidates) {
+  // Try GET endpoints first
+  for (const path of getEndpoints) {
     const url = `https://${RAPIDAPI_HOST}/${path}?username_or_url=${encodeURIComponent(username)}`;
+    console.log(`[Instagram RapidAPI] Trying GET ${path}...`);
 
     const response = await fetch(url, {
       method: 'GET',
@@ -71,21 +76,59 @@ async function getUserInfo(rapidApiKey: string, username: string): Promise<any> 
 
     if (response.ok) {
       const data = await response.json();
-      console.log(`[Instagram RapidAPI] User info OK via ${path}`);
+      console.log(`[Instagram RapidAPI] User info OK via GET ${path}`);
       return data;
     }
 
     lastStatus = response.status;
     lastText = await response.text();
 
-    // If endpoint doesn't exist, try next.
     if (response.status === 404 && lastText.includes('does not exist')) {
-      console.warn(`[Instagram RapidAPI] ${path} not available (404). Trying next...`);
+      console.warn(`[Instagram RapidAPI] GET ${path} not available (404). Trying next...`);
       continue;
     }
 
-    console.error(`[Instagram RapidAPI] User info failed via ${path}: ${response.status} - ${lastText}`);
-    throw new Error(`RapidAPI user info failed: ${response.status}`);
+    // If it's not a 404 "does not exist", it might be a real error
+    if (response.status !== 404) {
+      console.error(`[Instagram RapidAPI] User info failed via GET ${path}: ${response.status} - ${lastText}`);
+    }
+  }
+
+  // Try POST endpoints
+  for (const path of postEndpoints) {
+    const url = `https://${RAPIDAPI_HOST}/${path}`;
+    console.log(`[Instagram RapidAPI] Trying POST ${path}...`);
+
+    const formData = new URLSearchParams();
+    formData.append('username_or_url', username);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'x-rapidapi-key': rapidApiKey,
+        'x-rapidapi-host': RAPIDAPI_HOST,
+      },
+      body: formData.toString(),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`[Instagram RapidAPI] User info OK via POST ${path}`);
+      return data;
+    }
+
+    lastStatus = response.status;
+    lastText = await response.text();
+
+    if (response.status === 404 && lastText.includes('does not exist')) {
+      console.warn(`[Instagram RapidAPI] POST ${path} not available (404). Trying next...`);
+      continue;
+    }
+
+    if (response.status !== 404) {
+      console.error(`[Instagram RapidAPI] User info failed via POST ${path}: ${response.status} - ${lastText}`);
+    }
   }
 
   console.error(`[Instagram RapidAPI] No user-info endpoint matched. Last: ${lastStatus} - ${lastText}`);
@@ -96,46 +139,34 @@ async function getUserInfo(rapidApiKey: string, username: string): Promise<any> 
 async function getUserPosts(rapidApiKey: string, username: string, amount: number = 30, paginationToken?: string): Promise<any> {
   console.log(`[Instagram RapidAPI] Getting posts for: ${username}, amount: ${amount}, token: ${paginationToken || 'initial'}`);
 
-  const candidates = [
-    'get_user_posts.php',
-    'get_ig_user_posts.php',
-  ];
+  // Based on API docs: POST User Posts
+  const url = `https://${RAPIDAPI_HOST}/user_posts.php`;
+  console.log(`[Instagram RapidAPI] Trying POST user_posts.php...`);
 
-  let lastStatus = 0;
-  let lastText = '';
-
-  for (const path of candidates) {
-    const params = new URLSearchParams();
-    params.set('username_or_url', username);
-    params.set('amount', String(amount));
-    if (paginationToken) params.set('pagination_token', paginationToken);
-
-    const url = `https://${RAPIDAPI_HOST}/${path}?${params.toString()}`;
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'x-rapidapi-key': rapidApiKey,
-        'x-rapidapi-host': RAPIDAPI_HOST,
-      },
-    });
-
-    if (response.ok) return response.json();
-
-    lastStatus = response.status;
-    lastText = await response.text();
-
-    if (response.status === 404 && lastText.includes('does not exist')) {
-      console.warn(`[Instagram RapidAPI] ${path} not available (404). Trying next...`);
-      continue;
-    }
-
-    console.error(`[Instagram RapidAPI] Posts failed via ${path}: ${response.status} - ${lastText}`);
-    throw new Error(`RapidAPI posts failed: ${response.status}`);
+  const formData = new URLSearchParams();
+  formData.append('username_or_url', username);
+  formData.append('amount', String(amount));
+  if (paginationToken) {
+    formData.append('pagination_token', paginationToken);
   }
 
-  console.error(`[Instagram RapidAPI] No posts endpoint matched. Last: ${lastStatus} - ${lastText}`);
-  throw new Error('RapidAPI posts endpoint not found for this API');
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'x-rapidapi-key': rapidApiKey,
+      'x-rapidapi-host': RAPIDAPI_HOST,
+    },
+    body: formData.toString(),
+  });
+
+  if (response.ok) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  console.error(`[Instagram RapidAPI] Posts failed: ${response.status} - ${text}`);
+  throw new Error(`RapidAPI posts failed: ${response.status}`);
 }
 
 // Map RapidAPI response to our post format
