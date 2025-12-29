@@ -168,13 +168,17 @@ function extractAllVideos(data: any): YouTubeVideo[] {
                   renderer?.title?.simpleText ||
                   renderer?.headline?.simpleText || '';
     
-    // Log first few for debugging
-    if (videos.length < 3) {
-      console.log(`[YouTube Native] Renderer ${videoId}: viewCountText="${viewCountText?.substring?.(0, 50) || viewCountText}", overlayViews="${overlayViews}"`);
-    }
-    
-    const views = parseCompactCount(viewCountText) || parseCompactCount(overlayViews);
-    
+     const views = parseCompactCount(viewCountText) || parseCompactCount(overlayViews);
+     
+     // Debug: log when views are missing (helps identify renderer variants)
+     if (!views || views === 0) {
+       const viewCountTextPreview = typeof viewCountText === 'string' ? viewCountText.substring(0, 120) : String(viewCountText);
+       const overlayViewsPreview = typeof overlayViews === 'string' ? overlayViews.substring(0, 120) : String(overlayViews);
+       console.log(
+         `[YouTube Native] ZERO-VIEWS ${videoId}: isShort=${isShort} viewCountText="${viewCountTextPreview}" overlayViews="${overlayViewsPreview}" rendererKeys=${Object.keys(renderer || {}).slice(0, 40).join(',')}`
+       );
+     }
+
     return {
       videoId,
       title,
