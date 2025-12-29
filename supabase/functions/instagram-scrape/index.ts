@@ -197,29 +197,31 @@ serve(async (req) => {
   }
 
   try {
-    const { profileUrl, accountId, fetchVideos = true, continueFrom = false, debug = false } = await req.json();
+    const body = await req.json();
+    const {
+      profileUrl,
+      username: bodyUsername,
+      accountId,
+      fetchVideos = true,
+      continueFrom = false,
+      debug = false,
+    } = body;
 
-    if (!profileUrl) {
+    // Accept either a full profileUrl (legacy) or a username (preferred)
+    if (!profileUrl && !bodyUsername) {
       return new Response(
         JSON.stringify({ success: false, error: 'Profile URL is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const SCRAPECREATORS_API_KEY = Deno.env.get('SCRAPECREATORS_API_KEY');
-    if (!SCRAPECREATORS_API_KEY) {
-      console.error('[ScrapeCreators] API key not configured');
-      return new Response(
-        JSON.stringify({ success: false, error: 'SCRAPECREATORS_API_KEY não configurada. Adicione a chave nas variáveis de ambiente.' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Extract username from URL or use directly
-    let username = profileUrl.trim();
-    const usernameMatch = profileUrl.match(/instagram\.com\/([^\/\?]+)/);
-    if (usernameMatch) {
-      username = usernameMatch[1];
+    // Normalize username
+    let username = String(bodyUsername ?? profileUrl).trim();
+    if (profileUrl) {
+      const usernameMatch = String(profileUrl).match(/instagram\.com\/([^\/\?]+)/);
+      if (usernameMatch) {
+        username = usernameMatch[1];
+      }
     }
     username = username.replace('@', '').replace('/', '');
 
