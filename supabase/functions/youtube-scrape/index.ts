@@ -180,72 +180,73 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
   let videosResult: any = null;
   let shortsResult: any = null;
 
-  // 2) Channel videos
-  if (fetchVideos && (data.channelId || cleanHandle)) {
+  // 2) Fetch SHORTS first (prioritized over regular videos)
+  if (fetchVideos && data.channelId) {
     try {
-      videosResult = await scrapeCreatorsClient.get('/youtube/channel-videos', {
-        ...(data.channelId ? { channelId: data.channelId } : {}),
-        ...(cleanHandle && !data.channelId ? { handle: cleanHandle } : {}),
-        limit: 30, // Request more to ensure we get enough
+      console.log(`[ScrapeCreators] Fetching shorts for channel: ${data.channelId}`);
+      shortsResult = await scrapeCreatorsClient.get('/youtube/channel/shorts/simple', {
+        channelId: data.channelId,
+        limit: 30,
       });
 
-      const videosArray = videosResult?.videos || videosResult?.data?.videos || [];
-      console.log(`[ScrapeCreators] Found ${videosArray.length} regular videos from API`);
+      const shortsArray = shortsResult?.shorts || shortsResult?.data?.shorts || [];
+      console.log(`[ScrapeCreators] Found ${shortsArray.length} shorts from API`);
       
-      if (Array.isArray(videosArray) && videosArray.length > 0) {
-        // Limit to 10 videos max
-        data.videos = videosArray.slice(0, 10).map((video: any) => ({
-          videoId: video?.id || video?.videoId || '',
-          title: video?.title || '',
-          description: typeof video?.description === 'string' ? video.description.substring(0, 500) : undefined,
-          thumbnailUrl: video?.thumbnail || undefined,
-          viewsCount: video?.viewCountInt ?? parseCompactCount(video?.viewCountText),
-          likesCount: video?.likeCountInt ?? parseCompactCount(video?.likeCountText),
-          commentsCount: video?.commentCountInt ?? parseCompactCount(video?.commentCountText),
-          publishedAt: video?.publishedTime || undefined,
-          duration: video?.lengthSeconds || undefined,
-          isShort: video?.type === 'short',
+      if (Array.isArray(shortsArray) && shortsArray.length > 0) {
+        data.videos = shortsArray.slice(0, 10).map((short: any) => ({
+          videoId: short?.videoId || short?.video_id || short?.id || '',
+          title: short?.title || '',
+          description: undefined,
+          thumbnailUrl: short?.thumbnail?.url || short?.thumbnailUrl || undefined,
+          viewsCount: parseCompactCount(short?.viewCount ?? short?.views ?? short?.view_count),
+          likesCount: parseCompactCount(short?.likeCount ?? short?.likes ?? short?.like_count),
+          commentsCount: parseCompactCount(short?.commentCount ?? short?.comments ?? short?.comment_count),
+          publishedAt: short?.publishedAt || short?.published_at || undefined,
+          duration: short?.duration || short?.duration_seconds || undefined,
+          isShort: true,
         }));
+        console.log(`[ScrapeCreators] Saved ${data.videos.length} shorts`);
       }
+    } catch (shortsError) {
+      console.error('[ScrapeCreators] Error fetching shorts:', shortsError);
+    }
 
-      // 3) Shorts (optional) - only fetch if we have less than 10 videos
+    // 3) If we still have less than 10, fill with regular videos
+    const currentCount = data.videos?.length || 0;
+    if (currentCount < 10 && (data.channelId || cleanHandle)) {
       try {
-        const currentVideosCount = data.videos?.length || 0;
-        console.log(`[ScrapeCreators] Current videos count before shorts: ${currentVideosCount}`);
-        if (data.channelId && currentVideosCount < 10) {
-          const remainingSlots = 10 - currentVideosCount;
-          console.log(`[ScrapeCreators] Fetching up to ${remainingSlots} shorts...`);
-          shortsResult = await scrapeCreatorsClient.get('/youtube/channel/shorts/simple', {
-            channelId: data.channelId,
-            limit: 30, // Request more to ensure we get enough
-          });
+        const remainingSlots = 10 - currentCount;
+        console.log(`[ScrapeCreators] Fetching up to ${remainingSlots} regular videos to fill...`);
+        
+        videosResult = await scrapeCreatorsClient.get('/youtube/channel-videos', {
+          ...(data.channelId ? { channelId: data.channelId } : {}),
+          ...(cleanHandle && !data.channelId ? { handle: cleanHandle } : {}),
+          limit: 30,
+        });
 
-          const shortsArray = shortsResult?.shorts || shortsResult?.data?.shorts || [];
-          console.log(`[ScrapeCreators] Found ${shortsArray.length} shorts from API`);
-          if (Array.isArray(shortsArray) && shortsArray.length > 0) {
-            const remainingSlots = 10 - (data.videos?.length || 0);
-            const shorts = shortsArray.slice(0, remainingSlots).map((short: any) => ({
-              videoId: short?.videoId || short?.video_id || short?.id || '',
-              title: short?.title || '',
-              description: undefined,
-              thumbnailUrl: short?.thumbnail?.url || short?.thumbnailUrl || undefined,
-              viewsCount: parseCompactCount(short?.viewCount ?? short?.views ?? short?.view_count),
-              likesCount: parseCompactCount(short?.likeCount ?? short?.likes ?? short?.like_count),
-              commentsCount: parseCompactCount(short?.commentCount ?? short?.comments ?? short?.comment_count),
-              publishedAt: short?.publishedAt || short?.published_at || undefined,
-              duration: short?.duration || short?.duration_seconds || undefined,
-              isShort: true,
-            }));
-
-            data.videos = [...(data.videos || []), ...shorts];
-            console.log(`[ScrapeCreators] After adding shorts: ${data.videos?.length} total videos`);
-          }
+        const videosArray = videosResult?.videos || videosResult?.data?.videos || [];
+        console.log(`[ScrapeCreators] Found ${videosArray.length} regular videos from API`);
+        
+        if (Array.isArray(videosArray) && videosArray.length > 0) {
+          const regularVideos = videosArray.slice(0, remainingSlots).map((video: any) => ({
+            videoId: video?.id || video?.videoId || '',
+            title: video?.title || '',
+            description: typeof video?.description === 'string' ? video.description.substring(0, 500) : undefined,
+            thumbnailUrl: video?.thumbnail || undefined,
+            viewsCount: video?.viewCountInt ?? parseCompactCount(video?.viewCountText),
+            likesCount: video?.likeCountInt ?? parseCompactCount(video?.likeCountText),
+            commentsCount: video?.commentCountInt ?? parseCompactCount(video?.commentCountText),
+            publishedAt: video?.publishedTime || undefined,
+            duration: video?.lengthSeconds || undefined,
+            isShort: false,
+          }));
+          
+          data.videos = [...(data.videos || []), ...regularVideos];
+          console.log(`[ScrapeCreators] After adding regular videos: ${data.videos?.length} total`);
         }
-      } catch (shortsError) {
-        console.error('[ScrapeCreators] Error fetching shorts:', shortsError);
+      } catch (videosError) {
+        console.error('[ScrapeCreators] Error fetching regular videos:', videosError);
       }
-    } catch (videosError) {
-      console.error('[ScrapeCreators] Error fetching videos:', videosError);
     }
   }
 
