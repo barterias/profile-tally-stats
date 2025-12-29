@@ -41,212 +41,109 @@ function safeString(value: any): string | undefined {
   return s.length > 0 ? s : undefined;
 }
 
-const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
+// Instagram Scraper 2025 by DavidGelling
+const RAPIDAPI_HOST = 'instagram-scraper-20251.p.rapidapi.com';
 
-function buildRapidApiUrl(path: string, query?: Record<string, string>) {
-  const url = new URL(`https://${RAPIDAPI_HOST}/${path}`);
-  if (query) {
-    for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
-  }
-  return url.toString();
-}
-
-async function rapidApiRequest(
-  rapidApiKey: string,
-  opts:
-    | { method: 'GET'; path: string; query?: Record<string, string> }
-    | { method: 'POST'; path: string; form: Record<string, string> },
-) {
-  const url =
-    opts.method === 'GET'
-      ? buildRapidApiUrl(opts.path, opts.query)
-      : buildRapidApiUrl(opts.path);
-
-  const headers: Record<string, string> = {
-    'x-rapidapi-key': rapidApiKey,
-    'x-rapidapi-host': RAPIDAPI_HOST,
-  };
-
-  let body: string | undefined;
-  if (opts.method === 'POST') {
-    headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    body = new URLSearchParams(opts.form).toString();
-  }
-
-  const res = await fetch(url, {
-    method: opts.method,
-    headers,
-    body,
-  });
-
-  const text = await res.text();
-  const maybeJson = () => {
-    try {
-      return JSON.parse(text);
-    } catch {
-      return null;
-    }
-  };
-
-  return {
-    ok: res.ok,
-    status: res.status,
-    text,
-    json: maybeJson(),
-    url,
-  };
-}
-
-// Get user info from RapidAPI Instagram Scraper Stable API
+// Get user info
 async function getUserInfo(rapidApiKey: string, username: string): Promise<any> {
   console.log(`[Instagram RapidAPI] Getting user info for: ${username}`);
 
-  // RapidAPI endpoints - based on user's screenshot. Try both with and without .php suffix.
-  // Some RapidAPI apps group routes under a /user prefix, and/or a /v1 or /v2 prefix.
-  const prefixes = ['', 'user', 'users', 'v1', 'v2', 'v1/user', 'v2/user', 'v1/users', 'v2/users'];
-  const baseEndpoints = [
-    // Based on your screenshot (User section)
-    { method: 'GET' as const, path: 'user_about' },
-    { method: 'GET' as const, path: 'basic_user_posts' },
-    { method: 'POST' as const, path: 'account_data' },
-    { method: 'POST' as const, path: 'account_data_v2' },
-  ];
+  const url = `https://${RAPIDAPI_HOST}/userinfo?username_or_id=${encodeURIComponent(username)}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'x-rapidapi-key': rapidApiKey,
+      'x-rapidapi-host': RAPIDAPI_HOST,
+    },
+  });
 
-  // Build full list with variants (.php suffix and without)
-  const endpoints: Array<{ method: 'GET' | 'POST'; path: string }> = [];
-  for (const ep of baseEndpoints) {
-    endpoints.push(ep);
-    endpoints.push({ method: ep.method, path: `${ep.path}.php` });
+  const text = await response.text();
+  console.log(`[Instagram RapidAPI] User info response status: ${response.status}`);
+
+  if (!response.ok) {
+    console.error(`[Instagram RapidAPI] User info failed: ${response.status} - ${text.slice(0, 500)}`);
+    throw new Error(`RapidAPI user info failed: ${response.status}`);
   }
 
-  let lastStatus = 0;
-  let lastText = '';
-
-  for (const prefix of prefixes) {
-    for (const ep of endpoints) {
-      const fullPath = prefix ? `${prefix}/${ep.path}` : ep.path;
-
-      console.log(`[Instagram RapidAPI] Trying ${ep.method} ${fullPath}...`);
-
-      const res =
-        ep.method === 'GET'
-          ? await rapidApiRequest(rapidApiKey, {
-              method: 'GET',
-              path: fullPath,
-              query: { username_or_url: username },
-            })
-          : await rapidApiRequest(rapidApiKey, {
-              method: 'POST',
-              path: fullPath,
-              form: { username_or_url: username },
-            });
-
-      if (res.ok) {
-        console.log(`[Instagram RapidAPI] User info OK via ${ep.method} ${fullPath}`);
-        return res.json ?? {};
-      }
-
-      lastStatus = res.status;
-      lastText = res.text;
-
-      // “Endpoint does not exist” -> try next candidate quickly
-      if (res.status === 404 && res.text.includes('does not exist')) {
-        console.warn(`[Instagram RapidAPI] ${ep.method} ${fullPath} not available (404). Trying next...`);
-        continue;
-      }
-
-      // Other 4xx/5xx: keep trying, but log details for debugging
-      console.warn(
-        `[Instagram RapidAPI] ${ep.method} ${fullPath} failed: ${res.status} - ${res.text.slice(0, 300)}`,
-      );
-    }
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error(`[Instagram RapidAPI] Invalid JSON response: ${text.slice(0, 500)}`);
+    throw new Error('RapidAPI returned invalid JSON');
   }
-
-  console.error(`[Instagram RapidAPI] No user-info endpoint matched. Last: ${lastStatus} - ${lastText}`);
-  throw new Error('RapidAPI user info endpoint not found for this API');
 }
 
-// Get user posts from RapidAPI Instagram Scraper Stable API
-async function getUserPosts(
-  rapidApiKey: string,
-  username: string,
-  amount: number = 30,
-  paginationToken?: string,
-): Promise<any> {
-  console.log(
-    `[Instagram RapidAPI] Getting posts for: ${username}, amount: ${amount}, token: ${paginationToken || 'initial'}`,
-  );
+// Get user posts
+async function getUserPosts(rapidApiKey: string, username: string, count: number = 30): Promise<any> {
+  console.log(`[Instagram RapidAPI] Getting posts for: ${username}, count: ${count}`);
 
-  const prefixes = ['', 'user', 'users', 'v1', 'v2', 'v1/user', 'v2/user', 'v1/users', 'v2/users'];
-  const baseEndpoints = [
-    // Based on screenshot
-    { method: 'POST' as const, path: 'user_posts' },
-    { method: 'POST' as const, path: 'user_reels' },
-  ];
+  const url = `https://${RAPIDAPI_HOST}/userposts?username_or_id=${encodeURIComponent(username)}&count=${count}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'x-rapidapi-key': rapidApiKey,
+      'x-rapidapi-host': RAPIDAPI_HOST,
+    },
+  });
 
-  // Build full list with variants (.php suffix and without)
-  const endpoints: Array<{ method: 'GET' | 'POST'; path: string }> = [];
-  for (const ep of baseEndpoints) {
-    endpoints.push(ep);
-    endpoints.push({ method: ep.method, path: `${ep.path}.php` });
+  const text = await response.text();
+  console.log(`[Instagram RapidAPI] Posts response status: ${response.status}`);
+
+  if (!response.ok) {
+    console.error(`[Instagram RapidAPI] Posts failed: ${response.status} - ${text.slice(0, 500)}`);
+    throw new Error(`RapidAPI posts failed: ${response.status}`);
   }
 
-  let lastStatus = 0;
-  let lastText = '';
-
-  for (const prefix of prefixes) {
-    for (const ep of endpoints) {
-      const fullPath = prefix ? `${prefix}/${ep.path}` : ep.path;
-      console.log(`[Instagram RapidAPI] Trying ${ep.method} ${fullPath}...`);
-
-      const res =
-        ep.method === 'POST'
-          ? await rapidApiRequest(rapidApiKey, {
-              method: 'POST',
-              path: fullPath,
-              form: {
-                username_or_url: username,
-                amount: String(amount),
-                ...(paginationToken ? { pagination_token: paginationToken } : {}),
-              },
-            })
-          : await rapidApiRequest(rapidApiKey, {
-              method: 'GET',
-              path: fullPath,
-              query: {
-                username_or_url: username,
-                amount: String(amount),
-                ...(paginationToken ? { pagination_token: paginationToken } : {}),
-              },
-            });
-
-      if (res.ok) return res.json ?? {};
-
-      lastStatus = res.status;
-      lastText = res.text;
-
-      if (res.status === 404 && res.text.includes('does not exist')) {
-        console.warn(`[Instagram RapidAPI] ${ep.method} ${fullPath} not available (404). Trying next...`);
-        continue;
-      }
-
-      console.warn(`[Instagram RapidAPI] ${ep.method} ${fullPath} failed: ${res.status} - ${res.text.slice(0, 300)}`);
-    }
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error(`[Instagram RapidAPI] Invalid JSON response: ${text.slice(0, 500)}`);
+    throw new Error('RapidAPI returned invalid JSON');
   }
-
-  console.error(`[Instagram RapidAPI] Posts failed. Last: ${lastStatus} - ${lastText}`);
-  throw new Error(`RapidAPI posts failed: ${lastStatus}`);
 }
 
-// Map RapidAPI response to our post format
-function mapRapidAPIPosts(items: any[]): InstagramPost[] {
+// Get user reels
+async function getUserReels(rapidApiKey: string, username: string, count: number = 30): Promise<any> {
+  console.log(`[Instagram RapidAPI] Getting reels for: ${username}, count: ${count}`);
+
+  const url = `https://${RAPIDAPI_HOST}/userreels?username_or_id=${encodeURIComponent(username)}&count=${count}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'x-rapidapi-key': rapidApiKey,
+      'x-rapidapi-host': RAPIDAPI_HOST,
+    },
+  });
+
+  const text = await response.text();
+  console.log(`[Instagram RapidAPI] Reels response status: ${response.status}`);
+
+  if (!response.ok) {
+    // Reels endpoint might fail for accounts without reels, don't throw
+    console.warn(`[Instagram RapidAPI] Reels failed: ${response.status} - ${text.slice(0, 300)}`);
+    return { items: [] };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.warn(`[Instagram RapidAPI] Invalid JSON for reels`);
+    return { items: [] };
+  }
+}
+
+// Map API response to our post format
+function mapPosts(items: any[]): InstagramPost[] {
   const posts: InstagramPost[] = [];
   const seenUrls = new Set<string>();
 
   for (const item of items) {
     // Try to extract post URL from various possible fields
     const code = item.code || item.shortcode || item.id;
-    let postUrl = item.post_url || item.url || item.link;
+    let postUrl = item.link || item.post_url || item.url;
     
     if (!postUrl && code) {
       postUrl = `https://www.instagram.com/p/${code}/`;
@@ -372,53 +269,31 @@ Deno.serve(async (req) => {
     console.log(`[Instagram RapidAPI] Starting scrape for: ${username}`);
 
     // Get user info
-    const userInfo = await getUserInfo(rapidApiKey, username);
-    const userData = userInfo.data || userInfo.user || userInfo;
+    const userInfoResponse = await getUserInfo(rapidApiKey, username);
+    const userData = userInfoResponse.data || userInfoResponse.user || userInfoResponse;
 
-    // Get user posts with pagination
-    const allPosts: InstagramPost[] = [];
-    let paginationToken: string | undefined;
-    let hasMore = true;
-    let pageCount = 0;
-    const postsPerPage = 30;
-    const maxPages = Math.ceil(resultsLimit / postsPerPage);
+    console.log(`[Instagram RapidAPI] User info received:`, JSON.stringify(userData).slice(0, 500));
 
-    while (hasMore && pageCount < maxPages && allPosts.length < resultsLimit) {
-      try {
-        const postsResponse = await getUserPosts(rapidApiKey, username, postsPerPage, paginationToken);
-        const items = postsResponse.data?.items || postsResponse.items || postsResponse.posts || postsResponse.data || [];
-        
-        if (!Array.isArray(items) || items.length === 0) {
-          hasMore = false;
-          break;
-        }
+    // Get posts and reels
+    const [postsResponse, reelsResponse] = await Promise.all([
+      getUserPosts(rapidApiKey, username, Math.min(resultsLimit, 50)),
+      getUserReels(rapidApiKey, username, Math.min(resultsLimit, 30)),
+    ]);
 
-        const mappedPosts = mapRapidAPIPosts(items);
-        allPosts.push(...mappedPosts);
-        
-        paginationToken = postsResponse.pagination_token || postsResponse.data?.pagination_token || postsResponse.next_cursor;
-        hasMore = !!paginationToken && items.length > 0;
-        pageCount++;
+    const postsItems = postsResponse.data?.items || postsResponse.items || postsResponse.posts || postsResponse.data || [];
+    const reelsItems = reelsResponse.data?.items || reelsResponse.items || reelsResponse.reels || reelsResponse.data || [];
 
-        console.log(`[Instagram RapidAPI] Page ${pageCount}: got ${mappedPosts.length} posts, total: ${allPosts.length}`);
+    console.log(`[Instagram RapidAPI] Got ${Array.isArray(postsItems) ? postsItems.length : 0} posts, ${Array.isArray(reelsItems) ? reelsItems.length : 0} reels`);
 
-        // Small delay between requests to avoid rate limiting
-        if (hasMore && allPosts.length < resultsLimit) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      } catch (pageError) {
-        console.error(`[Instagram RapidAPI] Error on page ${pageCount + 1}:`, pageError);
-        break;
-      }
-    }
-
-    // Limit posts to requested amount
-    const limitedPosts = allPosts.slice(0, resultsLimit);
+    // Map and combine posts
+    const allItems = [...(Array.isArray(postsItems) ? postsItems : []), ...(Array.isArray(reelsItems) ? reelsItems : [])];
+    const mappedPosts = mapPosts(allItems);
+    const limitedPosts = mappedPosts.slice(0, resultsLimit);
 
     const result: InstagramScrapedData = {
       username: userData.username || username,
       displayName: safeString(userData.full_name || userData.fullname || userData.name),
-      profileImageUrl: safeString(userData.profile_pic_url || userData.profile_pic_url_hd || userData.profile_image || userData.avatar),
+      profileImageUrl: safeString(userData.profile_pic_url || userData.profile_pic_url_hd || userData.profile_image || userData.avatar || userData.hd_profile_pic_url_info?.url),
       bio: safeString(userData.biography || userData.bio),
       followersCount: toInt(userData.follower_count || userData.followers_count || userData.followers),
       followingCount: toInt(userData.following_count || userData.followings_count || userData.following),
