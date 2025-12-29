@@ -5,6 +5,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const browserHeaders = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Cache-Control': 'no-cache',
+};
+
 // ScrapeCreators client
 const SCRAPECREATORS_BASE_URL = 'https://api.scrapecreators.com/v1';
 
@@ -53,6 +60,19 @@ const scrapeCreatorsClient = {
   },
 };
 
+interface YouTubeVideo {
+  videoId: string;
+  title: string;
+  description?: string;
+  thumbnailUrl?: string;
+  viewsCount: number;
+  likesCount: number;
+  commentsCount: number;
+  publishedAt?: string;
+  duration?: number;
+  isShort?: boolean;
+}
+
 interface YouTubeScrapedData {
   channelId?: string;
   username: string;
@@ -66,19 +86,207 @@ interface YouTubeScrapedData {
   totalLikes?: number;
   totalComments?: number;
   scrapedVideosCount: number;
-  videos?: Array<{
-    videoId: string;
-    title: string;
-    description?: string;
-    thumbnailUrl?: string;
-    viewsCount: number;
-    likesCount: number;
-    commentsCount: number;
-    publishedAt?: string;
-    duration?: number;
-    isShort?: boolean;
-  }>;
+  videos?: YouTubeVideo[];
 }
+
+// ========== NATIVE SCRAPING FUNCTIONS ==========
+
+function parseCompactCountNative(text?: string | number | null): number {
+  if (text === null || text === undefined) return 0;
+  if (typeof text === 'number') return Math.round(text);
+
+  const raw = String(text).trim();
+  const lower = raw.toLowerCase();
+
+  const match = lower.match(/([\d][\d\s.,]*)\s*(k|m|b|mil|mi|bi|thousand|million|billion)?/i);
+  if (!match) return parseInt(lower.replace(/\D/g, ''), 10) || 0;
+
+  const numToken = (match[1] || '').replace(/\s+/g, '');
+  const suffix = (match[2] || '').toLowerCase();
+
+  const hasDot = numToken.includes('.');
+  const hasComma = numToken.includes(',');
+
+  let normalized = numToken;
+  if (hasDot && hasComma) {
+    const lastDot = numToken.lastIndexOf('.');
+    const lastComma = numToken.lastIndexOf(',');
+    const decimalSep = lastDot > lastComma ? '.' : ',';
+    const thousandsSep = decimalSep === '.' ? ',' : '.';
+    normalized = numToken.split(thousandsSep).join('');
+    normalized = normalized.replace(decimalSep, '.');
+  } else if (hasDot || hasComma) {
+    const sep = hasDot ? '.' : ',';
+    const parts = numToken.split(sep);
+    const decimals = parts[1] || '';
+    if (!suffix && decimals.length === 3) {
+      normalized = parts.join('');
+    } else {
+      normalized = parts[0] + '.' + decimals;
+    }
+  }
+
+  let value = parseFloat(normalized.replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(value)) value = parseInt(lower.replace(/\D/g, ''), 10) || 0;
+
+  if (suffix === 'k' || suffix === 'mil' || suffix === 'thousand') value *= 1_000;
+  else if (suffix === 'm' || suffix === 'mi' || suffix === 'million') value *= 1_000_000;
+  else if (suffix === 'b' || suffix === 'bi' || suffix === 'billion') value *= 1_000_000_000;
+
+  return Math.round(value);
+}
+
+async function resolveChannelId(identifier: string): Promise<{ channelId: string; handle?: string }> {
+  const trimmed = identifier.trim();
+  
+  if (/^UC[\w-]{20,24}$/.test(trimmed)) {
+    return { channelId: trimmed };
+  }
+  
+  let handle = trimmed;
+  const urlMatch = trimmed.match(/youtube\.com\/(channel\/|@|c\/|user\/)?([^\/\?]+)/);
+  if (urlMatch) {
+    handle = urlMatch[2];
+    if (urlMatch[1] === 'channel/') {
+      return { channelId: handle };
+    }
+  }
+  
+  handle = handle.replace(/^@/, '').replace(/\/$/, '');
+  
+  console.log(`[YouTube Native] Resolving handle: ${handle}`);
+  
+  const channelUrl = `https://www.youtube.com/@${handle}`;
+  const response = await fetch(channelUrl, { headers: browserHeaders });
+  
+  if (!response.ok) {
+    console.warn(`[YouTube Native] Channel not found: ${handle}`);
+    return { channelId: '', handle };
+  }
+  
+  const html = await response.text();
+  
+  const channelIdMatch = html.match(/"channelId":"(UC[\w-]+)"/) ||
+                         html.match(/channel_id=(UC[\w-]+)/) ||
+                         html.match(/"externalId":"(UC[\w-]+)"/);
+  
+  if (!channelIdMatch) {
+    console.warn(`[YouTube Native] Could not extract channel ID from: ${handle}`);
+    return { channelId: '', handle };
+  }
+  
+  return { channelId: channelIdMatch[1], handle };
+}
+
+function extractShortsFromData(data: any): YouTubeVideo[] {
+  const videos: YouTubeVideo[] = [];
+  const seenIds = new Set<string>();
+  
+  function walkObject(obj: any, depth = 0): void {
+    if (!obj || typeof obj !== 'object' || depth > 20) return;
+    
+    // reelItemRenderer (old shorts format)
+    if (obj.reelItemRenderer) {
+      const renderer = obj.reelItemRenderer;
+      const videoId = renderer?.videoId;
+      if (videoId && !seenIds.has(videoId)) {
+        seenIds.add(videoId);
+        const viewCountText = renderer?.viewCountText?.simpleText ||
+                             renderer?.viewCountText?.runs?.[0]?.text ||
+                             renderer?.shortViewCountText?.simpleText || '';
+        videos.push({
+          videoId,
+          title: renderer?.title?.runs?.[0]?.text || renderer?.headline?.simpleText || '',
+          thumbnailUrl: renderer?.thumbnail?.thumbnails?.slice(-1)[0]?.url,
+          viewsCount: parseCompactCountNative(viewCountText),
+          likesCount: 0,
+          commentsCount: 0,
+          isShort: true,
+        });
+      }
+    }
+    
+    // shortsLockupViewModel (new shorts format)
+    if (obj.shortsLockupViewModel) {
+      const videoId = obj.shortsLockupViewModel?.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId;
+      if (videoId && !seenIds.has(videoId)) {
+        seenIds.add(videoId);
+        const accessibilityText = obj.shortsLockupViewModel?.accessibilityText || '';
+        const inlineStats = obj.shortsLockupViewModel?.overlayMetadata?.secondaryText?.content || '';
+        
+        const inlineMatch = inlineStats.match(/([\d.,\s]+)\s*(views?|visualizações?|vistas?|vues?)/i);
+        const accessMatch = !inlineMatch ? accessibilityText.match(/([\d.,\s]+[KMB]?)\s*(views|visualizações|visualizacoes|vistas|vues|aufrufe|просмотр)/i) : null;
+        const suffixMatch = !inlineMatch && !accessMatch ? accessibilityText.match(/([\d.,]+)\s*([KMB]|mil|mi)\b/i) : null;
+        const truncatedMatch = !inlineMatch && !accessMatch && !suffixMatch ? accessibilityText.match(/([\d.,]+)\s*view/i) : null;
+        const lastResort = !inlineMatch && !accessMatch && !suffixMatch && !truncatedMatch ? accessibilityText.match(/([\d.,]+)/) : null;
+        
+        const extractedViews = inlineMatch ? parseCompactCountNative(inlineMatch[1]) 
+          : accessMatch ? parseCompactCountNative(accessMatch[1])
+          : suffixMatch ? parseCompactCountNative(suffixMatch[1] + suffixMatch[2])
+          : truncatedMatch ? parseCompactCountNative(truncatedMatch[1])
+          : lastResort ? parseCompactCountNative(lastResort[1])
+          : 0;
+        
+        videos.push({
+          videoId,
+          title: obj.shortsLockupViewModel?.overlayMetadata?.primaryText?.content || '',
+          thumbnailUrl: obj.shortsLockupViewModel?.thumbnail?.sources?.slice(-1)[0]?.url,
+          viewsCount: extractedViews,
+          likesCount: 0,
+          commentsCount: 0,
+          isShort: true,
+        });
+      }
+    }
+    
+    if (Array.isArray(obj)) {
+      for (const item of obj) walkObject(item, depth + 1);
+    } else {
+      for (const key of Object.keys(obj)) walkObject(obj[key], depth + 1);
+    }
+  }
+  
+  walkObject(data);
+  return videos;
+}
+
+async function fetchShortsNative(channelId: string): Promise<YouTubeVideo[]> {
+  console.log(`[YouTube Native] Fetching shorts tab for channel: ${channelId}`);
+  
+  const tabUrl = `https://www.youtube.com/channel/${channelId}/shorts`;
+  const response = await fetch(tabUrl, { headers: browserHeaders });
+  
+  if (!response.ok) {
+    console.error(`[YouTube Native] Failed to fetch shorts tab: ${response.status}`);
+    return [];
+  }
+  
+  const html = await response.text();
+  
+  // Extract ytInitialData
+  const dataMatch = html.match(/var\s+ytInitialData\s*=\s*(\{.+?\});\s*<\/script>/s) ||
+                    html.match(/window\["ytInitialData"\]\s*=\s*(\{.+?\});\s*<\/script>/s);
+  
+  if (!dataMatch) {
+    console.warn('[YouTube Native] Could not find ytInitialData');
+    return [];
+  }
+  
+  let data: any;
+  try {
+    data = JSON.parse(dataMatch[1]);
+  } catch (e) {
+    console.error('[YouTube Native] Failed to parse ytInitialData');
+    return [];
+  }
+  
+  const shorts = extractShortsFromData(data);
+  console.log(`[YouTube Native] Extracted ${shorts.length} shorts from native scraping`);
+  
+  return shorts;
+}
+
+// ========== END NATIVE SCRAPING FUNCTIONS ==========
 
 function parseCompactCount(input?: string | number | null): number {
   if (input === null || input === undefined) return 0;
@@ -180,12 +388,13 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
   let videosResult: any = null;
   let shortsResult: any = null;
 
-  // 2) Fetch ONLY SHORTS
-  // Some channels return 0 items on the dedicated shorts endpoint.
-  // To be consistent, we fetch the channel feed and keep only items marked as shorts.
+  // 2) Fetch ONLY SHORTS - with native fallback when ScrapeCreators returns 0
   if (fetchVideos && (data.channelId || cleanHandle)) {
+    let shortsFromApi: YouTubeVideo[] = [];
+    
+    // First, try ScrapeCreators API
     try {
-      console.log(`[ScrapeCreators] Fetching channel feed (shorts-only) for: ${data.channelId || cleanHandle}`);
+      console.log(`[ScrapeCreators] Fetching channel feed for: ${data.channelId || cleanHandle}`);
       videosResult = await scrapeCreatorsClient.get('/youtube/channel-videos', {
         ...(data.channelId ? { channelId: data.channelId } : {}),
         ...(cleanHandle && !data.channelId ? { handle: cleanHandle } : {}),
@@ -195,7 +404,7 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
       const videosArray = videosResult?.videos || videosResult?.data?.videos || [];
       console.log(`[ScrapeCreators] Found ${videosArray.length} items in channel feed`);
 
-      const shortsOnly = (Array.isArray(videosArray) ? videosArray : [])
+      shortsFromApi = (Array.isArray(videosArray) ? videosArray : [])
         .map((video: any) => ({
           videoId: video?.id || video?.videoId || '',
           title: video?.title || '',
@@ -208,13 +417,47 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
           duration: video?.lengthSeconds || undefined,
           isShort: video?.type === 'short' || video?.isShort === true,
         }))
-        .filter((v: any) => v.isShort);
+        .filter((v: any) => v.isShort && v.videoId);
 
-      data.videos = shortsOnly.slice(0, 10);
-      console.log(`[ScrapeCreators] Shorts after filter: ${data.videos.length}`);
+      console.log(`[ScrapeCreators] Shorts from API filter: ${shortsFromApi.length}`);
     } catch (videosError) {
       console.error('[ScrapeCreators] Error fetching channel feed:', videosError);
     }
+
+    // If ScrapeCreators returned 0 shorts, fallback to native scraping
+    if (shortsFromApi.length === 0) {
+      console.log('[YouTube] ScrapeCreators returned 0 shorts, trying native scraping...');
+      
+      // Resolve channelId if we don't have it
+      let resolvedChannelId = data.channelId;
+      if (!resolvedChannelId && cleanHandle) {
+        try {
+          const resolved = await resolveChannelId(cleanHandle);
+          resolvedChannelId = resolved.channelId;
+          if (resolvedChannelId) {
+            data.channelId = resolvedChannelId;
+          }
+        } catch (e) {
+          console.error('[YouTube Native] Error resolving channel ID:', e);
+        }
+      }
+
+      if (resolvedChannelId) {
+        try {
+          const nativeShorts = await fetchShortsNative(resolvedChannelId);
+          if (nativeShorts.length > 0) {
+            shortsFromApi = nativeShorts;
+            console.log(`[YouTube Native] Got ${nativeShorts.length} shorts via native scraping`);
+          }
+        } catch (nativeError) {
+          console.error('[YouTube Native] Error in native shorts scraping:', nativeError);
+        }
+      }
+    }
+
+    // Limit to 10 shorts
+    data.videos = shortsFromApi.slice(0, 10);
+    console.log(`[YouTube] Final shorts count: ${data.videos.length}`);
   }
 
   // Set scraped videos count
