@@ -78,10 +78,14 @@ async function getUserInfo(rapidApiKey: string, username: string): Promise<any> 
 async function getUserPosts(rapidApiKey: string, username: string, count: number = 50, cursor?: string): Promise<any> {
   console.log(`[Instagram RapidAPI] Getting posts for: ${username}, count: ${count}, cursor: ${cursor || 'initial'}`);
 
-  let url = `https://${RAPIDAPI_HOST}/userposts?username_or_id=${encodeURIComponent(username)}&count=${count}`;
+  // Build URL with all possible count parameter names
+  let url = `https://${RAPIDAPI_HOST}/userposts?username_or_id=${encodeURIComponent(username)}&count=${count}&limit=${count}&amount=${count}`;
   if (cursor) {
-    url += `&end_cursor=${encodeURIComponent(cursor)}`;
+    // Try multiple cursor parameter names
+    url += `&end_cursor=${encodeURIComponent(cursor)}&cursor=${encodeURIComponent(cursor)}&max_id=${encodeURIComponent(cursor)}`;
   }
+  
+  console.log(`[Instagram RapidAPI] Posts URL: ${url}`);
   
   const response = await fetch(url, {
     method: 'GET',
@@ -100,7 +104,16 @@ async function getUserPosts(rapidApiKey: string, username: string, count: number
   }
 
   try {
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+    // Log the top-level keys to understand response structure
+    console.log(`[Instagram RapidAPI] Posts response keys: ${Object.keys(parsed).join(', ')}`);
+    // Log pagination info if present
+    if (parsed.pagination_token) console.log(`[Instagram RapidAPI] pagination_token found: ${parsed.pagination_token}`);
+    if (parsed.end_cursor) console.log(`[Instagram RapidAPI] end_cursor found: ${parsed.end_cursor}`);
+    if (parsed.next_max_id) console.log(`[Instagram RapidAPI] next_max_id found: ${parsed.next_max_id}`);
+    if (parsed.has_more !== undefined) console.log(`[Instagram RapidAPI] has_more: ${parsed.has_more}`);
+    if (parsed.more_available !== undefined) console.log(`[Instagram RapidAPI] more_available: ${parsed.more_available}`);
+    return parsed;
   } catch {
     console.error(`[Instagram RapidAPI] Invalid JSON response: ${text.slice(0, 500)}`);
     throw new Error('RapidAPI returned invalid JSON');
@@ -125,9 +138,12 @@ async function getAllPosts(rapidApiKey: string, username: string, maxPosts: numb
         break;
       }
 
-      allPosts.push(...items);
-      cursor = response.data?.end_cursor || response.end_cursor || response.next_cursor || response.pagination?.end_cursor;
-      hasMore = !!cursor && items.length >= postsPerPage;
+      // Try to find cursor from multiple possible locations
+      cursor = response.data?.end_cursor || response.end_cursor || response.next_cursor || 
+               response.pagination?.end_cursor || response.next_max_id || response.pagination_token ||
+               response.paging?.cursors?.after;
+      const moreAvailable = response.more_available ?? response.has_more ?? (response.paging?.next !== undefined);
+      hasMore = (!!cursor || moreAvailable) && items.length > 0;
       pageCount++;
 
       console.log(`[Instagram RapidAPI] Posts page ${pageCount}: got ${items.length}, total: ${allPosts.length}, hasMore: ${hasMore}`);
@@ -149,10 +165,12 @@ async function getAllPosts(rapidApiKey: string, username: string, maxPosts: numb
 async function getUserReels(rapidApiKey: string, username: string, count: number = 50, cursor?: string): Promise<any> {
   console.log(`[Instagram RapidAPI] Getting reels for: ${username}, count: ${count}, cursor: ${cursor || 'initial'}`);
 
-  let url = `https://${RAPIDAPI_HOST}/userreels?username_or_id=${encodeURIComponent(username)}&count=${count}`;
+  let url = `https://${RAPIDAPI_HOST}/userreels?username_or_id=${encodeURIComponent(username)}&count=${count}&limit=${count}&amount=${count}`;
   if (cursor) {
-    url += `&end_cursor=${encodeURIComponent(cursor)}`;
+    url += `&end_cursor=${encodeURIComponent(cursor)}&cursor=${encodeURIComponent(cursor)}&max_id=${encodeURIComponent(cursor)}`;
   }
+  
+  console.log(`[Instagram RapidAPI] Reels URL: ${url}`);
   
   const response = await fetch(url, {
     method: 'GET',
@@ -171,7 +189,14 @@ async function getUserReels(rapidApiKey: string, username: string, count: number
   }
 
   try {
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+    console.log(`[Instagram RapidAPI] Reels response keys: ${Object.keys(parsed).join(', ')}`);
+    if (parsed.pagination_token) console.log(`[Instagram RapidAPI] reels pagination_token: ${parsed.pagination_token}`);
+    if (parsed.end_cursor) console.log(`[Instagram RapidAPI] reels end_cursor: ${parsed.end_cursor}`);
+    if (parsed.next_max_id) console.log(`[Instagram RapidAPI] reels next_max_id: ${parsed.next_max_id}`);
+    if (parsed.has_more !== undefined) console.log(`[Instagram RapidAPI] reels has_more: ${parsed.has_more}`);
+    if (parsed.more_available !== undefined) console.log(`[Instagram RapidAPI] reels more_available: ${parsed.more_available}`);
+    return parsed;
   } catch {
     console.warn(`[Instagram RapidAPI] Invalid JSON for reels`);
     return { items: [] };
@@ -197,8 +222,11 @@ async function getAllReels(rapidApiKey: string, username: string, maxReels: numb
       }
 
       allReels.push(...items);
-      cursor = response.data?.end_cursor || response.end_cursor || response.next_cursor || response.pagination?.end_cursor;
-      hasMore = !!cursor && items.length >= reelsPerPage;
+      cursor = response.data?.end_cursor || response.end_cursor || response.next_cursor || 
+               response.pagination?.end_cursor || response.next_max_id || response.pagination_token ||
+               response.paging?.cursors?.after;
+      const moreAvailable = response.more_available ?? response.has_more ?? (response.paging?.next !== undefined);
+      hasMore = (!!cursor || moreAvailable) && items.length > 0;
       pageCount++;
 
       console.log(`[Instagram RapidAPI] Reels page ${pageCount}: got ${items.length}, total: ${allReels.length}, hasMore: ${hasMore}`);
