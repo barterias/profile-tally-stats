@@ -170,18 +170,29 @@ export function useSyncAllYouTubeAccounts() {
   
   return useMutation({
     mutationFn: async (accounts: { id: string; username: string }[]) => {
+      console.log(`[YouTube Sync All] Starting sync for ${accounts.length} accounts`);
+      
       const results = await Promise.allSettled(
         accounts.map(async (acc) => {
-          const { error } = await supabase.functions.invoke('youtube-scrape-native', {
+          console.log(`[YouTube Sync All] Syncing: ${acc.username}`);
+          const { data, error } = await supabase.functions.invoke('youtube-scrape-native', {
             body: { accountId: acc.id, username: acc.username },
           });
-          if (error) throw error;
-          return { success: true };
+          
+          if (error) {
+            console.error(`[YouTube Sync All] Error syncing ${acc.username}:`, error);
+            throw error;
+          }
+          
+          console.log(`[YouTube Sync All] Success: ${acc.username}`);
+          return { success: true, username: acc.username };
         })
       );
       
       const successCount = results.filter(r => r.status === 'fulfilled').length;
       const failCount = accounts.length - successCount;
+      
+      console.log(`[YouTube Sync All] Complete: ${successCount} success, ${failCount} failed`);
       
       return { successCount, failCount, total: accounts.length };
     },
