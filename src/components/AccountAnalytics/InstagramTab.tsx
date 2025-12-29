@@ -166,10 +166,6 @@ export function InstagramTab() {
           <Link2 className="h-4 w-4 mr-2" />
           Linkar Conta Profissional
         </Button>
-        <Button onClick={() => setAddModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t('analytics.add_account')}
-        </Button>
       </div>
 
         {isClipper && accounts.length > 0 && (
