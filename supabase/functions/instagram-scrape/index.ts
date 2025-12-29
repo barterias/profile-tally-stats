@@ -41,8 +41,8 @@ async function fetchScrapeCreators(endpoint: string, params: Record<string, stri
   const queryParams = new URLSearchParams(params);
   const url = `${SCRAPECREATORS_API_URL}${endpoint}?${queryParams}`;
   
-  console.log(`[ScrapeCreators] Fetching: ${endpoint}`);
-  
+  console.log(`[ScrapeCreators] Fetching: ${endpoint}`, params);
+
   const response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -163,10 +163,15 @@ function mapPostsFromUserPosts(postsData: any): { posts: any[]; nextCursor: stri
     items = postsData;
   }
 
-  // Get pagination cursor
-  nextCursor = postsData?.next_max_id || postsData?.data?.next_max_id || postsData?.paging_info?.next_max_id || null;
+  // Get pagination cursor - check all possible locations
+  nextCursor = postsData?.next_max_id || postsData?.data?.next_max_id || postsData?.paging_info?.next_max_id || postsData?.pagination?.next_max_id || null;
 
-  console.log(`[ScrapeCreators] Posts from user/posts endpoint: ${items.length}, nextCursor: ${nextCursor ? 'yes' : 'no'}`);
+  console.log(`[ScrapeCreators] Posts from user/posts endpoint: ${items.length}, nextCursor: ${nextCursor || 'none'}`);
+  
+  // Log first post code to detect duplicates
+  if (items.length > 0) {
+    console.log(`[ScrapeCreators] First post code: ${items[0]?.code || items[0]?.shortcode || 'unknown'}`);
+  }
 
   const posts = items.map((item: any) => {
     const isVideo = item?.media_type === 2 || item?.product_type === 'clips' || item?.is_video;
@@ -307,8 +312,10 @@ serve(async (req) => {
         const params: Record<string, string> = { handle: username };
         
         if (currentCursor) {
+          // Try both parameter names - some APIs use 'cursor', others 'max_id'
+          params.cursor = currentCursor;
           params.max_id = currentCursor;
-          console.log(`[ScrapeCreators] Page ${pageCount}: Using cursor`);
+          console.log(`[ScrapeCreators] Page ${pageCount}: Using cursor: ${currentCursor.substring(0, 20)}...`);
         } else {
           console.log(`[ScrapeCreators] Page ${pageCount}: Starting from beginning`);
         }
@@ -360,8 +367,17 @@ serve(async (req) => {
       console.log(`[ScrapeCreators] Pagination complete: ${allPosts.length} total posts fetched in ${pageCount} pages`);
     }
 
-    const newPosts = allPosts;
+    // Deduplicate posts by URL
+    const uniquePostsMap = new Map<string, any>();
+    for (const post of allPosts) {
+      if (post.postUrl && !uniquePostsMap.has(post.postUrl)) {
+        uniquePostsMap.set(post.postUrl, post);
+      }
+    }
+    const newPosts = Array.from(uniquePostsMap.values());
     const newCursor = currentCursor;
+
+    console.log(`[ScrapeCreators] After deduplication: ${newPosts.length} unique posts (was ${allPosts.length})`);
 
     data.posts = newPosts;
     data.scrapedPostsCount = newPosts.length;
