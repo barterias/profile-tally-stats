@@ -49,8 +49,37 @@ export function useVideoDetails() {
 
       return data.data;
     },
-    onSuccess: (_, variables) => {
-      // Invalidate relevant queries based on platform
+    onSuccess: (data, variables) => {
+      // Optimistically update cached lists so "total views" updates immediately
+      if (variables.updateDatabase && variables.tableId) {
+        const patchList = (list: any[] | undefined) => {
+          if (!Array.isArray(list)) return list;
+          return list.map((item) => {
+            if (!item) return item;
+            if (item.id === variables.tableId) {
+              return {
+                ...item,
+                views_count: data.viewsCount,
+                likes_count: data.likesCount,
+                comments_count: data.commentsCount,
+                thumbnail_url: data.thumbnailUrl ?? item.thumbnail_url,
+                title: data.title ?? item.title,
+                video_url: data.videoUrl ?? item.video_url,
+              };
+            }
+            return item;
+          });
+        };
+
+        if (variables.platform === 'youtube' && variables.tableId) {
+          // Update per-account query
+          queryClient.setQueriesData({ queryKey: ['youtube-videos'], exact: false }, (old: any) => patchList(old));
+          // Update aggregated query used by totals
+          queryClient.setQueriesData({ queryKey: ['youtube-videos-all'], exact: false }, (old: any) => patchList(old));
+        }
+      }
+
+      // Invalidate relevant queries based on platform (ensures eventual consistency)
       if (variables.platform === 'tiktok') {
         queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
       } else if (variables.platform === 'instagram') {
