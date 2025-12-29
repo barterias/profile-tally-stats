@@ -167,12 +167,15 @@ function extractAllVideos(data: any): YouTubeVideo[] {
       if (videoId && !seenIds.has(videoId)) {
         seenIds.add(videoId);
         const accessibilityText = obj.shortsLockupViewModel?.accessibilityText || '';
-        const viewsMatch = accessibilityText.match(/([\d,.]+[KMB]?)\s*views/i);
+        // Support multiple languages: views, visualizações, vistas, vues, etc.
+        const viewsMatch = accessibilityText.match(/([\d,.]+[KMB]?)\s*(views|visualizações|visualizacoes|vistas|vues|aufrufe|просмотр)/i);
+        // Also try to extract just the first number if no keyword match
+        const fallbackMatch = !viewsMatch ? accessibilityText.match(/([\d,.]+[KMB]?)/) : null;
         videos.push({
           videoId,
           title: obj.shortsLockupViewModel?.overlayMetadata?.primaryText?.content || '',
           thumbnailUrl: obj.shortsLockupViewModel?.thumbnail?.sources?.slice(-1)[0]?.url,
-          viewsCount: viewsMatch ? parseCompactCount(viewsMatch[1]) : 0,
+          viewsCount: viewsMatch ? parseCompactCount(viewsMatch[1]) : (fallbackMatch ? parseCompactCount(fallbackMatch[1]) : 0),
           likesCount: 0,
           commentsCount: 0,
           isShort: true,
