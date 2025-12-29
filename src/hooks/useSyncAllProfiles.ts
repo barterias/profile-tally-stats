@@ -25,18 +25,13 @@ export function useSyncAllProfiles() {
     setResults([]);
 
     try {
-      // Fetch all active accounts from all platforms
-      const [instagramResult, tiktokResult, youtubeResult] = await Promise.all([
-        supabase.from('instagram_accounts').select('id, username').eq('is_active', true),
-        supabase.from('tiktok_accounts').select('id, username').eq('is_active', true),
-        supabase.from('youtube_accounts').select('id, username').eq('is_active', true),
-      ]);
+      // Fetch only Instagram accounts
+      const instagramResult = await supabase
+        .from('instagram_accounts')
+        .select('id, username')
+        .eq('is_active', true);
 
-      const allAccounts = [
-        ...(instagramResult.data || []).map((a) => ({ ...a, platform: 'instagram' })),
-        ...(tiktokResult.data || []).map((a) => ({ ...a, platform: 'tiktok' })),
-        ...(youtubeResult.data || []).map((a) => ({ ...a, platform: 'youtube' })),
-      ];
+      const allAccounts = (instagramResult.data || []).map((a) => ({ ...a, platform: 'instagram' }));
 
       if (allAccounts.length === 0) {
         toast({
@@ -57,16 +52,9 @@ export function useSyncAllProfiles() {
           let functionName = '';
           let payload: Record<string, any> = { accountId: account.id, fetchVideos: true };
 
-          if (account.platform === 'instagram') {
-            functionName = 'instagram-scrape-native';
-            payload.username = account.username;
-          } else if (account.platform === 'tiktok') {
-            functionName = 'tiktok-scrape-native';
-            payload.username = account.username;
-          } else if (account.platform === 'youtube') {
-            functionName = 'youtube-scrape-native';
-            payload.username = account.username;
-          }
+          // Only Instagram is supported
+          functionName = 'instagram-scrape-native';
+          payload.username = account.username;
 
           console.log(`[Sync] Syncing ${account.platform}/${account.username}...`);
 
