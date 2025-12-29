@@ -189,10 +189,10 @@ Deno.serve(async (req) => {
       try {
         console.log('[TikTok Scrape] Fetching videos...');
         
-        const params: Record<string, string> = {
-          handle: cleanUsername,
-          count: '35', // Max per request
-        };
+      const params: Record<string, string> = {
+        handle: cleanUsername,
+        count: '10', // Max 10 videos per account
+      };
         
         // Use existing cursor if continuing
         if (existingCursor) {

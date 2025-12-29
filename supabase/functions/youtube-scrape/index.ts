@@ -192,7 +192,7 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
       console.log(`[ScrapeCreators] Found ${videosArray.length} videos`);
       
       if (Array.isArray(videosArray) && videosArray.length > 0) {
-        data.videos = videosArray.slice(0, 50).map((video: any) => ({
+        data.videos = videosArray.slice(0, 10).map((video: any) => ({
           videoId: video?.id || video?.videoId || '',
           title: video?.title || '',
           description: typeof video?.description === 'string' ? video.description.substring(0, 500) : undefined,
@@ -216,7 +216,9 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
 
           const shortsArray = shortsResult?.shorts || shortsResult?.data?.shorts || [];
           if (Array.isArray(shortsArray) && shortsArray.length > 0) {
-            const shorts = shortsArray.slice(0, 30).map((short: any) => ({
+            // Only add shorts if we have less than 10 videos total
+            const remainingSlots = Math.max(0, 10 - (data.videos?.length || 0));
+            const shorts = shortsArray.slice(0, remainingSlots).map((short: any) => ({
               videoId: short?.videoId || short?.video_id || short?.id || '',
               title: short?.title || '',
               description: undefined,
