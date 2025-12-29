@@ -69,8 +69,8 @@ export function useAddTikTokAccount() {
           
           if (updateError) throw updateError;
           
-          // Sync the account using native scraper
-          const { error: syncError } = await supabase.functions.invoke('tiktok-scrape-native', {
+          // Sync the account using ScrapeCreators API
+          const { error: syncError } = await supabase.functions.invoke('tiktok-scrape', {
             body: { accountId: existing.id, username },
           });
           
@@ -95,8 +95,8 @@ export function useAddTikTokAccount() {
       
       if (insertError) throw insertError;
       
-      // Sync the new account using native scraper
-      const { error: syncError } = await supabase.functions.invoke('tiktok-scrape-native', {
+      // Sync the new account using ScrapeCreators API
+      const { error: syncError } = await supabase.functions.invoke('tiktok-scrape', {
         body: { accountId: newAccount.id, username },
       });
       
@@ -131,21 +131,64 @@ export function useSyncTikTokAccount() {
     mutationFn: async ({ accountId, continueFrom = false }: { accountId: string; continueFrom?: boolean }) => {
       const { data: account } = await supabase
         .from('tiktok_accounts')
-        .select('username')
+        .select('username, videos_count, scraped_videos_count, next_cursor')
         .eq('id', accountId)
         .single();
       
       if (!account) throw new Error('Conta não encontrada');
       
-      const { error } = await supabase.functions.invoke('tiktok-scrape-native', {
-        body: { accountId, username: account.username },
+      // Initial sync
+      const { data: result, error } = await supabase.functions.invoke('tiktok-scrape', {
+        body: { accountId, username: account.username, continueFrom },
       });
       
       if (error) throw error;
-      return { success: true, continueFrom };
+      
+      // Check if we need to continue fetching more videos (pagination)
+      // Loop until we have all videos or no more cursor
+      let pagesLoaded = 1;
+      const maxPages = 10; // Safety limit
+      
+      while (pagesLoaded < maxPages) {
+        // Re-fetch account to check progress
+        const { data: updatedAccount } = await supabase
+          .from('tiktok_accounts')
+          .select('videos_count, scraped_videos_count, next_cursor')
+          .eq('id', accountId)
+          .single();
+        
+        if (!updatedAccount) break;
+        
+        const hasMoreVideos = updatedAccount.scraped_videos_count < updatedAccount.videos_count;
+        const hasCursor = !!updatedAccount.next_cursor;
+        
+        console.log(`[TikTok Sync] Page ${pagesLoaded}: ${updatedAccount.scraped_videos_count}/${updatedAccount.videos_count} videos, cursor: ${hasCursor}`);
+        
+        if (!hasMoreVideos || !hasCursor) {
+          console.log('[TikTok Sync] All videos collected or no more cursor');
+          break;
+        }
+        
+        // Fetch next page
+        const { error: nextError } = await supabase.functions.invoke('tiktok-scrape', {
+          body: { accountId, username: account.username, continueFrom: true },
+        });
+        
+        if (nextError) {
+          console.error('[TikTok Sync] Error fetching next page:', nextError);
+          break;
+        }
+        
+        pagesLoaded++;
+      }
+      
+      return { success: true, continueFrom, pagesLoaded };
     },
     onSuccess: (result) => {
-      toast.success(result.continueFrom ? 'Mais vídeos coletados!' : 'Conta sincronizada!');
+      const msg = result.pagesLoaded > 1 
+        ? `Conta sincronizada! (${result.pagesLoaded} páginas carregadas)` 
+        : 'Conta sincronizada!';
+      toast.success(msg);
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
@@ -165,10 +208,38 @@ export function useSyncAllTikTokAccounts() {
     mutationFn: async (accounts: { id: string; username: string }[]) => {
       const results = await Promise.allSettled(
         accounts.map(async (acc) => {
-          const { error } = await supabase.functions.invoke('tiktok-scrape-native', {
+          // Initial sync
+          const { error } = await supabase.functions.invoke('tiktok-scrape', {
             body: { accountId: acc.id, username: acc.username },
           });
           if (error) throw error;
+          
+          // Continue fetching until all videos are collected
+          let pagesLoaded = 1;
+          const maxPages = 10;
+          
+          while (pagesLoaded < maxPages) {
+            const { data: account } = await supabase
+              .from('tiktok_accounts')
+              .select('videos_count, scraped_videos_count, next_cursor')
+              .eq('id', acc.id)
+              .single();
+            
+            if (!account) break;
+            
+            const hasMoreVideos = account.scraped_videos_count < account.videos_count;
+            const hasCursor = !!account.next_cursor;
+            
+            if (!hasMoreVideos || !hasCursor) break;
+            
+            const { error: nextError } = await supabase.functions.invoke('tiktok-scrape', {
+              body: { accountId: acc.id, username: acc.username, continueFrom: true },
+            });
+            
+            if (nextError) break;
+            pagesLoaded++;
+          }
+          
           return { success: true };
         })
       );
