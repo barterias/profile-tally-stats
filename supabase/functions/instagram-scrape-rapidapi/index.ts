@@ -131,22 +131,22 @@ async function getAllPosts(rapidApiKey: string, username: string, maxPosts: numb
   while (hasMore && allPosts.length < maxPosts && pageCount < 20) {
     try {
       const response = await getUserPosts(rapidApiKey, username, postsPerPage, cursor);
-      const items = response.data?.items || response.items || response.posts || [];
+      // API returns data as array directly in 'data' field
+      const items = Array.isArray(response.data) ? response.data : (response.data?.items || response.items || response.posts || []);
       
       if (!Array.isArray(items) || items.length === 0) {
         hasMore = false;
         break;
       }
 
-      // Try to find cursor from multiple possible locations
-      cursor = response.data?.end_cursor || response.end_cursor || response.next_cursor || 
-               response.pagination?.end_cursor || response.next_max_id || response.pagination_token ||
-               response.paging?.cursors?.after;
-      const moreAvailable = response.more_available ?? response.has_more ?? (response.paging?.next !== undefined);
-      hasMore = (!!cursor || moreAvailable) && items.length > 0;
+      allPosts.push(...items);
+      
+      // API uses 'pagination_token' for cursor
+      cursor = response.pagination_token || response.data?.end_cursor || response.end_cursor || response.next_cursor;
+      hasMore = !!cursor && items.length > 0;
       pageCount++;
 
-      console.log(`[Instagram RapidAPI] Posts page ${pageCount}: got ${items.length}, total: ${allPosts.length}, hasMore: ${hasMore}`);
+      console.log(`[Instagram RapidAPI] Posts page ${pageCount}: got ${items.length}, total: ${allPosts.length}, cursor: ${cursor ? 'yes' : 'no'}, hasMore: ${hasMore}`);
 
       // Small delay to avoid rate limiting
       if (hasMore && allPosts.length < maxPosts) {
@@ -214,7 +214,8 @@ async function getAllReels(rapidApiKey: string, username: string, maxReels: numb
   while (hasMore && allReels.length < maxReels && pageCount < 20) {
     try {
       const response = await getUserReels(rapidApiKey, username, reelsPerPage, cursor);
-      const items = response.data?.items || response.items || response.reels || [];
+      // API returns data as array directly in 'data' field
+      const items = Array.isArray(response.data) ? response.data : (response.data?.items || response.items || response.reels || []);
       
       if (!Array.isArray(items) || items.length === 0) {
         hasMore = false;
@@ -222,14 +223,13 @@ async function getAllReels(rapidApiKey: string, username: string, maxReels: numb
       }
 
       allReels.push(...items);
-      cursor = response.data?.end_cursor || response.end_cursor || response.next_cursor || 
-               response.pagination?.end_cursor || response.next_max_id || response.pagination_token ||
-               response.paging?.cursors?.after;
-      const moreAvailable = response.more_available ?? response.has_more ?? (response.paging?.next !== undefined);
-      hasMore = (!!cursor || moreAvailable) && items.length > 0;
+      
+      // API uses 'pagination_token' for cursor
+      cursor = response.pagination_token || response.data?.end_cursor || response.end_cursor || response.next_cursor;
+      hasMore = !!cursor && items.length > 0;
       pageCount++;
 
-      console.log(`[Instagram RapidAPI] Reels page ${pageCount}: got ${items.length}, total: ${allReels.length}, hasMore: ${hasMore}`);
+      console.log(`[Instagram RapidAPI] Reels page ${pageCount}: got ${items.length}, total: ${allReels.length}, cursor: ${cursor ? 'yes' : 'no'}, hasMore: ${hasMore}`);
 
       // Small delay to avoid rate limiting
       if (hasMore && allReels.length < maxReels) {
