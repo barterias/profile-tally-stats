@@ -101,22 +101,22 @@ async function rapidApiRequest(
 async function getUserInfo(rapidApiKey: string, username: string): Promise<any> {
   console.log(`[Instagram RapidAPI] Getting user info for: ${username}`);
 
-  // RapidAPI providers often change path prefixes and endpoint names. We try a small set
-  // of likely prefixes + endpoints to be resilient.
+  // RapidAPI endpoints - based on user's screenshot. Try both with and without .php suffix.
   const prefixes = ['', 'v1', 'v2'];
-  const endpoints = [
-    // From your screenshot
-    { method: 'GET' as const, path: 'get_user_about.php' },
-    { method: 'POST' as const, path: 'account_data.php' },
-    { method: 'POST' as const, path: 'account_data_v2.php' },
-    { method: 'GET' as const, path: 'get_basic_user_posts.php' },
-
-    // Common alternates we previously used / see in other RapidAPI versions
-    { method: 'GET' as const, path: 'get_user_data.php' },
-    { method: 'GET' as const, path: 'get_ig_user_data.php' },
-    { method: 'GET' as const, path: 'get_user_info.php' },
-    { method: 'GET' as const, path: 'get_ig_user_info.php' },
+  const baseEndpoints = [
+    // Based on your screenshot (User section)
+    { method: 'GET' as const, path: 'user_about' },
+    { method: 'GET' as const, path: 'basic_user_posts' },
+    { method: 'POST' as const, path: 'account_data' },
+    { method: 'POST' as const, path: 'account_data_v2' },
   ];
+
+  // Build full list with variants (.php suffix and without)
+  const endpoints: Array<{ method: 'GET' | 'POST'; path: string }> = [];
+  for (const ep of baseEndpoints) {
+    endpoints.push(ep);
+    endpoints.push({ method: ep.method, path: `${ep.path}.php` });
+  }
 
   let lastStatus = 0;
   let lastText = '';
@@ -177,14 +177,18 @@ async function getUserPosts(
   );
 
   const prefixes = ['', 'v1', 'v2'];
-  const endpoints = [
-    // From your screenshot
-    { method: 'POST' as const, path: 'user_posts.php' },
-
-    // Common alternates
-    { method: 'GET' as const, path: 'get_user_posts.php' },
-    { method: 'GET' as const, path: 'get_ig_user_posts.php' },
+  const baseEndpoints = [
+    // Based on screenshot
+    { method: 'POST' as const, path: 'user_posts' },
+    { method: 'POST' as const, path: 'user_reels' },
   ];
+
+  // Build full list with variants (.php suffix and without)
+  const endpoints: Array<{ method: 'GET' | 'POST'; path: string }> = [];
+  for (const ep of baseEndpoints) {
+    endpoints.push(ep);
+    endpoints.push({ method: ep.method, path: `${ep.path}.php` });
+  }
 
   let lastStatus = 0;
   let lastText = '';
