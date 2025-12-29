@@ -205,13 +205,61 @@ async function fetchYouTubeVideoNative(videoId: string): Promise<VideoDetails | 
 
     console.log(`[YouTube Native] Fetched from: ${successUrl}, HTML length: ${html.length}`);
 
-    // Extract ytInitialData JSON
-    const dataMatch = html.match(/var ytInitialData = ({.+?});<\/script>/s) ||
-                      html.match(/ytInitialData\s*=\s*({.+?});\s*<\/script>/s);
-    
-    // Extract ytInitialPlayerResponse for more video details
-    const playerMatch = html.match(/var ytInitialPlayerResponse = ({.+?});<\/script>/s) ||
-                        html.match(/ytInitialPlayerResponse\s*=\s*({.+?});\s*<\/script>/s);
+    // Extract embedded JSON objects robustly (YouTube changes script formatting often)
+    const extractJsonObject = (source: string, marker: string): any | null => {
+      const idx = source.indexOf(marker);
+      if (idx === -1) return null;
+
+      // Find first "{" after marker
+      const start = source.indexOf('{', idx + marker.length);
+      if (start === -1) return null;
+
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+
+      for (let i = start; i < source.length; i++) {
+        const ch = source[i];
+
+        if (inString) {
+          if (escaped) {
+            escaped = false;
+          } else if (ch === '\\') {
+            escaped = true;
+          } else if (ch === '"') {
+            inString = false;
+          }
+          continue;
+        }
+
+        if (ch === '"') {
+          inString = true;
+          continue;
+        }
+
+        if (ch === '{') depth++;
+        if (ch === '}') depth--;
+
+        if (depth === 0) {
+          const jsonText = source.slice(start, i + 1);
+          try {
+            return JSON.parse(jsonText);
+          } catch {
+            return null;
+          }
+        }
+      }
+
+      return null;
+    };
+
+    const playerData =
+      extractJsonObject(html, 'var ytInitialPlayerResponse = ') ||
+      extractJsonObject(html, 'ytInitialPlayerResponse = ');
+
+    const initialData =
+      extractJsonObject(html, 'var ytInitialData = ') ||
+      extractJsonObject(html, 'ytInitialData = ');
 
     let viewsCount = 0;
     let likesCount = 0;
@@ -221,21 +269,15 @@ async function fetchYouTubeVideoNative(videoId: string): Promise<VideoDetails | 
     let channelName = '';
     let channelUsername = '';
 
-    // Parse player response for video details
-    if (playerMatch) {
-      try {
-        const playerData = JSON.parse(playerMatch[1]);
-        const videoDetails = playerData.videoDetails;
-        
-        if (videoDetails) {
-          viewsCount = parseInt(videoDetails.viewCount || '0', 10);
-          title = videoDetails.title || '';
-          channelName = videoDetails.author || '';
-          thumbnailUrl = videoDetails.thumbnail?.thumbnails?.slice(-1)[0]?.url || '';
-        }
-      } catch (e) {
-        console.log('[YouTube Native] Failed to parse player response');
-      }
+    // Parse player response for canonical video details
+    if (playerData?.videoDetails) {
+      const vd = playerData.videoDetails;
+      viewsCount = parseInt(vd.viewCount || '0', 10) || 0;
+      title = vd.title || '';
+      channelName = vd.author || '';
+      thumbnailUrl = vd.thumbnail?.thumbnails?.slice(-1)[0]?.url || '';
+    } else {
+      console.log('[YouTube Native] Failed to parse player response');
     }
 
     // Fallback: extract from HTML meta tags and patterns
@@ -260,8 +302,13 @@ async function fetchYouTubeVideoNative(videoId: string): Promise<VideoDetails | 
 
     // Extract title from meta tags if not found
     if (!title) {
-      const titleMatch = html.match(/<meta\s+name="title"\s+content="([^"]+)"/) ||
-                         html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/);
+      const titleMatch =
+        html.match(/<meta\s+name="title"\s+content="([^"]+)"/i) ||
+        html.match(/<meta\s+name='title'\s+content='([^']+)'/i) ||
+        html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i) ||
+        html.match(/<meta\s+property='og:title'\s+content='([^']+)'/i) ||
+        html.match(/<meta\s+itemprop="name"\s+content="([^"]+)"/i);
+
       if (titleMatch) {
         title = titleMatch[1];
       }
