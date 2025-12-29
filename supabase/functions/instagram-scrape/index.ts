@@ -321,8 +321,10 @@ serve(async (req) => {
         const params: Record<string, string> = { handle: username };
 
         if (currentCursor) {
-          // ScrapeCreators: some responses return profile_grid_items_cursor; accept both param names for compatibility
+          // Pagination cursor: ScrapeCreators returns `next_max_id` (and sometimes other cursor fields). Try common param names.
           params.cursor = currentCursor;
+          params.max_id = currentCursor;
+          params.next_max_id = currentCursor;
           params.profile_grid_items_cursor = currentCursor;
           console.log(`[ScrapeCreators] Page ${pageCount}: Using cursor: ${currentCursor.substring(0, 20)}...`);
         } else {
