@@ -312,60 +312,152 @@ Deno.serve(async (req) => {
     }
 
     // Update database if requested
-    if (updateDatabase && tableId) {
+    if (updateDatabase) {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // Determine which table to update based on platform
-      let tableName: string;
-      let updateData: Record<string, any>;
+      // tableId can be either the video row id OR the account_id
+      // If it's an account_id, we need to upsert based on video_url/video_id
+      const isAccountId = tableId && !tableId.includes('-'); // Simple heuristic, UUIDs have dashes
+      
+      console.log(`[video-details] updateDatabase=true, tableId=${tableId}, platform=${platform}, videoId=${videoId}`);
 
-      switch (platform) {
-        case 'tiktok':
-          tableName = 'tiktok_videos';
-          updateData = {
-            views_count: videoDetails.viewsCount,
-            likes_count: videoDetails.likesCount,
-            comments_count: videoDetails.commentsCount,
-            shares_count: videoDetails.sharesCount,
-            updated_at: new Date().toISOString(),
-          };
-          break;
-        case 'instagram':
-          tableName = 'instagram_posts';
-          updateData = {
-            views_count: videoDetails.viewsCount,
-            likes_count: videoDetails.likesCount,
-            comments_count: videoDetails.commentsCount,
-            shares_count: videoDetails.sharesCount,
-            updated_at: new Date().toISOString(),
-          };
-          break;
-        case 'youtube':
-          tableName = 'youtube_videos';
-          updateData = {
-            views_count: videoDetails.viewsCount,
-            likes_count: videoDetails.likesCount,
-            comments_count: videoDetails.commentsCount,
-            updated_at: new Date().toISOString(),
-          };
-          break;
-        default:
-          tableName = '';
-          updateData = {};
-      }
+      if (platform === 'youtube') {
+        // For YouTube, try to find existing video by video_id first
+        const { data: existingVideo } = await supabase
+          .from('youtube_videos')
+          .select('id')
+          .eq('video_id', videoId)
+          .maybeSingle();
 
-      if (tableName) {
-        const { error } = await supabase
-          .from(tableName)
-          .update(updateData)
-          .eq('id', tableId);
+        if (existingVideo) {
+          // Update existing video
+          const { error } = await supabase
+            .from('youtube_videos')
+            .update({
+              views_count: videoDetails.viewsCount,
+              likes_count: videoDetails.likesCount,
+              comments_count: videoDetails.commentsCount,
+              title: videoDetails.title,
+              thumbnail_url: videoDetails.thumbnailUrl,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingVideo.id);
 
-        if (error) {
-          console.error(`Error updating ${tableName}:`, error);
+          if (error) {
+            console.error(`Error updating youtube_videos:`, error);
+          } else {
+            console.log(`Updated youtube_videos record ${existingVideo.id} with views=${videoDetails.viewsCount}`);
+          }
+        } else if (tableId) {
+          // No existing video found - insert new one (tableId should be account_id)
+          const videoUrl = videoDetails.videoUrl || `https://www.youtube.com/watch?v=${videoId}`;
+          
+          const { error } = await supabase
+            .from('youtube_videos')
+            .insert({
+              account_id: tableId,
+              video_id: videoId,
+              video_url: videoUrl,
+              title: videoDetails.title,
+              thumbnail_url: videoDetails.thumbnailUrl,
+              views_count: videoDetails.viewsCount,
+              likes_count: videoDetails.likesCount,
+              comments_count: videoDetails.commentsCount,
+              duration: videoDetails.duration,
+              published_at: videoDetails.publishedAt,
+            });
+
+          if (error) {
+            console.error(`Error inserting youtube_videos:`, error);
+          } else {
+            console.log(`Inserted new youtube_videos record for ${videoId} with views=${videoDetails.viewsCount}`);
+          }
+        }
+      } else if (platform === 'tiktok' && tableId) {
+        // For TikTok, similar upsert logic
+        const { data: existingVideo } = await supabase
+          .from('tiktok_videos')
+          .select('id')
+          .eq('video_id', videoId)
+          .maybeSingle();
+
+        if (existingVideo) {
+          const { error } = await supabase
+            .from('tiktok_videos')
+            .update({
+              views_count: videoDetails.viewsCount,
+              likes_count: videoDetails.likesCount,
+              comments_count: videoDetails.commentsCount,
+              shares_count: videoDetails.sharesCount,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingVideo.id);
+
+          if (error) console.error(`Error updating tiktok_videos:`, error);
+          else console.log(`Updated tiktok_videos record ${existingVideo.id}`);
         } else {
-          console.log(`Updated ${tableName} record ${tableId}`);
+          const { error } = await supabase
+            .from('tiktok_videos')
+            .insert({
+              account_id: tableId,
+              video_id: videoId,
+              video_url: videoDetails.videoUrl,
+              caption: videoDetails.caption,
+              thumbnail_url: videoDetails.thumbnailUrl,
+              views_count: videoDetails.viewsCount,
+              likes_count: videoDetails.likesCount,
+              comments_count: videoDetails.commentsCount,
+              shares_count: videoDetails.sharesCount,
+              duration: videoDetails.duration,
+              posted_at: videoDetails.publishedAt,
+            });
+
+          if (error) console.error(`Error inserting tiktok_videos:`, error);
+          else console.log(`Inserted new tiktok_videos record for ${videoId}`);
+        }
+      } else if (platform === 'instagram' && tableId) {
+        // For Instagram, similar upsert logic
+        const postUrl = videoDetails.videoUrl || `https://www.instagram.com/p/${videoId}/`;
+        
+        const { data: existingPost } = await supabase
+          .from('instagram_posts')
+          .select('id')
+          .eq('post_url', postUrl)
+          .maybeSingle();
+
+        if (existingPost) {
+          const { error } = await supabase
+            .from('instagram_posts')
+            .update({
+              views_count: videoDetails.viewsCount,
+              likes_count: videoDetails.likesCount,
+              comments_count: videoDetails.commentsCount,
+              shares_count: videoDetails.sharesCount,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingPost.id);
+
+          if (error) console.error(`Error updating instagram_posts:`, error);
+          else console.log(`Updated instagram_posts record ${existingPost.id}`);
+        } else {
+          const { error } = await supabase
+            .from('instagram_posts')
+            .insert({
+              account_id: tableId,
+              post_url: postUrl,
+              caption: videoDetails.caption,
+              thumbnail_url: videoDetails.thumbnailUrl,
+              views_count: videoDetails.viewsCount,
+              likes_count: videoDetails.likesCount,
+              comments_count: videoDetails.commentsCount,
+              shares_count: videoDetails.sharesCount,
+              posted_at: videoDetails.publishedAt,
+            });
+
+          if (error) console.error(`Error inserting instagram_posts:`, error);
+          else console.log(`Inserted new instagram_posts record for ${videoId}`);
         }
       }
     }

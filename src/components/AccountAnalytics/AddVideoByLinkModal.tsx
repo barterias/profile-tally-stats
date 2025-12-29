@@ -62,11 +62,13 @@ export function AddVideoByLinkModal({
     setResult(null);
 
     try {
+      // accountId is passed as tableId - the edge function will use it
+      // to either update an existing video or insert a new one
       const data = await videoDetails.mutateAsync({
         videoUrl: videoUrl.trim(),
         platform,
-        updateDatabase: true,
-        tableId: accountId,
+        updateDatabase: !!accountId,
+        tableId: accountId, // This is the account_id for inserting new videos
       });
 
       setResult({
