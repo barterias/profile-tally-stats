@@ -25,7 +25,7 @@ export function BatchSyncButton({
     >
       <Database className={`h-4 w-4 ${showLabel ? 'mr-2' : ''}`} />
       <RefreshCw className={`h-4 w-4 ${showLabel ? 'mr-1' : ''} ${isSyncing ? 'animate-spin' : 'hidden'}`} />
-      {showLabel && (isSyncing ? 'Sincronizando Tudo...' : 'Sync Todas as Contas')}
+      {showLabel && (isSyncing ? 'Sincronizando Instagram...' : 'Sync Instagram')}
       
       {lastSyncResult && !isSyncing && (
         <span className="absolute -top-1 -right-1">

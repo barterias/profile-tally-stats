@@ -11,8 +11,6 @@ interface PlatformResult {
 
 interface BatchSyncResults {
   instagram: PlatformResult;
-  youtube: PlatformResult;
-  tiktok: PlatformResult;
   totalAccounts: number;
   totalSynced: number;
   totalErrors: number;
@@ -32,55 +30,85 @@ export function useBatchSync() {
 
   const syncAllAccounts = async (): Promise<BatchSyncResponse | null> => {
     setIsSyncing(true);
-    
-    const toastId = toast.loading("Sincronizando todas as contas...", {
+
+    const toastId = toast.loading("Sincronizando Instagram...", {
       description: "Isso pode levar alguns minutos",
     });
 
     try {
-      const { data, error } = await supabase.functions.invoke("sync-all-accounts");
+      // Only Instagram
+      const { data: igAccounts, error: igError } = await supabase
+        .from("instagram_accounts")
+        .select("id, username")
+        .eq("is_active", true);
 
-      if (error) {
-        throw new Error(error.message);
+      if (igError) throw new Error(igError.message);
+
+      const accounts = igAccounts ?? [];
+      const results: PlatformResult = { synced: 0, errors: 0, accounts: [] };
+
+      for (const account of accounts) {
+        const username = account.username;
+        try {
+          const { error } = await supabase.functions.invoke("instagram-scrape-native", {
+            body: { accountId: account.id, username, fetchVideos: true },
+          });
+
+          if (error) throw new Error(error.message);
+
+          results.synced += 1;
+          results.accounts.push(username);
+        } catch (e: any) {
+          results.errors += 1;
+          results.accounts.push(`${username} (erro)`);
+          console.error("Instagram sync error:", username, e);
+        }
+
+        // Small delay to avoid rate limiting
+        await new Promise((r) => setTimeout(r, 400));
       }
 
-      const result = data as BatchSyncResponse;
+      const totalAccounts = accounts.length;
+      const totalSynced = results.synced;
+      const totalErrors = results.errors;
+
+      const result: BatchSyncResponse = {
+        success: totalErrors === 0,
+        message:
+          totalErrors === 0
+            ? "Sincronização do Instagram concluída"
+            : `Sincronização concluída com ${totalErrors} erro(s)` ,
+        results: {
+          instagram: results,
+          totalAccounts,
+          totalSynced,
+          totalErrors,
+        },
+        completedAt: new Date().toISOString(),
+      };
+
       setLastSyncResult(result);
 
-      if (result.success) {
-        // Invalidate all related queries to refresh UI - must match exact query keys used by hooks
-        await Promise.all([
-          // Instagram queries
-          queryClient.invalidateQueries({ queryKey: ["instagram-accounts"] }),
-          queryClient.invalidateQueries({ queryKey: ["instagram-accounts-all"] }),
-          queryClient.invalidateQueries({ queryKey: ["instagram-posts"] }),
-          queryClient.invalidateQueries({ queryKey: ["instagram-videos"] }),
-          queryClient.invalidateQueries({ queryKey: ["instagram-videos-all"] }),
-          queryClient.invalidateQueries({ queryKey: ["instagram-metrics-summary"] }),
-          // YouTube queries
-          queryClient.invalidateQueries({ queryKey: ["youtube-accounts"] }),
-          queryClient.invalidateQueries({ queryKey: ["youtube-accounts-all"] }),
-          queryClient.invalidateQueries({ queryKey: ["youtube-videos"] }),
-          queryClient.invalidateQueries({ queryKey: ["youtube-videos-all"] }),
-          // TikTok queries
-          queryClient.invalidateQueries({ queryKey: ["tiktok-accounts"] }),
-          queryClient.invalidateQueries({ queryKey: ["tiktok-accounts-all"] }),
-          queryClient.invalidateQueries({ queryKey: ["tiktok-videos"] }),
-          queryClient.invalidateQueries({ queryKey: ["tiktok-videos-all"] }),
-          // Unified metrics
-          queryClient.invalidateQueries({ queryKey: ["social-metrics"] }),
-          queryClient.invalidateQueries({ queryKey: ["social-metrics-unified"] }),
-          queryClient.invalidateQueries({ queryKey: ["pending-accounts"] }),
-        ]);
+      // Refresh Instagram queries only
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["instagram-accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["instagram-accounts-all"] }),
+        queryClient.invalidateQueries({ queryKey: ["instagram-posts"] }),
+        queryClient.invalidateQueries({ queryKey: ["instagram-videos"] }),
+        queryClient.invalidateQueries({ queryKey: ["instagram-videos-all"] }),
+        queryClient.invalidateQueries({ queryKey: ["instagram-metrics-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["pending-accounts"] }),
+      ]);
 
+      if (result.success) {
         toast.success("Sincronização concluída!", {
           id: toastId,
-          description: `${result.results.totalSynced}/${result.results.totalAccounts} contas atualizadas`,
+          description: `${totalSynced}/${totalAccounts} contas atualizadas`,
         });
       } else {
-        toast.error("Erro na sincronização", {
+        toast.error("Sincronização concluída com erros", {
           id: toastId,
-          description: result.message,
+          description: `${totalSynced}/${totalAccounts} atualizadas, ${totalErrors} falharam`,
         });
       }
 
