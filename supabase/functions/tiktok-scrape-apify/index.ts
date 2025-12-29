@@ -74,6 +74,8 @@ async function startApifyRun(apifyToken: string, profileUrl: string, resultsLimi
         shouldDownloadCovers: false,
         shouldDownloadSubtitles: false,
         shouldDownloadSlideshowImages: false,
+        // Use minimal memory to avoid hitting free tier limits
+        memory: 1024,
       }),
     }
   );
