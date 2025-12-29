@@ -425,44 +425,56 @@ async function scrapeAllPosts(username: string): Promise<InstagramScrapedData> {
   
   // Get cursor for pagination from embedded data
   const embeddedPageInfo = userInfo.edge_owner_to_timeline_media?.page_info;
-  let cursor = embeddedPageInfo?.end_cursor;
-  let hasMore = embeddedPageInfo?.has_next_page && !!cursor;
-  
-  // If we have user ID and there are more pages, try to fetch them via GraphQL
+  let cursor = embeddedPageInfo?.end_cursor as string | undefined;
+
+  // Some payloads don't reliably provide has_next_page; if we have a cursor (or postsCount suggests more), try pagination.
+  let hasMore = !!cursor || (userId && result.postsCount > result.posts.length);
+
+  // If we have user ID and we likely have more pages, try to fetch them via GraphQL/mobile APIs
   if (userId && hasMore) {
-    let pageCount = 1;
+    let pageCount = 0;
     const maxPages = 10; // Limit pages to avoid timeouts
-    
+
     while (hasMore && pageCount < maxPages) {
       pageCount++;
       console.log(`[Instagram Native] Fetching page ${pageCount}...`);
-      
+
       try {
         const { posts, nextCursor, hasNextPage } = await fetchUserMedia(userId, result.username, cursor);
-        
+
         if (posts.length === 0) {
-          console.log('[Instagram Native] No more posts from GraphQL');
+          console.log('[Instagram Native] No more posts from pagination');
           break;
         }
-        
+
         // Add only posts not already in the list
-        const existingUrls = new Set(result.posts.map(p => p.postUrl));
-        const newPosts = posts.filter(p => !existingUrls.has(p.postUrl));
+        const existingUrls = new Set(result.posts.map((p) => p.postUrl));
+        const newPosts = posts.filter((p) => !existingUrls.has(p.postUrl));
         result.posts.push(...newPosts);
-        
+
         cursor = nextCursor;
-        hasMore = hasNextPage && !!nextCursor;
-        
-        console.log(`[Instagram Native] Page ${pageCount}: ${newPosts.length} new posts, total: ${result.posts.length}, hasMore: ${hasMore}`);
-        
+
+        // Continue if API says there is a next page OR we still have a cursor
+        hasMore = (hasNextPage && !!nextCursor) || (!!cursor && newPosts.length > 0);
+
+        console.log(
+          `[Instagram Native] Page ${pageCount}: ${newPosts.length} new posts, total: ${result.posts.length}, cursor: ${cursor ? 'yes' : 'no'}, hasMore: ${hasMore}`
+        );
+
+        // If we already reached the expected total, stop early
+        if (result.postsCount > 0 && result.posts.length >= result.postsCount) {
+          console.log('[Instagram Native] Reached postsCount, stopping pagination');
+          break;
+        }
+
         // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       } catch (error) {
         console.error(`[Instagram Native] Error fetching page ${pageCount}:`, error);
         break;
       }
     }
-    
+
     result.nextCursor = cursor;
   }
   
