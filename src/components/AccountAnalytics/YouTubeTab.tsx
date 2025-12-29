@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, RefreshCw, Users, Eye, ThumbsUp, Video, Clock, CheckCircle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,12 +25,32 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 export function YouTubeTab() {
+  const queryClient = useQueryClient();
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [videosModalOpen, setVideosModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<{ id: string; username: string } | null>(null);
   const { user } = useAuth();
   const { isClipper, isAdmin, isClient } = useUserRole();
   const { t } = useLanguage();
+
+  // Realtime: refresh YouTube accounts list when background sync updates the row
+  useEffect(() => {
+    const channel = supabase
+      .channel('realtime-youtube-accounts')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'youtube_accounts' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
+          queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Always call both hooks to respect Rules of Hooks
   const userAccountsQuery = useYouTubeAccounts();
