@@ -220,7 +220,9 @@ Deno.serve(async (req) => {
         console.log(`[TikTok Scrape] Found ${videosArray.length} videos, next cursor: ${newCursor ? 'yes' : 'no'}`);
 
         if (videosArray.length > 0) {
-          const mappedVideos = videosArray.map((video: any) => {
+          // Limit to 10 videos max
+          const limitedVideos = videosArray.slice(0, 10);
+          const mappedVideos = limitedVideos.map((video: any) => {
             const videoId = video?.id || video?.aweme_id || video?.videoId || '';
             const stats = video?.stats || video?.statistics || {};
             
@@ -253,7 +255,7 @@ Deno.serve(async (req) => {
 
           data.videos = mappedVideos;
           data.scrapedVideosCount = mappedVideos.length;
-          console.log(`[TikTok Scrape] Mapped ${mappedVideos.length} videos with metrics`);
+          console.log(`[TikTok Scrape] Mapped ${mappedVideos.length} videos (limited to 10 max)`);
         } else {
           console.log('[TikTok Scrape] No videos found in response');
         }

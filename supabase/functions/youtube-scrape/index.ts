@@ -193,7 +193,8 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
       console.log(`[ScrapeCreators] Found ${videosArray.length} videos`);
       
       if (Array.isArray(videosArray) && videosArray.length > 0) {
-        data.videos = videosArray.map((video: any) => ({
+        // Limit to 10 videos max
+        data.videos = videosArray.slice(0, 10).map((video: any) => ({
           videoId: video?.id || video?.videoId || '',
           title: video?.title || '',
           description: typeof video?.description === 'string' ? video.description.substring(0, 500) : undefined,
