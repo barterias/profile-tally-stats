@@ -33,16 +33,24 @@ export function YouTubeTab() {
   const { isClipper, isAdmin, isClient } = useUserRole();
   const { t } = useLanguage();
 
-  // Realtime: refresh YouTube accounts list when background sync updates the row
+  // Realtime: refresh YouTube accounts/videos list when background sync updates rows
   useEffect(() => {
     const channel = supabase
-      .channel('realtime-youtube-accounts')
+      .channel('realtime-youtube')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'youtube_accounts' },
         () => {
           queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
           queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'youtube_videos' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['youtube-videos'] });
+          queryClient.invalidateQueries({ queryKey: ['youtube-videos-all'] });
         }
       )
       .subscribe();
@@ -72,7 +80,7 @@ export function YouTubeTab() {
   
   // Get all videos for the visible accounts to calculate total views from content
   const accountIds = accounts.map(acc => acc.id);
-  const { data: allVideos = [] } = useAllYouTubeVideos(accountIds);
+  const { data: allVideos = [], isLoading: allVideosLoading } = useAllYouTubeVideos(accountIds);
 
   const addAccount = useAddYouTubeAccount();
   const syncAccount = useSyncYouTubeAccount();
@@ -171,7 +179,7 @@ export function YouTubeTab() {
         </Card>
       )}
 
-      {accountsLoading ? (
+      {accountsLoading || allVideosLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (<Skeleton key={i} className="h-32" />))}
         </div>
