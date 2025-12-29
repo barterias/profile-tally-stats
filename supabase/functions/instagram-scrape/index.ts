@@ -293,8 +293,8 @@ serve(async (req) => {
     // Fetch ALL posts using pagination
     let allPosts: any[] = [];
     let currentCursor: string | null = existingCursor;
-    const MAX_PAGES = 50; // Safety limit to prevent infinite loops
-    const MAX_POSTS = 1000; // Maximum posts to fetch
+    const MAX_PAGES = 10; // Safety limit to prevent infinite loops
+    const MAX_POSTS = 20; // Maximum posts to fetch
 
     if (fetchVideos) {
       console.log('[ScrapeCreators] Fetching ALL posts with pagination...');
