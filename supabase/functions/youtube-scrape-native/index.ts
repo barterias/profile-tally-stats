@@ -153,21 +153,34 @@ function extractAllVideos(data: any): YouTubeVideo[] {
     if (!videoId || seenIds.has(videoId)) return null;
     seenIds.add(videoId);
     
+    // Try multiple fields for view count
     const viewCountText = renderer?.viewCountText?.simpleText ||
                          renderer?.viewCountText?.runs?.[0]?.text ||
                          renderer?.shortViewCountText?.simpleText ||
-                         renderer?.shortViewCountText?.runs?.[0]?.text || '0';
+                         renderer?.shortViewCountText?.runs?.[0]?.text ||
+                         renderer?.accessibilityText ||
+                         '';
+    
+    // Also check overlayViewsData for shorts
+    const overlayViews = renderer?.overlays?.find((o: any) => o.videoOverlayBadgeRenderer)?.videoOverlayBadgeRenderer?.label?.simpleText || '';
     
     const title = renderer?.title?.runs?.[0]?.text || 
                   renderer?.title?.simpleText ||
                   renderer?.headline?.simpleText || '';
+    
+    // Log first few for debugging
+    if (videos.length < 3) {
+      console.log(`[YouTube Native] Renderer ${videoId}: viewCountText="${viewCountText?.substring?.(0, 50) || viewCountText}", overlayViews="${overlayViews}"`);
+    }
+    
+    const views = parseCompactCount(viewCountText) || parseCompactCount(overlayViews);
     
     return {
       videoId,
       title,
       description: renderer?.descriptionSnippet?.runs?.[0]?.text,
       thumbnailUrl: renderer?.thumbnail?.thumbnails?.slice(-1)[0]?.url,
-      viewsCount: parseCompactCount(viewCountText),
+      viewsCount: views,
       likesCount: 0,
       commentsCount: 0,
       publishedAt: renderer?.publishedTimeText?.simpleText,
