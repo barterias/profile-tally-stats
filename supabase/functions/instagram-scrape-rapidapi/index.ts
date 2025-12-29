@@ -102,7 +102,8 @@ async function getUserInfo(rapidApiKey: string, username: string): Promise<any> 
   console.log(`[Instagram RapidAPI] Getting user info for: ${username}`);
 
   // RapidAPI endpoints - based on user's screenshot. Try both with and without .php suffix.
-  const prefixes = ['', 'v1', 'v2'];
+  // Some RapidAPI apps group routes under a /user prefix, and/or a /v1 or /v2 prefix.
+  const prefixes = ['', 'user', 'users', 'v1', 'v2', 'v1/user', 'v2/user', 'v1/users', 'v2/users'];
   const baseEndpoints = [
     // Based on your screenshot (User section)
     { method: 'GET' as const, path: 'user_about' },
@@ -176,7 +177,7 @@ async function getUserPosts(
     `[Instagram RapidAPI] Getting posts for: ${username}, amount: ${amount}, token: ${paginationToken || 'initial'}`,
   );
 
-  const prefixes = ['', 'v1', 'v2'];
+  const prefixes = ['', 'user', 'users', 'v1', 'v2', 'v1/user', 'v2/user', 'v1/users', 'v2/users'];
   const baseEndpoints = [
     // Based on screenshot
     { method: 'POST' as const, path: 'user_posts' },
