@@ -62,23 +62,24 @@ serve(async (req) => {
 
     console.log(`[Instagram Official API] Action: ${action}, Username: ${username || 'N/A'}`);
 
-    // First, get the Instagram Business Account ID from the Facebook Page
+    // Try to determine if the ID is a Facebook Page or Instagram Business Account
+    // First, try using it directly as Instagram Business Account
+    let instagramAccountId = FACEBOOK_PAGE_ID;
+    
+    // Check if it's a Page by trying to get instagram_business_account
     const pageUrl = `https://graph.facebook.com/v21.0/${FACEBOOK_PAGE_ID}?fields=instagram_business_account&access_token=${INSTAGRAM_TOKEN}`;
-    console.log('[Instagram Official API] Fetching Instagram Business Account from Page...');
+    console.log('[Instagram Official API] Checking if ID is a Facebook Page...');
     const pageRes = await fetch(pageUrl);
     const pageData = await pageRes.json();
     
-    if (pageData.error) {
-      console.error('[Instagram Official API] Page error:', pageData.error);
-      throw new Error(pageData.error.message || 'Failed to fetch page data');
+    if (!pageData.error && pageData.instagram_business_account?.id) {
+      // It's a Page, use the connected Instagram account
+      instagramAccountId = pageData.instagram_business_account.id;
+      console.log('[Instagram Official API] Found Instagram Business Account from Page:', instagramAccountId);
+    } else {
+      // Use the ID directly as Instagram Business Account
+      console.log('[Instagram Official API] Using ID directly as Instagram Business Account:', instagramAccountId);
     }
-
-    const instagramAccountId = pageData.instagram_business_account?.id;
-    if (!instagramAccountId) {
-      throw new Error('No Instagram Business Account connected to this Facebook Page');
-    }
-    
-    console.log('[Instagram Official API] Instagram Business Account ID:', instagramAccountId);
 
     if (action === 'get_profile') {
       // Get profile info using Instagram Business Account ID
