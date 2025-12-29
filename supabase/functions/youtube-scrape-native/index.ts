@@ -425,9 +425,13 @@ async function fetchChannelTab(channelId: string, tab: 'videos' | 'shorts'): Pro
   return { videos, continuation, html, data };
 }
 
-// Main scraping function
+// Main scraping function with pagination limits to avoid timeout
+const MAX_VIDEO_PAGES = 10; // Limit regular video pages
+const MAX_SHORTS_PAGES = 5; // Limit shorts pages
+const MAX_TOTAL_VIDEOS = 500; // Max videos to scrape
+
 async function scrapeAllVideos(channelId: string, handle?: string): Promise<YouTubeScrapedData> {
-  console.log(`[YouTube Native] Starting full scrape for channel: ${channelId}`);
+  console.log(`[YouTube Native] Starting scrape for channel: ${channelId} (limits: ${MAX_VIDEO_PAGES} video pages, ${MAX_SHORTS_PAGES} shorts pages, ${MAX_TOTAL_VIDEOS} max videos)`);
   
   if (!channelId) {
     console.warn('[YouTube Native] No channel ID provided');
@@ -451,7 +455,7 @@ async function scrapeAllVideos(channelId: string, handle?: string): Promise<YouT
   const channelData = parseChannelData(data, html);
   
   for (const v of regularVideos) {
-    if (!seenIds.has(v.videoId)) {
+    if (!seenIds.has(v.videoId) && allVideos.length < MAX_TOTAL_VIDEOS) {
       seenIds.add(v.videoId);
       allVideos.push(v);
     }
@@ -459,12 +463,12 @@ async function scrapeAllVideos(channelId: string, handle?: string): Promise<YouT
   
   console.log(`[YouTube Native] Initial videos: ${allVideos.length}`);
   
-  // Paginate through all regular videos
+  // Paginate through regular videos with limit
   let continuation = videoCont;
   let pageCount = 1;
-  while (continuation) {
+  while (continuation && pageCount < MAX_VIDEO_PAGES && allVideos.length < MAX_TOTAL_VIDEOS) {
     pageCount++;
-    console.log(`[YouTube Native] Fetching videos page ${pageCount}...`);
+    console.log(`[YouTube Native] Fetching videos page ${pageCount}/${MAX_VIDEO_PAGES}...`);
     
     try {
       const { videos, nextContinuation } = await fetchMoreVideos(continuation);
@@ -475,7 +479,7 @@ async function scrapeAllVideos(channelId: string, handle?: string): Promise<YouT
       }
       
       for (const v of videos) {
-        if (!seenIds.has(v.videoId)) {
+        if (!seenIds.has(v.videoId) && allVideos.length < MAX_TOTAL_VIDEOS) {
           seenIds.add(v.videoId);
           allVideos.push(v);
         }
@@ -484,54 +488,56 @@ async function scrapeAllVideos(channelId: string, handle?: string): Promise<YouT
       console.log(`[YouTube Native] Page ${pageCount}: +${videos.length} videos, total: ${allVideos.length}`);
       continuation = nextContinuation;
       
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 200));
     } catch (error) {
       console.error(`[YouTube Native] Error on page ${pageCount}:`, error);
       break;
     }
   }
   
-  // 2. Fetch Shorts tab
-  console.log('[YouTube Native] Fetching Shorts tab...');
-  const { videos: shortsVideos, continuation: shortsCont } = await fetchChannelTab(channelId, 'shorts');
-  
-  for (const v of shortsVideos) {
-    if (!seenIds.has(v.videoId)) {
-      seenIds.add(v.videoId);
-      v.isShort = true;
-      allVideos.push(v);
-    }
-  }
-  
-  console.log(`[YouTube Native] Shorts initial: ${shortsVideos.length}, total now: ${allVideos.length}`);
-  
-  // Paginate Shorts
-  let shortsContinuation = shortsCont;
-  let shortsPage = 1;
-  while (shortsContinuation) {
-    shortsPage++;
-    console.log(`[YouTube Native] Fetching Shorts page ${shortsPage}...`);
+  // 2. Fetch Shorts tab (if still under limit)
+  if (allVideos.length < MAX_TOTAL_VIDEOS) {
+    console.log('[YouTube Native] Fetching Shorts tab...');
+    const { videos: shortsVideos, continuation: shortsCont } = await fetchChannelTab(channelId, 'shorts');
     
-    try {
-      const { videos, nextContinuation } = await fetchMoreVideos(shortsContinuation);
-      
-      if (videos.length === 0) break;
-      
-      for (const v of videos) {
-        if (!seenIds.has(v.videoId)) {
-          seenIds.add(v.videoId);
-          v.isShort = true;
-          allVideos.push(v);
-        }
+    for (const v of shortsVideos) {
+      if (!seenIds.has(v.videoId) && allVideos.length < MAX_TOTAL_VIDEOS) {
+        seenIds.add(v.videoId);
+        v.isShort = true;
+        allVideos.push(v);
       }
+    }
+    
+    console.log(`[YouTube Native] Shorts initial: ${shortsVideos.length}, total now: ${allVideos.length}`);
+    
+    // Paginate Shorts with limit
+    let shortsContinuation = shortsCont;
+    let shortsPage = 1;
+    while (shortsContinuation && shortsPage < MAX_SHORTS_PAGES && allVideos.length < MAX_TOTAL_VIDEOS) {
+      shortsPage++;
+      console.log(`[YouTube Native] Fetching Shorts page ${shortsPage}/${MAX_SHORTS_PAGES}...`);
       
-      console.log(`[YouTube Native] Shorts page ${shortsPage}: +${videos.length}, total: ${allVideos.length}`);
-      shortsContinuation = nextContinuation;
-      
-      await new Promise(r => setTimeout(r, 300));
-    } catch (error) {
-      console.error(`[YouTube Native] Error on Shorts page ${shortsPage}:`, error);
-      break;
+      try {
+        const { videos, nextContinuation } = await fetchMoreVideos(shortsContinuation);
+        
+        if (videos.length === 0) break;
+        
+        for (const v of videos) {
+          if (!seenIds.has(v.videoId) && allVideos.length < MAX_TOTAL_VIDEOS) {
+            seenIds.add(v.videoId);
+            v.isShort = true;
+            allVideos.push(v);
+          }
+        }
+        
+        console.log(`[YouTube Native] Shorts page ${shortsPage}: +${videos.length}, total: ${allVideos.length}`);
+        shortsContinuation = nextContinuation;
+        
+        await new Promise(r => setTimeout(r, 200));
+      } catch (error) {
+        console.error(`[YouTube Native] Error on Shorts page ${shortsPage}:`, error);
+        break;
+      }
     }
   }
   
