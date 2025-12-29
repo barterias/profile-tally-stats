@@ -49,14 +49,11 @@ export function useSyncAllProfiles() {
       // Sync each account sequentially to avoid rate limits
       for (const account of allAccounts) {
         try {
-          let functionName = '';
-          let payload: Record<string, any> = { accountId: account.id, fetchVideos: true };
+          // Instagram uses ScrapeCreators API
+          const functionName = 'instagram-scrape';
+          const payload = { accountId: account.id, username: account.username, fetchVideos: true };
 
-          // Only Instagram is supported
-          functionName = 'instagram-scrape-native';
-          payload.username = account.username;
-
-          console.log(`[Sync] Syncing ${account.platform}/${account.username}...`);
+          console.log(`[Sync] Syncing instagram/${account.username}...`);
 
           const { error } = await supabase.functions.invoke(functionName, {
             body: payload,

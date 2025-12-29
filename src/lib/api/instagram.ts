@@ -57,10 +57,10 @@ export interface ScrapeResult {
 }
 
 export const instagramApi = {
-  // Scrape Instagram profile using ScrapeCreators native API
+  // Scrape Instagram profile using ScrapeCreators API
   async scrapeProfile(profileUrl: string): Promise<ScrapeResult> {
-    const username = profileUrl.replace('https://www.instagram.com/', '').replace('/', '');
-    const { data, error } = await supabase.functions.invoke('instagram-scrape-native', {
+    const username = profileUrl.replace('https://www.instagram.com/', '').replace('/', '').replace('@', '');
+    const { data, error } = await supabase.functions.invoke('instagram-scrape', {
       body: { username, fetchVideos: true },
     });
 
@@ -207,7 +207,7 @@ export const instagramApi = {
     return data as InstagramPost[];
   },
 
-  // Sync an account using ScrapeCreators native API
+  // Sync an account using ScrapeCreators API
   async syncAccount(accountId: string, continueFrom: boolean = false): Promise<{ success: boolean; continueFrom?: boolean; error?: string }> {
     // Get the account
     const { data: account, error: fetchError } = await supabase
@@ -220,12 +220,13 @@ export const instagramApi = {
       return { success: false, error: 'Account not found' };
     }
 
-    // Use ScrapeCreators native API for sync
-    const { data, error } = await supabase.functions.invoke('instagram-scrape-native', {
+    // Use ScrapeCreators API for sync
+    const { data, error } = await supabase.functions.invoke('instagram-scrape', {
       body: {
         accountId,
         username: account.username,
         fetchVideos: true,
+        continueFrom,
       },
     });
 
