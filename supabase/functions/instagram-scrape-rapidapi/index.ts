@@ -46,13 +46,25 @@ const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
 // Get user info from RapidAPI Instagram Scraper Stable API
 async function getUserInfo(rapidApiKey: string, username: string): Promise<any> {
   console.log(`[Instagram RapidAPI] Getting user info for: ${username}`);
-  
+
   const formData = new URLSearchParams();
   formData.append('username_or_url', username);
 
-  const response = await fetch(
-    `https://${RAPIDAPI_HOST}/get_ig_user_info.php`,
-    {
+  // The provider uses multiple endpoint names depending on plan/version.
+  // We'll try a short allowlist to avoid hard-failing on 404 "does not exist".
+  const candidates = [
+    'get_ig_user_data.php',
+    'get_ig_user.php',
+    'get_ig_user_about.php',
+    'get_ig_user_info.php',
+  ];
+
+  let lastErrText: string | undefined;
+
+  for (const path of candidates) {
+    const url = `https://${RAPIDAPI_HOST}/${path}`;
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -60,18 +72,29 @@ async function getUserInfo(rapidApiKey: string, username: string): Promise<any> 
         'x-rapidapi-host': RAPIDAPI_HOST,
       },
       body: formData.toString(),
-    }
-  );
+    });
 
-  if (!response.ok) {
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`[Instagram RapidAPI] User info OK via ${path}`);
+      return data;
+    }
+
     const text = await response.text();
-    console.error(`[Instagram RapidAPI] User info failed: ${response.status} - ${text}`);
+    lastErrText = text;
+
+    // If endpoint doesn't exist, try the next candidate.
+    if (response.status === 404 && text.includes('does not exist')) {
+      console.warn(`[Instagram RapidAPI] ${path} not available (404). Trying next...`);
+      continue;
+    }
+
+    console.error(`[Instagram RapidAPI] User info failed via ${path}: ${response.status} - ${text}`);
     throw new Error(`RapidAPI user info failed: ${response.status}`);
   }
 
-  const data = await response.json();
-  console.log(`[Instagram RapidAPI] User info response:`, JSON.stringify(data).substring(0, 500));
-  return data;
+  console.error(`[Instagram RapidAPI] No user-info endpoint matched. Last response: ${lastErrText || '(empty)'}`);
+  throw new Error('RapidAPI user info endpoint not found for this API');
 }
 
 // Get user posts from RapidAPI Instagram Scraper Stable API
@@ -400,7 +423,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
