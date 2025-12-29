@@ -620,26 +620,11 @@ async function saveVideosToDB(supabase: any, accountId: string, videos: YouTubeV
   return { savedCount, updatedCount };
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+// Background task to scrape and save data
+async function processScrapeTask(channelIdentifier: string, accountId: string | null, fetchVideos: boolean) {
   try {
-    const body = await req.json();
-    const { accountId, username, identifier, channelId, url, fetchVideos = true } = body || {};
-
-    const channelIdentifier = identifier || username || channelId || url;
-
-    if (!channelIdentifier) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Identificador do canal é obrigatório' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`[YouTube Native] Starting scrape for: ${channelIdentifier}`);
-
+    console.log(`[YouTube Native] Background task started for: ${channelIdentifier}`);
+    
     const { channelId: resolvedChannelId, handle } = await resolveChannelId(String(channelIdentifier));
     const data = await scrapeAllVideos(resolvedChannelId, handle);
 
@@ -698,12 +683,72 @@ Deno.serve(async (req) => {
       if (fetchVideos && data.videos.length > 0) {
         await saveVideosToDB(supabase, accountId, data.videos);
       }
+      
+      console.log(`[YouTube Native] Background task completed for: ${channelIdentifier}`);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('[YouTube Native] Background task error:', error);
+    throw error;
+  }
+}
+
+// Declare EdgeRuntime for TypeScript
+declare const EdgeRuntime: {
+  waitUntil: (promise: Promise<any>) => void;
+};
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const body = await req.json();
+    const { accountId, username, identifier, channelId, url, fetchVideos = true, sync = false } = body || {};
+
+    const channelIdentifier = identifier || username || channelId || url;
+
+    if (!channelIdentifier) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Identificador do canal é obrigatório' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
+    console.log(`[YouTube Native] Request received for: ${channelIdentifier}, sync=${sync}`);
+
+    // If sync=true, wait for result (for testing)
+    if (sync) {
+      const data = await processScrapeTask(channelIdentifier, accountId, fetchVideos);
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Use background task for async processing
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      EdgeRuntime.waitUntil(processScrapeTask(channelIdentifier, accountId, fetchVideos));
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Sincronização iniciada em segundo plano. Os dados serão atualizados em alguns segundos.',
+          processing: true 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Fallback: run synchronously if EdgeRuntime not available
+    const data = await processScrapeTask(channelIdentifier, accountId, fetchVideos);
     return new Response(
       JSON.stringify({ success: true, data }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (error: unknown) {
     console.error('[YouTube Native] Error:', error);
     
@@ -713,18 +758,13 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: false, 
         error: errorMessage,
-        data: {
-          channelId: '',
-          username: '',
-          displayName: '',
-          subscribersCount: 0,
-          videosCount: 0,
-          totalViews: 0,
-          scrapedVideosCount: 0,
-          videos: [],
-        }
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
+});
+
+// Handle graceful shutdown
+addEventListener('beforeunload', (ev: any) => {
+  console.log('[YouTube Native] Function shutdown:', ev.detail?.reason);
 });

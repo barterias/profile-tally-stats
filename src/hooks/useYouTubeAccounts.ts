@@ -108,10 +108,15 @@ export function useAddYouTubeAccount() {
     },
     onSuccess: (result) => {
       if (result.success) {
-        toast.success(result.reactivated ? 'Canal reativado!' : 'Canal adicionado!');
+        toast.success(result.reactivated ? 'Canal reativado! Sincronizando em segundo plano...' : 'Canal adicionado! Sincronizando em segundo plano...');
         queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
         queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
         queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
+        // Refresh after a delay to get updated data
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
+          queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+        }, 5000);
       } else {
         toast.error(result.error || 'Erro ao adicionar canal');
       }
@@ -143,11 +148,16 @@ export function useSyncYouTubeAccount() {
       return { success: true };
     },
     onSuccess: () => {
-      toast.success('Canal sincronizado!');
+      toast.success('Sincronização iniciada em segundo plano!');
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
-      queryClient.invalidateQueries({ queryKey: ['youtube-videos'] });
-      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
+      // Refresh after delay to get updated data
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+        queryClient.invalidateQueries({ queryKey: ['youtube-videos'] });
+        queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
+      }, 5000);
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao sincronizar canal');
