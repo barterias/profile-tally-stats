@@ -197,7 +197,18 @@ export function YouTubeTab() {
                 sortedAccounts.map((acc: any) => (
                   <div key={acc.id} className="flex items-center justify-between p-3 rounded-lg border bg-card/50">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-red-600 flex items-center justify-center text-white font-bold">
+                      {acc.profile_image_url ? (
+                        <img 
+                          src={acc.profile_image_url} 
+                          alt={acc.username}
+                          className="h-10 w-10 rounded-full object-cover border-2 border-red-500/30"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <div className={`h-10 w-10 rounded-full bg-red-600 flex items-center justify-center text-white font-bold ${acc.profile_image_url ? 'hidden' : ''}`}>
                         {acc.username?.[0]?.toUpperCase() || 'Y'}
                       </div>
                       <div>
