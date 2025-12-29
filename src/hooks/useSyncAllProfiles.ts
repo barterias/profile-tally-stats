@@ -58,13 +58,13 @@ export function useSyncAllProfiles() {
           let payload: Record<string, any> = { accountId: account.id, fetchVideos: true };
 
           if (account.platform === 'instagram') {
-            functionName = 'instagram-scrape';
-            payload.profileUrl = account.username;
+            functionName = 'instagram-scrape-native';
+            payload.username = account.username;
           } else if (account.platform === 'tiktok') {
-            functionName = 'tiktok-scrape';
+            functionName = 'tiktok-scrape-native';
             payload.username = account.username;
           } else if (account.platform === 'youtube') {
-            functionName = 'youtube-scrape';
+            functionName = 'youtube-scrape-native';
             payload.username = account.username;
           }
 
