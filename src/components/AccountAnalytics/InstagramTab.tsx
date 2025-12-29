@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, RefreshCw, Users, Eye, ThumbsUp, Video, Clock, CheckCircle } from 'lucide-react';
+import { Plus, RefreshCw, Users, Eye, Heart, Video, Clock, CheckCircle, MessageCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -56,17 +56,33 @@ export function InstagramTab() {
   const approveAccount = useApproveAccount();
   const rejectAccount = useRejectAccount();
 
-  // Calculate total views and post counts per account from actual posts in DB
-  const { viewsByAccount, postCountByAccount } = useMemo(() => {
+  // Calculate metrics from actual posts in DB
+  const { viewsByAccount, postCountByAccount, likesByAccount, commentsByAccount, totalLikes, totalComments } = useMemo(() => {
     const views: Record<string, number> = {};
     const counts: Record<string, number> = {};
+    const likes: Record<string, number> = {};
+    const comments: Record<string, number> = {};
+    let allLikes = 0;
+    let allComments = 0;
+    
     allPosts.forEach(post => {
       if (post.account_id) {
         views[post.account_id] = (views[post.account_id] || 0) + (post.views_count || 0);
         counts[post.account_id] = (counts[post.account_id] || 0) + 1;
+        likes[post.account_id] = (likes[post.account_id] || 0) + (post.likes_count || 0);
+        comments[post.account_id] = (comments[post.account_id] || 0) + (post.comments_count || 0);
+        allLikes += post.likes_count || 0;
+        allComments += post.comments_count || 0;
       }
     });
-    return { viewsByAccount: views, postCountByAccount: counts };
+    return { 
+      viewsByAccount: views, 
+      postCountByAccount: counts, 
+      likesByAccount: likes, 
+      commentsByAccount: comments,
+      totalLikes: allLikes,
+      totalComments: allComments
+    };
   }, [allPosts]);
 
   const handleAddAccount = (username: string) => {
@@ -165,11 +181,13 @@ export function InstagramTab() {
           {[...Array(4)].map((_, i) => (<Skeleton key={i} className="h-32" />))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <MetricCardGlow title={t('analytics.accounts')} value={visibleAccounts.length.toString()} icon={Users} trend={{ value: 0, isPositive: true }} />
           <MetricCardGlow title={t('analytics.followers')} value={formatNumber(totalFollowers)} icon={Users} trend={{ value: 0, isPositive: true }} />
           <MetricCardGlow title={t('analytics.posts')} value={formatNumber(totalPosts)} icon={Video} trend={{ value: 0, isPositive: true }} />
-          <MetricCardGlow title={t('analytics.estimated_views')} value={formatNumber(totalViews)} icon={Eye} trend={{ value: 0, isPositive: true }} />
-          <MetricCardGlow title={t('analytics.accounts')} value={visibleAccounts.length.toString()} icon={ThumbsUp} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title="Curtidas" value={formatNumber(totalLikes)} icon={Heart} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title="Comentários" value={formatNumber(totalComments)} icon={MessageCircle} trend={{ value: 0, isPositive: true }} />
+          <MetricCardGlow title="Views (Vídeos)" value={formatNumber(totalViews)} icon={Eye} trend={{ value: 0, isPositive: true }} />
         </div>
       )}
 
@@ -224,6 +242,8 @@ export function InstagramTab() {
                 id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
                 followersCount: acc.followers_count, postsCount: postCountByAccount[acc.id] || 0, scrapedCount: acc.scraped_posts_count || 0,
                 totalViews: acc.total_views || viewsByAccount[acc.id] || 0,
+                totalLikes: likesByAccount[acc.id] || 0,
+                totalComments: commentsByAccount[acc.id] || 0,
                 lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
               }))}
               isLoading={accountsLoading}
