@@ -186,13 +186,14 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
       videosResult = await scrapeCreatorsClient.get('/youtube/channel-videos', {
         ...(data.channelId ? { channelId: data.channelId } : {}),
         ...(cleanHandle && !data.channelId ? { handle: cleanHandle } : {}),
+        limit: 10, // Max 10 videos per account
       });
 
       const videosArray = videosResult?.videos || videosResult?.data?.videos || [];
       console.log(`[ScrapeCreators] Found ${videosArray.length} videos`);
       
       if (Array.isArray(videosArray) && videosArray.length > 0) {
-        data.videos = videosArray.slice(0, 10).map((video: any) => ({
+        data.videos = videosArray.map((video: any) => ({
           videoId: video?.id || video?.videoId || '',
           title: video?.title || '',
           description: typeof video?.description === 'string' ? video.description.substring(0, 500) : undefined,
@@ -206,19 +207,19 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
         }));
       }
 
-      // 3) Shorts (optional)
+      // 3) Shorts (optional) - only fetch if we have less than 10 videos
       try {
-        if (data.channelId) {
+        const currentVideosCount = data.videos?.length || 0;
+        if (data.channelId && currentVideosCount < 10) {
+          const remainingSlots = 10 - currentVideosCount;
           shortsResult = await scrapeCreatorsClient.get('/youtube/channel/shorts/simple', {
             channelId: data.channelId,
-            limit: 30,
+            limit: remainingSlots,
           });
 
           const shortsArray = shortsResult?.shorts || shortsResult?.data?.shorts || [];
           if (Array.isArray(shortsArray) && shortsArray.length > 0) {
-            // Only add shorts if we have less than 10 videos total
-            const remainingSlots = Math.max(0, 10 - (data.videos?.length || 0));
-            const shorts = shortsArray.slice(0, remainingSlots).map((short: any) => ({
+            const shorts = shortsArray.map((short: any) => ({
               videoId: short?.videoId || short?.video_id || short?.id || '',
               title: short?.title || '',
               description: undefined,
