@@ -163,8 +163,17 @@ function mapPostsFromUserPosts(postsData: any): { posts: any[]; nextCursor: stri
     items = postsData;
   }
 
-  // Get pagination cursor - check all possible locations
-  nextCursor = postsData?.next_max_id || postsData?.data?.next_max_id || postsData?.paging_info?.next_max_id || postsData?.pagination?.next_max_id || null;
+  // Get pagination cursor - check all possible locations (ScrapeCreators uses profile_grid_items_cursor)
+  nextCursor =
+    postsData?.profile_grid_items_cursor ||
+    postsData?.data?.profile_grid_items_cursor ||
+    postsData?.paging_info?.profile_grid_items_cursor ||
+    postsData?.pagination?.profile_grid_items_cursor ||
+    postsData?.pagination?.cursor ||
+    postsData?.next_max_id ||
+    postsData?.data?.next_max_id ||
+    postsData?.paging_info?.next_max_id ||
+    null;
 
   console.log(`[ScrapeCreators] Posts from user/posts endpoint: ${items.length}, nextCursor: ${nextCursor || 'none'}`);
   
@@ -310,11 +319,10 @@ serve(async (req) => {
       while (hasMore && pageCount < MAX_PAGES && allPosts.length < MAX_POSTS) {
         pageCount++;
         const params: Record<string, string> = { handle: username };
-        
+
         if (currentCursor) {
-          // Try both parameter names - some APIs use 'cursor', others 'max_id'
+          // ScrapeCreators docs: use profile_grid_items_cursor as the next page cursor
           params.cursor = currentCursor;
-          params.max_id = currentCursor;
           console.log(`[ScrapeCreators] Page ${pageCount}: Using cursor: ${currentCursor.substring(0, 20)}...`);
         } else {
           console.log(`[ScrapeCreators] Page ${pageCount}: Starting from beginning`);
@@ -331,14 +339,19 @@ serve(async (req) => {
           }
 
           allPosts = [...allPosts, ...mapped.posts];
-          currentCursor = mapped.nextCursor;
+
+          // Stop if cursor is missing or not advancing (prevents infinite loops / duplicate pages)
+          if (!mapped.nextCursor) {
+            currentCursor = null;
+            hasMore = false;
+          } else if (mapped.nextCursor === currentCursor) {
+            console.warn(`[ScrapeCreators] Page ${pageCount}: Cursor did not advance; stopping to avoid duplicates`);
+            hasMore = false;
+          } else {
+            currentCursor = mapped.nextCursor;
+          }
           
           console.log(`[ScrapeCreators] Page ${pageCount}: Fetched ${mapped.posts.length} posts (total: ${allPosts.length}), next cursor: ${currentCursor ? 'yes' : 'no'}`);
-
-          // Stop if no more cursor
-          if (!currentCursor) {
-            hasMore = false;
-          }
 
           // Small delay to avoid rate limiting
           if (hasMore) {
