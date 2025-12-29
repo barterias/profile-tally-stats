@@ -321,8 +321,9 @@ serve(async (req) => {
         const params: Record<string, string> = { handle: username };
 
         if (currentCursor) {
-          // ScrapeCreators docs: use profile_grid_items_cursor as the next page cursor
+          // ScrapeCreators: some responses return profile_grid_items_cursor; accept both param names for compatibility
           params.cursor = currentCursor;
+          params.profile_grid_items_cursor = currentCursor;
           console.log(`[ScrapeCreators] Page ${pageCount}: Using cursor: ${currentCursor.substring(0, 20)}...`);
         } else {
           console.log(`[ScrapeCreators] Page ${pageCount}: Starting from beginning`);
