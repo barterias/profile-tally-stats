@@ -156,12 +156,6 @@ export function InstagramTab() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end gap-2">
-        {(isAdmin || isClient) && (
-          <Button variant="outline" onClick={handleSyncAll} disabled={accounts.length === 0 || syncAllAccounts.isPending}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${syncAllAccounts.isPending ? 'animate-spin' : ''}`} />
-            {t('analytics.update_all_fem')}
-          </Button>
-        )}
         <Button variant="outline" onClick={() => setLinkProfessionalModalOpen(true)} className="border-purple-500/50 text-purple-500 hover:bg-purple-500/10">
           <Link2 className="h-4 w-4 mr-2" />
           Linkar Conta Profissional
