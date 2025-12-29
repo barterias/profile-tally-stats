@@ -57,7 +57,12 @@ export function useVideoDetails() {
         queryClient.invalidateQueries({ queryKey: ['instagram-videos'] });
       } else if (variables.platform === 'youtube') {
         queryClient.invalidateQueries({ queryKey: ['youtube-videos'] });
+        queryClient.invalidateQueries({ queryKey: ['youtube-videos-all'] });
       }
+
+      // Unified dashboards rely on this aggregate
+      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
+
       toast.success('Métricas do vídeo atualizadas!');
     },
     onError: (error: Error) => {
