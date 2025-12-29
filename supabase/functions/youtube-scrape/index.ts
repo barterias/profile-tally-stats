@@ -180,7 +180,7 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
   let videosResult: any = null;
   let shortsResult: any = null;
 
-  // 2) Fetch SHORTS first (prioritized over regular videos)
+  // 2) Fetch ONLY SHORTS (no regular videos)
   if (fetchVideos && data.channelId) {
     try {
       console.log(`[ScrapeCreators] Fetching shorts for channel: ${data.channelId}`);
@@ -209,44 +209,6 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
       }
     } catch (shortsError) {
       console.error('[ScrapeCreators] Error fetching shorts:', shortsError);
-    }
-
-    // 3) If we still have less than 10, fill with regular videos
-    const currentCount = data.videos?.length || 0;
-    if (currentCount < 10 && (data.channelId || cleanHandle)) {
-      try {
-        const remainingSlots = 10 - currentCount;
-        console.log(`[ScrapeCreators] Fetching up to ${remainingSlots} regular videos to fill...`);
-        
-        videosResult = await scrapeCreatorsClient.get('/youtube/channel-videos', {
-          ...(data.channelId ? { channelId: data.channelId } : {}),
-          ...(cleanHandle && !data.channelId ? { handle: cleanHandle } : {}),
-          limit: 30,
-        });
-
-        const videosArray = videosResult?.videos || videosResult?.data?.videos || [];
-        console.log(`[ScrapeCreators] Found ${videosArray.length} regular videos from API`);
-        
-        if (Array.isArray(videosArray) && videosArray.length > 0) {
-          const regularVideos = videosArray.slice(0, remainingSlots).map((video: any) => ({
-            videoId: video?.id || video?.videoId || '',
-            title: video?.title || '',
-            description: typeof video?.description === 'string' ? video.description.substring(0, 500) : undefined,
-            thumbnailUrl: video?.thumbnail || undefined,
-            viewsCount: video?.viewCountInt ?? parseCompactCount(video?.viewCountText),
-            likesCount: video?.likeCountInt ?? parseCompactCount(video?.likeCountText),
-            commentsCount: video?.commentCountInt ?? parseCompactCount(video?.commentCountText),
-            publishedAt: video?.publishedTime || undefined,
-            duration: video?.lengthSeconds || undefined,
-            isShort: false,
-          }));
-          
-          data.videos = [...(data.videos || []), ...regularVideos];
-          console.log(`[ScrapeCreators] After adding regular videos: ${data.videos?.length} total`);
-        }
-      } catch (videosError) {
-        console.error('[ScrapeCreators] Error fetching regular videos:', videosError);
-      }
     }
   }
 
