@@ -366,6 +366,30 @@ Deno.serve(async (req) => {
           }
         }
         console.log(`[TikTok Scrape] Saved ${savedCount} new videos, updated ${updatedCount} existing`);
+
+        // Keep only the latest fetched videos (max 10) to avoid accumulating old records
+        const fetchedIds = Array.from(
+          new Set(
+            (data.videos || [])
+              .map((v) => v.videoId)
+              .filter((id): id is string => typeof id === 'string' && id.length > 0),
+          ),
+        ).slice(0, 10);
+
+        if (fetchedIds.length > 0) {
+          const inList = `(${fetchedIds.map((id) => `"${id}"`).join(',')})`;
+          const { error: cleanupError } = await supabase
+            .from('tiktok_videos')
+            .delete()
+            .eq('account_id', accountId)
+            .not('video_id', 'in', inList);
+
+          if (cleanupError) {
+            console.error('[TikTok Scrape] Error cleaning up old tiktok_videos:', cleanupError);
+          } else {
+            console.log(`[TikTok Scrape] Cleanup complete, kept ${fetchedIds.length} videos`);
+          }
+        }
       }
 
       // Calculate totals from ALL videos in database

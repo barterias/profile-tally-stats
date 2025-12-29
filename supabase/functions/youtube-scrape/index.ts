@@ -405,7 +405,15 @@ Deno.serve(async (req) => {
 
       // Save videos to database
       if (Array.isArray(data.videos) && data.videos.length > 0) {
-        for (const video of data.videos) {
+        const fetchedIds = Array.from(
+          new Set(
+            data.videos
+              .map((v) => v.videoId)
+              .filter((id): id is string => typeof id === 'string' && id.length > 0),
+          ),
+        ).slice(0, 10);
+
+        for (const video of data.videos.slice(0, 10)) {
           if (!video.videoId) continue;
 
           const videoUrl = video.isShort
@@ -449,6 +457,33 @@ Deno.serve(async (req) => {
               duration: video.duration,
               published_at: video.publishedAt,
             });
+          }
+        }
+
+        // Keep only latest fetched videos in DB (prevents accumulating old videos > 10)
+        if (fetchedIds.length > 0) {
+          const inList = `(${fetchedIds.map((id) => `"${id}"`).join(',')})`;
+          const { error: cleanupError } = await supabase
+            .from('youtube_videos')
+            .delete()
+            .eq('account_id', accountId)
+            .not('video_id', 'in', inList);
+
+          if (cleanupError) {
+            console.error('[ScrapeCreators] Error cleaning up old youtube_videos:', cleanupError);
+          }
+
+          // Align scraped_videos_count with what's stored (max 10)
+          const { error: recountError } = await supabase
+            .from('youtube_accounts')
+            .update({
+              scraped_videos_count: fetchedIds.length,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', accountId);
+
+          if (recountError) {
+            console.error('[ScrapeCreators] Error updating scraped_videos_count after cleanup:', recountError);
           }
         }
       }
