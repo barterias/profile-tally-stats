@@ -3,6 +3,33 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
+type FunctionInvokeFailure = {
+  success: false;
+  status?: number;
+  error: string;
+};
+
+type FunctionInvokeOk<T> = {
+  success: true;
+  data?: T;
+};
+
+function parseInvokeError(err: any): { status?: number; message: string } {
+  const raw = String(err?.message || err?.error_description || err?.error || 'Erro desconhecido');
+  const m = raw.match(/returned\s+(\d{3})/i);
+  const status = m ? Number(m[1]) : (typeof err?.status === 'number' ? err.status : undefined);
+
+  // Friendly messages
+  if (status === 402) {
+    return { status, message: 'Limite do Apify atingido. Finalize runs em andamento no Apify ou faça upgrade do plano.' };
+  }
+  if (status === 429) {
+    return { status, message: 'Muitas requisições. Aguarde um pouco e tente novamente.' };
+  }
+
+  return { status, message: raw };
+}
+
 export function useTikTokAccounts() {
   const { user } = useAuth();
   
@@ -46,7 +73,7 @@ export function useAddTikTokAccount() {
   return useMutation({
     mutationFn: async ({ username, isClientOrAdmin }: { username: string; isClientOrAdmin?: boolean }) => {
       const autoApprove = isClientOrAdmin || isAdmin;
-      
+
       // Check if account already exists (even if inactive)
       const { data: existing } = await supabase
         .from('tiktok_accounts')
@@ -54,32 +81,35 @@ export function useAddTikTokAccount() {
         .eq('user_id', user?.id)
         .eq('username', username)
         .maybeSingle();
-      
+
       if (existing) {
         // Reactivate if inactive
         if (!existing.is_active) {
           const { error: updateError } = await supabase
             .from('tiktok_accounts')
-            .update({ 
-              is_active: true, 
+            .update({
+              is_active: true,
               updated_at: new Date().toISOString(),
               ...(autoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
             })
             .eq('id', existing.id);
-          
+
           if (updateError) throw updateError;
-          
-          // Sync the account using Apify
+
           const { error: syncError } = await supabase.functions.invoke('tiktok-scrape-apify', {
             body: { accountId: existing.id, username, resultsLimit: 300 },
           });
-          
-          if (syncError) throw syncError;
+
+          if (syncError) {
+            const parsed = parseInvokeError(syncError);
+            return { success: false, error: parsed.message, status: parsed.status } satisfies FunctionInvokeFailure;
+          }
+
           return { success: true, reactivated: true };
         }
-        return { success: false, error: 'Conta já existe' };
+        return { success: false, error: 'Conta já existe' } satisfies FunctionInvokeFailure;
       }
-      
+
       // Insert new account - auto-approve for clients/admins
       const { data: newAccount, error: insertError } = await supabase
         .from('tiktok_accounts')
@@ -92,22 +122,22 @@ export function useAddTikTokAccount() {
         })
         .select()
         .single();
-      
+
       if (insertError) throw insertError;
-      
-      // Sync the new account using Apify
+
       const { error: syncError } = await supabase.functions.invoke('tiktok-scrape-apify', {
         body: { accountId: newAccount.id, username, resultsLimit: 300 },
       });
-      
+
       if (syncError) {
-        console.error('Sync error:', syncError);
+        const parsed = parseInvokeError(syncError);
+        return { success: false, error: parsed.message, status: parsed.status } satisfies FunctionInvokeFailure;
       }
-      
+
       return { success: true };
     },
-    onSuccess: (result) => {
-      if (result.success) {
+    onSuccess: (result: any) => {
+      if (result?.success) {
         toast.success(result.reactivated ? 'Conta reativada!' : 'Conta adicionada!');
         queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
         queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
@@ -115,7 +145,7 @@ export function useAddTikTokAccount() {
         queryClient.invalidateQueries({ queryKey: ['tiktok-videos-all'] });
         queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
       } else {
-        toast.error(result.error || 'Erro ao adicionar conta');
+        toast.error(result?.error || 'Erro ao adicionar conta');
       }
     },
     onError: (error: any) => {
@@ -126,7 +156,7 @@ export function useAddTikTokAccount() {
 
 export function useSyncTikTokAccount() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ accountId }: { accountId: string }) => {
       const { data: account } = await supabase
@@ -134,25 +164,31 @@ export function useSyncTikTokAccount() {
         .select('username')
         .eq('id', accountId)
         .single();
-      
+
       if (!account) throw new Error('Conta não encontrada');
-      
-      // Use Apify scraper
+
       const { data: result, error } = await supabase.functions.invoke('tiktok-scrape-apify', {
         body: { accountId, username: account.username, resultsLimit: 300 },
       });
-      
-      if (error) throw error;
-      
+
+      if (error) {
+        const parsed = parseInvokeError(error);
+        return { success: false, error: parsed.message, status: parsed.status } satisfies FunctionInvokeFailure;
+      }
+
       return { success: true, videosCount: result?.data?.scrapedVideosCount || 0 };
     },
-    onSuccess: (result) => {
-      toast.success(`Conta sincronizada! ${result.videosCount} vídeos coletados.`);
-      queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
-      queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
-      queryClient.invalidateQueries({ queryKey: ['tiktok-videos-all'] });
-      queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
+    onSuccess: (result: any) => {
+      if (result?.success) {
+        toast.success(`Conta sincronizada! ${result.videosCount} vídeos coletados.`);
+        queryClient.invalidateQueries({ queryKey: ['tiktok-accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
+        queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
+        queryClient.invalidateQueries({ queryKey: ['tiktok-videos-all'] });
+        queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
+      } else {
+        toast.error(result?.error || 'Erro ao sincronizar conta');
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao sincronizar conta');
@@ -162,7 +198,7 @@ export function useSyncTikTokAccount() {
 
 export function useSyncAllTikTokAccounts() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (accounts: { id: string; username: string }[]) => {
       const results = await Promise.allSettled(
@@ -170,14 +206,20 @@ export function useSyncAllTikTokAccounts() {
           const { error } = await supabase.functions.invoke('tiktok-scrape-apify', {
             body: { accountId: acc.id, username: acc.username, resultsLimit: 300 },
           });
-          if (error) throw error;
-          return { success: true };
+
+          if (error) {
+            // Mark as failure but don't throw to avoid crashing the UI
+            const parsed = parseInvokeError(error);
+            return { success: false, error: parsed.message, status: parsed.status } as FunctionInvokeFailure;
+          }
+
+          return { success: true } as const;
         })
       );
-      
-      const successCount = results.filter(r => r.status === 'fulfilled').length;
+
+      const successCount = results.filter(r => r.status === 'fulfilled' && (r.value as any)?.success === true).length;
       const failCount = accounts.length - successCount;
-      
+
       return { successCount, failCount, total: accounts.length };
     },
     onSuccess: (result) => {
