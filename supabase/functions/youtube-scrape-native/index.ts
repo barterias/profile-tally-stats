@@ -224,18 +224,25 @@ function extractAllVideos(data: any): YouTubeVideo[] {
           console.log(`[YouTube Native] Short ${videoId}: accessibilityText="${accessibilityText.substring(0, 100)}", inlineStats="${inlineStats}", engagementStats="${engagementStats}"`);
         }
         
-        // Support multiple languages: views, visualizações, vistas, vues, etc.
-        const viewsMatch = accessibilityText.match(/([\d.,\s]+[KMB]?)\s*(views|visualizações|visualizacoes|vistas|vues|aufrufe|просмотр|de visualizações)/i);
-        // Also check inline stats
-        const inlineMatch = !viewsMatch ? inlineStats.match(/([\d.,\s]+[KMB]?)\s*(views|visualizações|visualizacoes|vistas|vues|aufrufe|de visualizações)/i) : null;
-        // Also try to extract just numbers with suffix from accessibilityText
-        const fallbackMatch = !viewsMatch && !inlineMatch ? accessibilityText.match(/([\d.,]+)\s*([KMB]|mil|mi)/i) : null;
-        // Last resort: any number sequence
-        const lastResort = !viewsMatch && !inlineMatch && !fallbackMatch ? accessibilityText.match(/([\d.,]+)/) : null;
+        // PRIORITY 1: inlineStats is the most reliable source (e.g., "301 views")
+        const inlineMatch = inlineStats.match(/([\d.,\s]+)\s*(views?|visualizações?|vistas?|vues?)/i);
         
-        const extractedViews = viewsMatch ? parseCompactCount(viewsMatch[1]) 
-          : inlineMatch ? parseCompactCount(inlineMatch[1])
-          : fallbackMatch ? parseCompactCount(fallbackMatch[1] + fallbackMatch[2])
+        // PRIORITY 2: accessibilityText with full word
+        const accessMatch = !inlineMatch ? accessibilityText.match(/([\d.,\s]+[KMB]?)\s*(views|visualizações|visualizacoes|vistas|vues|aufrufe|просмотр)/i) : null;
+        
+        // PRIORITY 3: accessibilityText with suffix like "1.4K" or "1.4 mil"
+        const suffixMatch = !inlineMatch && !accessMatch ? accessibilityText.match(/([\d.,]+)\s*([KMB]|mil|mi)\b/i) : null;
+        
+        // PRIORITY 4: Any number followed by "view" (even truncated like "78 view")
+        const truncatedMatch = !inlineMatch && !accessMatch && !suffixMatch ? accessibilityText.match(/([\d.,]+)\s*view/i) : null;
+        
+        // PRIORITY 5: Last resort - any number in accessibilityText
+        const lastResort = !inlineMatch && !accessMatch && !suffixMatch && !truncatedMatch ? accessibilityText.match(/([\d.,]+)/) : null;
+        
+        const extractedViews = inlineMatch ? parseCompactCount(inlineMatch[1]) 
+          : accessMatch ? parseCompactCount(accessMatch[1])
+          : suffixMatch ? parseCompactCount(suffixMatch[1] + suffixMatch[2])
+          : truncatedMatch ? parseCompactCount(truncatedMatch[1])
           : lastResort ? parseCompactCount(lastResort[1])
           : 0;
         
