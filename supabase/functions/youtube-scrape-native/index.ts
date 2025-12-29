@@ -201,15 +201,36 @@ function extractAllVideos(data: any): YouTubeVideo[] {
       if (videoId && !seenIds.has(videoId)) {
         seenIds.add(videoId);
         const accessibilityText = obj.shortsLockupViewModel?.accessibilityText || '';
+        
+        // Also check for inline playback stats
+        const inlineStats = obj.shortsLockupViewModel?.overlayMetadata?.secondaryText?.content || '';
+        const engagementStats = obj.shortsLockupViewModel?.engagementPanelTitleHeaderRenderer?.contextualInfo?.runs?.[0]?.text || '';
+        
+        // Log first few to debug
+        if (videos.length < 5) {
+          console.log(`[YouTube Native] Short ${videoId}: accessibilityText="${accessibilityText.substring(0, 100)}", inlineStats="${inlineStats}", engagementStats="${engagementStats}"`);
+        }
+        
         // Support multiple languages: views, visualizações, vistas, vues, etc.
-        const viewsMatch = accessibilityText.match(/([\d,.]+[KMB]?)\s*(views|visualizações|visualizacoes|vistas|vues|aufrufe|просмотр)/i);
-        // Also try to extract just the first number if no keyword match
-        const fallbackMatch = !viewsMatch ? accessibilityText.match(/([\d,.]+[KMB]?)/) : null;
+        const viewsMatch = accessibilityText.match(/([\d.,\s]+[KMB]?)\s*(views|visualizações|visualizacoes|vistas|vues|aufrufe|просмотр|de visualizações)/i);
+        // Also check inline stats
+        const inlineMatch = !viewsMatch ? inlineStats.match(/([\d.,\s]+[KMB]?)\s*(views|visualizações|visualizacoes|vistas|vues|aufrufe|de visualizações)/i) : null;
+        // Also try to extract just numbers with suffix from accessibilityText
+        const fallbackMatch = !viewsMatch && !inlineMatch ? accessibilityText.match(/([\d.,]+)\s*([KMB]|mil|mi)/i) : null;
+        // Last resort: any number sequence
+        const lastResort = !viewsMatch && !inlineMatch && !fallbackMatch ? accessibilityText.match(/([\d.,]+)/) : null;
+        
+        const extractedViews = viewsMatch ? parseCompactCount(viewsMatch[1]) 
+          : inlineMatch ? parseCompactCount(inlineMatch[1])
+          : fallbackMatch ? parseCompactCount(fallbackMatch[1] + fallbackMatch[2])
+          : lastResort ? parseCompactCount(lastResort[1])
+          : 0;
+        
         videos.push({
           videoId,
           title: obj.shortsLockupViewModel?.overlayMetadata?.primaryText?.content || '',
           thumbnailUrl: obj.shortsLockupViewModel?.thumbnail?.sources?.slice(-1)[0]?.url,
-          viewsCount: viewsMatch ? parseCompactCount(viewsMatch[1]) : (fallbackMatch ? parseCompactCount(fallbackMatch[1]) : 0),
+          viewsCount: extractedViews,
           likesCount: 0,
           commentsCount: 0,
           isShort: true,
