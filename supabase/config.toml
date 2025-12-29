@@ -78,3 +78,11 @@ verify_jwt = false
 # Official API integrations
 [functions.instagram-official-api]
 verify_jwt = false
+
+# Apify scraping functions
+[functions.instagram-scrape-apify]
+verify_jwt = false
+
+# RapidAPI scraping functions
+[functions.instagram-scrape-rapidapi]
+verify_jwt = false

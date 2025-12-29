@@ -57,10 +57,10 @@ export interface ScrapeResult {
 }
 
 export const instagramApi = {
-  // Scrape Instagram profile
+  // Scrape Instagram profile using RapidAPI
   async scrapeProfile(profileUrl: string): Promise<ScrapeResult> {
-    const { data, error } = await supabase.functions.invoke('instagram-scrape-apify', {
-      body: { profileUrl },
+    const { data, error } = await supabase.functions.invoke('instagram-scrape-rapidapi', {
+      body: { profileUrl, resultsLimit: 100 },
     });
 
     if (error) {
@@ -206,7 +206,7 @@ export const instagramApi = {
     return data as InstagramPost[];
   },
 
-  // Sync an account using Official Instagram API
+  // Sync an account using RapidAPI
   async syncAccount(accountId: string, continueFrom: boolean = false): Promise<{ success: boolean; continueFrom?: boolean; error?: string }> {
     // Get the account
     const { data: account, error: fetchError } = await supabase
@@ -219,12 +219,12 @@ export const instagramApi = {
       return { success: false, error: 'Account not found' };
     }
 
-    // Use Official Instagram Graph API for sync
-    const { data, error } = await supabase.functions.invoke('instagram-official-api', {
+    // Use RapidAPI for sync
+    const { data, error } = await supabase.functions.invoke('instagram-scrape-rapidapi', {
       body: {
-        action: 'sync_account',
         accountId,
         username: account.username,
+        resultsLimit: 100,
       },
     });
 
