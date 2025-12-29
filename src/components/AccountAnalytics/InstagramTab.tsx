@@ -162,9 +162,9 @@ export function InstagramTab() {
             {t('analytics.update_all_fem')}
           </Button>
         )}
-        <Button variant="outline" onClick={() => setLinkProfessionalModalOpen(true)} className="border-purple-500/50 text-purple-500 hover:bg-purple-500/10">
-          <Link2 className="h-4 w-4 mr-2" />
-          Linkar Conta Profissional
+        <Button onClick={() => setAddModalOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          {t('analytics.add_account')}
         </Button>
       </div>
 
