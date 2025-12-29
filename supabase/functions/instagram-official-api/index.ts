@@ -63,22 +63,28 @@ serve(async (req) => {
     console.log(`[Instagram Official API] Action: ${action}, Username: ${username || 'N/A'}`);
 
     // Try to determine if the ID is a Facebook Page or Instagram Business Account
-    // First, try using it directly as Instagram Business Account
     let instagramAccountId = FACEBOOK_PAGE_ID;
     
-    // Check if it's a Page by trying to get instagram_business_account
-    const pageUrl = `https://graph.facebook.com/v21.0/${FACEBOOK_PAGE_ID}?fields=instagram_business_account&access_token=${INSTAGRAM_TOKEN}`;
-    console.log('[Instagram Official API] Checking if ID is a Facebook Page...');
-    const pageRes = await fetch(pageUrl);
-    const pageData = await pageRes.json();
+    // First, check what type of object we have
+    const checkUrl = `https://graph.facebook.com/v21.0/${FACEBOOK_PAGE_ID}?fields=id,name,instagram_business_account&access_token=${INSTAGRAM_TOKEN}`;
+    console.log('[Instagram Official API] Checking ID type...');
+    const checkRes = await fetch(checkUrl);
+    const checkData = await checkRes.json();
     
-    if (!pageData.error && pageData.instagram_business_account?.id) {
-      // It's a Page, use the connected Instagram account
-      instagramAccountId = pageData.instagram_business_account.id;
+    console.log('[Instagram Official API] Check response:', JSON.stringify(checkData));
+    
+    if (checkData.error) {
+      // Maybe it's already an Instagram Business Account ID, try to use it directly
+      console.log('[Instagram Official API] Could not check ID, trying as Instagram Account directly');
+    } else if (checkData.instagram_business_account?.id) {
+      // It's a Facebook Page with connected Instagram
+      instagramAccountId = checkData.instagram_business_account.id;
       console.log('[Instagram Official API] Found Instagram Business Account from Page:', instagramAccountId);
-    } else {
-      // Use the ID directly as Instagram Business Account
-      console.log('[Instagram Official API] Using ID directly as Instagram Business Account:', instagramAccountId);
+    } else if (checkData.name) {
+      // It's a Page but no Instagram connected
+      console.log('[Instagram Official API] This is a Facebook Page but no Instagram connected. Page name:', checkData.name);
+      console.log('[Instagram Official API] Make sure your Instagram Business Account is connected to this Facebook Page');
+      throw new Error(`Facebook Page "${checkData.name}" found, but no Instagram Business Account is connected. Please connect your Instagram account to this Facebook Page in Meta Business Suite.`);
     }
 
     if (action === 'get_profile') {
