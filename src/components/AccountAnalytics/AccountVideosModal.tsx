@@ -61,8 +61,6 @@ export function AccountVideosModal({
   accountId,
 }: AccountVideosModalProps) {
   const [syncingVideoId, setSyncingVideoId] = useState<string | null>(null);
-  const [syncingAll, setSyncingAll] = useState(false);
-  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [addByLinkOpen, setAddByLinkOpen] = useState(false);
   const { mutateAsync: fetchVideoDetails } = useVideoDetails();
   const queryClient = useQueryClient();
@@ -89,52 +87,6 @@ export function AccountVideosModal({
       console.error('Error syncing video:', error);
     } finally {
       setSyncingVideoId(null);
-    }
-  };
-
-  const handleSyncAllVideos = async () => {
-    if (sortedVideos.length === 0) return;
-    
-    setSyncingAll(true);
-    setSyncProgress({ current: 0, total: sortedVideos.length });
-    
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (let i = 0; i < sortedVideos.length; i++) {
-      const video = sortedVideos[i];
-      setSyncProgress({ current: i + 1, total: sortedVideos.length });
-      
-      try {
-        await fetchVideoDetails({
-          videoUrl: video.videoUrl,
-          updateDatabase: true,
-          tableId: video.id,
-        });
-        successCount++;
-      } catch (error) {
-        console.error(`Error syncing video ${video.id}:`, error);
-        errorCount++;
-      }
-      
-      // Small delay to avoid rate limiting
-      if (i < sortedVideos.length - 1) {
-        await new Promise(r => setTimeout(r, 300));
-      }
-    }
-    
-    // Invalidate queries to refresh the data
-    queryClient.invalidateQueries({ queryKey: [`${platform}-videos`, accountId] });
-    queryClient.invalidateQueries({ queryKey: [`${platform}-videos-all`] });
-    queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
-    
-    setSyncingAll(false);
-    setSyncProgress({ current: 0, total: 0 });
-    
-    if (errorCount === 0) {
-      toast.success(`${successCount} vídeos sincronizados com sucesso!`);
-    } else {
-      toast.warning(`${successCount} sincronizados, ${errorCount} com erro`);
     }
   };
 
@@ -177,29 +129,9 @@ export function AccountVideosModal({
                 size="sm" 
                 onClick={() => setAddByLinkOpen(true)}
                 className="shrink-0"
-                disabled={syncingAll}
               >
                 <Link className="h-4 w-4 mr-2" />
                 Adicionar por link
-              </Button>
-              <Button 
-                variant="default" 
-                size="sm" 
-                onClick={handleSyncAllVideos}
-                className="shrink-0"
-                disabled={syncingAll || sortedVideos.length === 0}
-              >
-                {syncingAll ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    {syncProgress.current}/{syncProgress.total}
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Sincronizar Todos
-                  </>
-                )}
               </Button>
             </div>
           </DialogHeader>
