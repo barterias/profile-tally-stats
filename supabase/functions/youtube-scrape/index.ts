@@ -186,11 +186,11 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
       videosResult = await scrapeCreatorsClient.get('/youtube/channel-videos', {
         ...(data.channelId ? { channelId: data.channelId } : {}),
         ...(cleanHandle && !data.channelId ? { handle: cleanHandle } : {}),
-        limit: 10, // Max 10 videos per account
+        limit: 30, // Request more to ensure we get enough
       });
 
       const videosArray = videosResult?.videos || videosResult?.data?.videos || [];
-      console.log(`[ScrapeCreators] Found ${videosArray.length} videos`);
+      console.log(`[ScrapeCreators] Found ${videosArray.length} regular videos from API`);
       
       if (Array.isArray(videosArray) && videosArray.length > 0) {
         // Limit to 10 videos max
@@ -211,16 +211,20 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
       // 3) Shorts (optional) - only fetch if we have less than 10 videos
       try {
         const currentVideosCount = data.videos?.length || 0;
+        console.log(`[ScrapeCreators] Current videos count before shorts: ${currentVideosCount}`);
         if (data.channelId && currentVideosCount < 10) {
           const remainingSlots = 10 - currentVideosCount;
+          console.log(`[ScrapeCreators] Fetching up to ${remainingSlots} shorts...`);
           shortsResult = await scrapeCreatorsClient.get('/youtube/channel/shorts/simple', {
             channelId: data.channelId,
-            limit: remainingSlots,
+            limit: 30, // Request more to ensure we get enough
           });
 
           const shortsArray = shortsResult?.shorts || shortsResult?.data?.shorts || [];
+          console.log(`[ScrapeCreators] Found ${shortsArray.length} shorts from API`);
           if (Array.isArray(shortsArray) && shortsArray.length > 0) {
-            const shorts = shortsArray.map((short: any) => ({
+            const remainingSlots = 10 - (data.videos?.length || 0);
+            const shorts = shortsArray.slice(0, remainingSlots).map((short: any) => ({
               videoId: short?.videoId || short?.video_id || short?.id || '',
               title: short?.title || '',
               description: undefined,
@@ -234,6 +238,7 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
             }));
 
             data.videos = [...(data.videos || []), ...shorts];
+            console.log(`[ScrapeCreators] After adding shorts: ${data.videos?.length} total videos`);
           }
         }
       } catch (shortsError) {
