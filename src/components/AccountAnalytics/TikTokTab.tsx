@@ -172,13 +172,11 @@ export function TikTokTab() {
         </div>
       )}
 
-      <Card className="bg-muted/30 border-dashed">
-        <CardContent className="py-3">
-          <p className="text-sm text-muted-foreground text-center">
-            Para visualizar mais vídeos, entre no perfil
-          </p>
-        </CardContent>
-      </Card>
+      <div className="bg-primary/10 border-2 border-primary/30 rounded-lg p-4">
+        <p className="text-sm font-medium text-primary text-center">
+          ⚠️ Para visualizar mais vídeos, entre no perfil
+        </p>
+      </div>
 
       <Card>
         <CardHeader>
