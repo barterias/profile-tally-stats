@@ -290,41 +290,78 @@ serve(async (req) => {
       }
     }
 
-    // Fetch posts if requested
-    let newPosts: any[] = [];
-    let newCursor: string | null = null;
+    // Fetch ALL posts using pagination
+    let allPosts: any[] = [];
+    let currentCursor: string | null = existingCursor;
+    const MAX_PAGES = 50; // Safety limit to prevent infinite loops
+    const MAX_POSTS = 1000; // Maximum posts to fetch
 
     if (fetchVideos) {
-      console.log('[ScrapeCreators] Fetching posts with /v2/instagram/user/posts endpoint...');
+      console.log('[ScrapeCreators] Fetching ALL posts with pagination...');
       
-      const params: Record<string, string> = { handle: username };
-      
-      if (existingCursor) {
-        params.max_id = existingCursor;
-        console.log(`[ScrapeCreators] Using cursor: ${existingCursor}`);
-      }
+      let pageCount = 0;
+      let hasMore = true;
 
-      try {
-        const postsResult = await fetchScrapeCreators('/v2/instagram/user/posts', params);
-        const mapped = mapPostsFromUserPosts(postsResult);
-        newPosts = mapped.posts;
-        newCursor = mapped.nextCursor;
+      while (hasMore && pageCount < MAX_PAGES && allPosts.length < MAX_POSTS) {
+        pageCount++;
+        const params: Record<string, string> = { handle: username };
         
-        console.log(`[ScrapeCreators] Fetched ${newPosts.length} posts, next cursor: ${newCursor ? 'yes' : 'no'}`);
-      } catch (postsError) {
-        console.error('[ScrapeCreators] Error fetching posts with /v2 endpoint:', postsError);
-        
-        // Fallback: if not continuing and profile has posts embedded, use those
-        if (!continueFrom) {
-          const profileResult = await fetchScrapeCreators('/v1/instagram/profile', { handle: username });
-          const user = profileResult?.data?.user || profileResult?.user;
-          if (user?.edge_owner_to_timeline_media?.edges) {
-            data = mapPosts(user.edge_owner_to_timeline_media.edges, data);
-            newPosts = data.posts || [];
+        if (currentCursor) {
+          params.max_id = currentCursor;
+          console.log(`[ScrapeCreators] Page ${pageCount}: Using cursor`);
+        } else {
+          console.log(`[ScrapeCreators] Page ${pageCount}: Starting from beginning`);
+        }
+
+        try {
+          const postsResult = await fetchScrapeCreators('/v2/instagram/user/posts', params);
+          const mapped = mapPostsFromUserPosts(postsResult);
+          
+          if (mapped.posts.length === 0) {
+            console.log(`[ScrapeCreators] Page ${pageCount}: No more posts, stopping`);
+            hasMore = false;
+            break;
+          }
+
+          allPosts = [...allPosts, ...mapped.posts];
+          currentCursor = mapped.nextCursor;
+          
+          console.log(`[ScrapeCreators] Page ${pageCount}: Fetched ${mapped.posts.length} posts (total: ${allPosts.length}), next cursor: ${currentCursor ? 'yes' : 'no'}`);
+
+          // Stop if no more cursor
+          if (!currentCursor) {
+            hasMore = false;
+          }
+
+          // Small delay to avoid rate limiting
+          if (hasMore) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (postsError) {
+          console.error(`[ScrapeCreators] Page ${pageCount}: Error fetching posts:`, postsError);
+          hasMore = false;
+          
+          // Fallback: if first page failed and not continuing, use profile embedded posts
+          if (pageCount === 1 && !continueFrom) {
+            try {
+              const profileResult = await fetchScrapeCreators('/v1/instagram/profile', { handle: username });
+              const user = profileResult?.data?.user || profileResult?.user;
+              if (user?.edge_owner_to_timeline_media?.edges) {
+                data = mapPosts(user.edge_owner_to_timeline_media.edges, data);
+                allPosts = data.posts || [];
+              }
+            } catch (fallbackError) {
+              console.error('[ScrapeCreators] Fallback also failed:', fallbackError);
+            }
           }
         }
       }
+
+      console.log(`[ScrapeCreators] Pagination complete: ${allPosts.length} total posts fetched in ${pageCount} pages`);
     }
+
+    const newPosts = allPosts;
+    const newCursor = currentCursor;
 
     data.posts = newPosts;
     data.scrapedPostsCount = newPosts.length;
