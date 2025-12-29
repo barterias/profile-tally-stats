@@ -207,30 +207,38 @@ export function InstagramTab() {
                 </p>
               ) : (
                 sortedAccounts.map((acc: any) => (
-                  <div key={acc.id} className="flex items-center justify-between p-3 rounded-lg border bg-card/50">
-                    <div className="flex items-center gap-3">
+                  <div key={acc.id} className="flex items-center justify-between p-4 rounded-lg border bg-card/50">
+                    <div className="flex items-center gap-4">
                       {acc.profile_image_url ? (
                         <img 
                           src={acc.profile_image_url} 
                           alt={acc.username}
-                          className="h-10 w-10 rounded-full object-cover"
+                          className="h-12 w-12 rounded-full object-cover border-2 border-pink-500/30"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
                             e.currentTarget.nextElementSibling?.classList.remove('hidden');
                           }}
                         />
                       ) : null}
-                      <div className={`h-10 w-10 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold ${acc.profile_image_url ? 'hidden' : ''}`}>
+                      <div className={`h-12 w-12 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg ${acc.profile_image_url ? 'hidden' : ''}`}>
                         {acc.username?.[0]?.toUpperCase() || 'I'}
                       </div>
                       <div>
-                        <p className="font-medium">{acc.display_name || `@${acc.username}`}</p>
-                        <p className="text-xs text-muted-foreground">
-                          @{acc.username} • {acc.followers_count?.toLocaleString() || 0} seguidores
-                        </p>
+                        <p className="font-semibold text-base">{acc.display_name || `@${acc.username}`}</p>
+                        <p className="text-sm text-muted-foreground">@{acc.username}</p>
                       </div>
                     </div>
-                    {getApprovalBadge(acc.approval_status)}
+                    <div className="flex items-center gap-6">
+                      <div className="text-center">
+                        <p className="text-lg font-bold">{formatNumber(acc.followers_count || 0)}</p>
+                        <p className="text-xs text-muted-foreground">Seguidores</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-bold">{formatNumber(acc.posts_count || 0)}</p>
+                        <p className="text-xs text-muted-foreground">Posts</p>
+                      </div>
+                      {getApprovalBadge(acc.approval_status)}
+                    </div>
                   </div>
                 ))
               )}
@@ -239,12 +247,19 @@ export function InstagramTab() {
             <PlatformAccountsTable
               platform="instagram"
               accounts={sortedAccounts.map((acc: any) => ({
-                id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
-                followersCount: acc.followers_count, postsCount: postCountByAccount[acc.id] || 0, scrapedCount: acc.scraped_posts_count || 0,
+                id: acc.id, 
+                username: acc.username, 
+                displayName: acc.display_name, 
+                profileImageUrl: acc.profile_image_url,
+                followersCount: acc.followers_count, 
+                postsCount: acc.posts_count || 0, // Total posts from profile
+                scrapedCount: acc.scraped_posts_count || 0,
                 totalViews: acc.total_views || viewsByAccount[acc.id] || 0,
                 totalLikes: likesByAccount[acc.id] || 0,
                 totalComments: commentsByAccount[acc.id] || 0,
-                lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
+                lastSyncedAt: acc.last_synced_at, 
+                isActive: acc.is_active, 
+                approvalStatus: acc.approval_status,
               }))}
               isLoading={accountsLoading}
               onSync={handleSyncAccount}
