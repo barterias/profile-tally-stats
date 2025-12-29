@@ -163,13 +163,188 @@ async function fetchInstagramPost(postId: string, apiKey: string): Promise<Video
   }
 }
 
+// Native YouTube scraping (no API key needed)
+async function fetchYouTubeVideoNative(videoId: string): Promise<VideoDetails | null> {
+  console.log(`[YouTube Native] Fetching video: ${videoId}`);
+  
+  const browserHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Cache-Control': 'no-cache',
+  };
+
+  try {
+    // Try shorts URL first, then regular video URL
+    const isShort = videoId.length === 11; // YouTube video IDs are always 11 chars
+    const urls = [
+      `https://www.youtube.com/shorts/${videoId}`,
+      `https://www.youtube.com/watch?v=${videoId}`,
+    ];
+
+    let html = '';
+    let successUrl = '';
+    
+    for (const url of urls) {
+      try {
+        const response = await fetch(url, { headers: browserHeaders });
+        if (response.ok) {
+          html = await response.text();
+          successUrl = url;
+          break;
+        }
+      } catch (e) {
+        console.log(`[YouTube Native] Failed to fetch ${url}`);
+      }
+    }
+
+    if (!html) {
+      console.error(`[YouTube Native] Could not fetch video page for ${videoId}`);
+      return null;
+    }
+
+    console.log(`[YouTube Native] Fetched from: ${successUrl}, HTML length: ${html.length}`);
+
+    // Extract ytInitialData JSON
+    const dataMatch = html.match(/var ytInitialData = ({.+?});<\/script>/s) ||
+                      html.match(/ytInitialData\s*=\s*({.+?});\s*<\/script>/s);
+    
+    // Extract ytInitialPlayerResponse for more video details
+    const playerMatch = html.match(/var ytInitialPlayerResponse = ({.+?});<\/script>/s) ||
+                        html.match(/ytInitialPlayerResponse\s*=\s*({.+?});\s*<\/script>/s);
+
+    let viewsCount = 0;
+    let likesCount = 0;
+    let commentsCount = 0;
+    let title = '';
+    let thumbnailUrl = '';
+    let channelName = '';
+    let channelUsername = '';
+
+    // Parse player response for video details
+    if (playerMatch) {
+      try {
+        const playerData = JSON.parse(playerMatch[1]);
+        const videoDetails = playerData.videoDetails;
+        
+        if (videoDetails) {
+          viewsCount = parseInt(videoDetails.viewCount || '0', 10);
+          title = videoDetails.title || '';
+          channelName = videoDetails.author || '';
+          thumbnailUrl = videoDetails.thumbnail?.thumbnails?.slice(-1)[0]?.url || '';
+        }
+      } catch (e) {
+        console.log('[YouTube Native] Failed to parse player response');
+      }
+    }
+
+    // Fallback: extract from HTML meta tags and patterns
+    if (viewsCount === 0) {
+      // Try various patterns for view count
+      const viewPatterns = [
+        /"viewCount":"(\d+)"/,
+        /"viewCount":\s*"(\d+)"/,
+        /viewCount.*?(\d+)/,
+        /"views":"([\d,]+)"/,
+        /(\d[\d,]*)\s*(?:views|visualizações)/i,
+      ];
+
+      for (const pattern of viewPatterns) {
+        const match = html.match(pattern);
+        if (match) {
+          viewsCount = parseInt(match[1].replace(/,/g, ''), 10);
+          if (viewsCount > 0) break;
+        }
+      }
+    }
+
+    // Extract title from meta tags if not found
+    if (!title) {
+      const titleMatch = html.match(/<meta\s+name="title"\s+content="([^"]+)"/) ||
+                         html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/);
+      if (titleMatch) {
+        title = titleMatch[1];
+      }
+    }
+
+    // Extract thumbnail
+    if (!thumbnailUrl) {
+      thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+    }
+
+    // Try to get likes count from engagement panel
+    const likesMatch = html.match(/"accessibilityText":"([\d,\.]+[KMB]?)\s*likes"/i) ||
+                       html.match(/"likeCount":(\d+)/);
+    if (likesMatch) {
+      likesCount = parseCompactNumber(likesMatch[1]);
+    }
+
+    // Try to get comment count
+    const commentsMatch = html.match(/"commentCount":"(\d+)"/) ||
+                          html.match(/(\d+)\s*Comments/i);
+    if (commentsMatch) {
+      commentsCount = parseInt(commentsMatch[1], 10);
+    }
+
+    console.log(`[YouTube Native] Extracted: views=${viewsCount}, likes=${likesCount}, comments=${commentsCount}, title=${title.substring(0, 50)}`);
+
+    if (viewsCount === 0 && !title) {
+      console.error('[YouTube Native] Could not extract any video data');
+      return null;
+    }
+
+    return {
+      platform: 'youtube',
+      videoId,
+      videoUrl: successUrl || `https://www.youtube.com/watch?v=${videoId}`,
+      title,
+      thumbnailUrl,
+      viewsCount,
+      likesCount,
+      commentsCount,
+      author: {
+        username: channelUsername || channelName.toLowerCase().replace(/\s+/g, ''),
+        displayName: channelName,
+      },
+    };
+  } catch (error) {
+    console.error('[YouTube Native] Error:', error);
+    return null;
+  }
+}
+
+// Helper to parse compact numbers like "1.4K", "2.3M"
+function parseCompactNumber(text: string): number {
+  if (!text) return 0;
+  const clean = text.replace(/,/g, '').trim();
+  const match = clean.match(/([\d.]+)\s*([KMB])?/i);
+  if (!match) return parseInt(clean, 10) || 0;
+  
+  let value = parseFloat(match[1]);
+  const suffix = (match[2] || '').toUpperCase();
+  
+  if (suffix === 'K') value *= 1000;
+  else if (suffix === 'M') value *= 1000000;
+  else if (suffix === 'B') value *= 1000000000;
+  
+  return Math.round(value);
+}
+
 async function fetchYouTubeVideo(videoId: string, apiKey: string): Promise<VideoDetails | null> {
   console.log(`Fetching YouTube video: ${videoId}`);
   
+  // Try native scraping first (free, no API limits)
+  const nativeResult = await fetchYouTubeVideoNative(videoId);
+  if (nativeResult && nativeResult.viewsCount > 0) {
+    console.log(`[YouTube] Using native scrape result: ${nativeResult.viewsCount} views`);
+    return nativeResult;
+  }
+
+  // Fallback to paid API if native fails
+  console.log(`[YouTube] Native scrape failed, trying paid API...`);
+  
   try {
-    // ScrapeCreators API requires a full URL, not just video_id
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    console.log(`Fetching youtube video: ${videoId}`);
     
     const response = await fetch(
       `https://api.scrapecreators.com/v1/youtube/video?url=${encodeURIComponent(videoUrl)}`,
@@ -185,7 +360,8 @@ async function fetchYouTubeVideo(videoId: string, apiKey: string): Promise<Video
     if (!response.ok) {
       const errorText = await response.text();
       console.error('YouTube video API error:', response.status, errorText);
-      return null;
+      // Return native result even if views is 0, better than nothing
+      return nativeResult;
     }
 
     const data = await response.json();
@@ -193,7 +369,6 @@ async function fetchYouTubeVideo(videoId: string, apiKey: string): Promise<Video
     
     const video = data.data || data;
     
-    // Handle different response formats from ScrapeCreators
     const channelHandle = video.channel?.handle || video.channel?.custom_url || video.channelHandle || '';
     const cleanUsername = channelHandle.replace('@', '').replace('/', '');
 
@@ -216,7 +391,8 @@ async function fetchYouTubeVideo(videoId: string, apiKey: string): Promise<Video
     };
   } catch (error) {
     console.error('YouTube fetch error:', error);
-    return null;
+    // Return native result as fallback
+    return nativeResult;
   }
 }
 
