@@ -534,18 +534,21 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { profileUrl, accountId, fetchVideos = true } = await req.json();
+    const { profileUrl, username: usernameParam, accountId, fetchVideos = true } = await req.json();
 
-    if (!profileUrl) {
+    // Accept either profileUrl or username
+    const inputValue = profileUrl || usernameParam;
+    
+    if (!inputValue) {
       return new Response(
-        JSON.stringify({ success: false, error: 'URL do perfil é obrigatória' }),
+        JSON.stringify({ success: false, error: 'URL do perfil ou username é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Clean username
-    let username = profileUrl.trim();
-    const urlMatch = profileUrl.match(/instagram\.com\/([^\/\?]+)/);
+    let username = inputValue.trim();
+    const urlMatch = inputValue.match(/instagram\.com\/([^\/\?]+)/);
     if (urlMatch) {
       username = urlMatch[1];
     }
