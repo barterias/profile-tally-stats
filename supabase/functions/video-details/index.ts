@@ -9,6 +9,7 @@ interface VideoDetails {
   platform: string;
   videoId: string;
   videoUrl: string;
+  source?: 'native' | 'api';
   title?: string;
   caption?: string;
   thumbnailUrl?: string;
@@ -344,6 +345,7 @@ async function fetchYouTubeVideoNative(videoId: string): Promise<VideoDetails | 
       platform: 'youtube',
       videoId,
       videoUrl: successUrl || `https://www.youtube.com/watch?v=${videoId}`,
+      source: 'native',
       title,
       thumbnailUrl,
       viewsCount,
@@ -423,6 +425,7 @@ async function fetchYouTubeVideo(videoId: string, apiKey: string): Promise<Video
       platform: 'youtube',
       videoId: video.id || video.video_id || video.videoId || videoId,
       videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+      source: 'api',
       title: video.title,
       thumbnailUrl: video.thumbnail?.url || video.thumbnails?.high?.url || video.thumbnail,
       viewsCount: parseInt(video.viewCountInt || video.view_count || video.viewCount || '0') || 0,
@@ -555,17 +558,22 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (existingVideo) {
-          // Update existing video
+          const updateBase: Record<string, any> = {
+            views_count: videoDetails.viewsCount,
+            title: videoDetails.title,
+            thumbnail_url: videoDetails.thumbnailUrl,
+            updated_at: new Date().toISOString(),
+          };
+
+          // Native scrape is unreliable for likes/comments on Shorts; don't overwrite stored values
+          if (videoDetails.source !== 'native') {
+            updateBase.likes_count = videoDetails.likesCount;
+            updateBase.comments_count = videoDetails.commentsCount;
+          }
+
           const { error } = await supabase
             .from('youtube_videos')
-            .update({
-              views_count: videoDetails.viewsCount,
-              likes_count: videoDetails.likesCount,
-              comments_count: videoDetails.commentsCount,
-              title: videoDetails.title,
-              thumbnail_url: videoDetails.thumbnailUrl,
-              updated_at: new Date().toISOString(),
-            })
+            .update(updateBase)
             .eq('id', existingVideo.id);
 
           if (error) {
@@ -586,8 +594,9 @@ Deno.serve(async (req) => {
               title: videoDetails.title,
               thumbnail_url: videoDetails.thumbnailUrl,
               views_count: videoDetails.viewsCount,
-              likes_count: videoDetails.likesCount,
-              comments_count: videoDetails.commentsCount,
+              // Native scrape is unreliable for likes/comments; avoid writing bogus numbers
+              likes_count: videoDetails.source === 'native' ? null : videoDetails.likesCount,
+              comments_count: videoDetails.source === 'native' ? null : videoDetails.commentsCount,
               duration: videoDetails.duration,
               published_at: videoDetails.publishedAt,
             });
