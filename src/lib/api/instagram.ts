@@ -206,7 +206,7 @@ export const instagramApi = {
     return data as InstagramPost[];
   },
 
-  // Sync an account (re-scrape and update)
+  // Sync an account using Official Instagram API
   async syncAccount(accountId: string, continueFrom: boolean = false): Promise<{ success: boolean; continueFrom?: boolean; error?: string }> {
     // Get the account
     const { data: account, error: fetchError } = await supabase
@@ -219,15 +219,12 @@ export const instagramApi = {
       return { success: false, error: 'Account not found' };
     }
 
-    // IMPORTANT: do the sync through the backend function so posts/views/likes
-    // are persisted with service role (avoids RLS/upsert constraint issues)
-    const { data, error } = await supabase.functions.invoke('instagram-scrape-apify', {
+    // Use Official Instagram Graph API for sync
+    const { data, error } = await supabase.functions.invoke('instagram-official-api', {
       body: {
-        profileUrl: account.profile_url,
+        action: 'sync_account',
         accountId,
-        fetchVideos: true,
-        // grab a generous amount per sync
-        resultsLimit: 200,
+        username: account.username,
       },
     });
 
