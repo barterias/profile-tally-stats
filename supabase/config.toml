@@ -72,6 +72,9 @@ verify_jwt = false
 [functions.tiktok-scrape-apify]
 verify_jwt = false
 
+[functions.tiktok-scrape-rapidapi]
+verify_jwt = false
+
 # Official API integrations
 [functions.instagram-official-api]
 verify_jwt = false
