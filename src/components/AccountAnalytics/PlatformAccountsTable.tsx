@@ -233,6 +233,13 @@ export function PlatformAccountsTable({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-background">
+                    <DropdownMenuItem
+                      onClick={() => onSync(account.id, false)}
+                      disabled={isSyncing}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Sincronizar
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <a
                         href={platformUrls[platform](account.username)}

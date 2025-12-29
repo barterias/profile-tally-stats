@@ -147,6 +147,10 @@ export function InstagramAccountsTable({
                       Ver Posts
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onClick={() => onSync(account.id)} disabled={isSyncing}>
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                    Atualizar Métricas
+                  </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <a href={account.profile_url} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4 mr-2" />
