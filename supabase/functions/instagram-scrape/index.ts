@@ -390,10 +390,11 @@ serve(async (req) => {
         uniquePostsMap.set(post.postUrl, post);
       }
     }
-    const newPosts = Array.from(uniquePostsMap.values());
+    // Limit to MAX_POSTS after deduplication
+    const newPosts = Array.from(uniquePostsMap.values()).slice(0, MAX_POSTS);
     const newCursor = currentCursor;
 
-    console.log(`[ScrapeCreators] After deduplication: ${newPosts.length} unique posts (was ${allPosts.length})`);
+    console.log(`[ScrapeCreators] After deduplication and limit: ${newPosts.length} unique posts (was ${allPosts.length}, max ${MAX_POSTS})`);
 
     data.posts = newPosts;
     data.scrapedPostsCount = newPosts.length;
