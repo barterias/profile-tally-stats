@@ -23,11 +23,13 @@ export function useTikTokVideos(accountId: string) {
   return useQuery({
     queryKey: ['tiktok-videos', accountId],
     queryFn: async () => {
+      // Fetch top 10 videos by views for display
       const { data, error } = await supabase
         .from('tiktok_videos')
         .select('*')
         .eq('account_id', accountId)
-        .order('views_count', { ascending: false });
+        .order('views_count', { ascending: false })
+        .limit(10);
 
       if (error) {
         console.error('Error fetching TikTok videos:', error);
@@ -35,6 +37,28 @@ export function useTikTokVideos(accountId: string) {
       }
 
       return data as TikTokVideo[];
+    },
+    enabled: !!accountId,
+  });
+}
+
+// Hook to fetch all videos for a specific account (for total count)
+export function useTikTokVideosTotals(accountId: string) {
+  return useQuery({
+    queryKey: ['tiktok-videos-totals', accountId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tiktok_videos')
+        .select('views_count, likes_count, comments_count')
+        .eq('account_id', accountId);
+
+      if (error) {
+        console.error('Error fetching TikTok video totals:', error);
+        return { count: 0, totalViews: 0 };
+      }
+
+      const totalViews = (data || []).reduce((sum, v) => sum + Number(v.views_count || 0), 0);
+      return { count: data?.length || 0, totalViews };
     },
     enabled: !!accountId,
   });
