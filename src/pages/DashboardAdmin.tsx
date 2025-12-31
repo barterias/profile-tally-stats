@@ -195,12 +195,40 @@ function DashboardAdminContent() {
             icon={Video}
             glowColor="orange"
           />
-          <MetricCardGlow
-            title={t('engagementRate')}
-            value={`${(socialMetrics?.engagementRate || 0).toFixed(2)}%`}
-            icon={Activity}
-            glowColor="primary"
-          />
+          {/* Engagement Rate with Chart Visual */}
+          <div className="relative rounded-xl p-5 transition-all duration-300 bg-card/80 backdrop-blur-sm border border-border/40 shadow-[0_0_20px_rgba(226,232,240,0.08),0_0_40px_rgba(148,163,184,0.05)] hover:shadow-[0_0_25px_rgba(226,232,240,0.15),0_0_50px_rgba(148,163,184,0.1)] hover:border-border/60">
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-slate-300/[0.03] via-transparent to-slate-400/[0.02] pointer-events-none" />
+            <div className="relative">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                {t('engagementRate')}
+              </p>
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-2xl font-bold tracking-tight text-foreground">
+                    {(socialMetrics?.engagementRate || 0).toFixed(2)}%
+                  </p>
+                </div>
+                {/* Mini Chart Visual */}
+                <div className="flex items-end gap-[3px] h-10">
+                  {[0.3, 0.5, 0.4, 0.7, 0.6, 0.85, 1].map((height, i) => (
+                    <div
+                      key={i}
+                      className="w-[6px] rounded-t-sm bg-gradient-to-t from-emerald-500/60 to-emerald-400 transition-all duration-500"
+                      style={{ 
+                        height: `${height * 100}%`,
+                        animationDelay: `${i * 100}ms`,
+                        opacity: 0.5 + (i * 0.07)
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 mt-1.5 text-xs font-medium text-emerald-400">
+                <TrendingUp className="h-3 w-3" />
+                <span>Crescente</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Platform Cards - Real data from social accounts */}
