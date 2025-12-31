@@ -121,7 +121,7 @@ export function AccountVideosModal({
               <div>
                 <DialogTitle>{platformLabels[platform]} de @{accountName}</DialogTitle>
                 <DialogDescription>
-                  {videos.length} {platformLabels[platform].toLowerCase()} encontrados. Clique para abrir no {platform === 'youtube' ? 'YouTube' : platform === 'instagram' ? 'Instagram' : 'TikTok'}.
+                  Top 10 {platformLabels[platform].toLowerCase()} com mais visualizações. Clique para abrir no {platform === 'youtube' ? 'YouTube' : platform === 'instagram' ? 'Instagram' : 'TikTok'}.
                 </DialogDescription>
               </div>
               <Button 
