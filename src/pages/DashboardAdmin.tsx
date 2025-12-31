@@ -24,7 +24,8 @@ import {
   RefreshCw,
   Instagram,
   Youtube,
-  Sparkles
+  Sparkles,
+  Activity
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -169,7 +170,7 @@ function DashboardAdminContent() {
         </div>
 
         {/* Social Media Stats Grid - Real data from useSocialMetrics hook */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <MetricCardGlow
             title={t('followers')}
             value={formatNumber(socialMetrics?.totalFollowers || 0)}
@@ -193,6 +194,12 @@ function DashboardAdminContent() {
             value={formatNumber(socialMetrics?.totalVideos || 0)}
             icon={Video}
             glowColor="orange"
+          />
+          <MetricCardGlow
+            title={t('engagementRate')}
+            value={`${(socialMetrics?.engagementRate || 0).toFixed(2)}%`}
+            icon={Activity}
+            glowColor="primary"
           />
         </div>
 
