@@ -3,6 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
 
+export interface PlatformEngagement {
+  platform: string;
+  engagement: number;
+  likes: number;
+  comments: number;
+}
+
 export interface SocialMetricsSummary {
   totalFollowers: number;
   totalViews: number;
@@ -10,6 +17,7 @@ export interface SocialMetricsSummary {
   totalComments: number;
   totalVideos: number;
   engagementRate: number;
+  platformEngagement: PlatformEngagement[];
   accountsCount: {
     instagram: number;
     tiktok: number;
@@ -162,6 +170,28 @@ export function useSocialMetrics() {
         },
       ];
 
+      // Calculate engagement per platform
+      const platformEngagement: PlatformEngagement[] = [
+        {
+          platform: 'Instagram',
+          engagement: igViews > 0 ? ((igLikes + igComments) / igViews) * 100 : 0,
+          likes: igLikes,
+          comments: igComments,
+        },
+        {
+          platform: 'TikTok',
+          engagement: ttViews > 0 ? ((ttLikes + ttComments) / ttViews) * 100 : 0,
+          likes: ttLikes,
+          comments: ttComments,
+        },
+        {
+          platform: 'YouTube',
+          engagement: ytViews > 0 ? ((ytLikes + ytComments) / ytViews) * 100 : 0,
+          likes: ytLikes,
+          comments: ytComments,
+        },
+      ];
+
       return {
         totalFollowers,
         totalViews,
@@ -169,6 +199,7 @@ export function useSocialMetrics() {
         totalComments,
         totalVideos,
         engagementRate,
+        platformEngagement,
         accountsCount: {
           instagram: instagramAccounts.length,
           tiktok: tiktokAccounts.length,

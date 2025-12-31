@@ -4,6 +4,7 @@ import MainLayout from "@/components/Layout/MainLayout";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { MetricCardGlow } from "@/components/ui/MetricCardGlow";
 import { ChartPiePlatforms } from "@/components/Charts/ChartPiePlatforms";
+import { ChartEngagement } from "@/components/Charts/ChartEngagement";
 import { Button } from "@/components/ui/button";
 import { NeonButton } from "@/components/ui/NeonButton";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -24,8 +25,7 @@ import {
   RefreshCw,
   Instagram,
   Youtube,
-  Sparkles,
-  Activity
+  Sparkles
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -170,7 +170,7 @@ function DashboardAdminContent() {
         </div>
 
         {/* Social Media Stats Grid - Real data from useSocialMetrics hook */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCardGlow
             title={t('followers')}
             value={formatNumber(socialMetrics?.totalFollowers || 0)}
@@ -195,40 +195,18 @@ function DashboardAdminContent() {
             icon={Video}
             glowColor="orange"
           />
-          {/* Engagement Rate with Chart Visual */}
-          <div className="relative rounded-xl p-5 transition-all duration-300 bg-card/80 backdrop-blur-sm border border-border/40 shadow-[0_0_20px_rgba(226,232,240,0.08),0_0_40px_rgba(148,163,184,0.05)] hover:shadow-[0_0_25px_rgba(226,232,240,0.15),0_0_50px_rgba(148,163,184,0.1)] hover:border-border/60">
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-slate-300/[0.03] via-transparent to-slate-400/[0.02] pointer-events-none" />
-            <div className="relative">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                {t('engagementRate')}
-              </p>
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <p className="text-2xl font-bold tracking-tight text-foreground">
-                    {(socialMetrics?.engagementRate || 0).toFixed(2)}%
-                  </p>
-                </div>
-                {/* Mini Chart Visual */}
-                <div className="flex items-end gap-[3px] h-10">
-                  {[0.3, 0.5, 0.4, 0.7, 0.6, 0.85, 1].map((height, i) => (
-                    <div
-                      key={i}
-                      className="w-[6px] rounded-t-sm bg-gradient-to-t from-emerald-500/60 to-emerald-400 transition-all duration-500"
-                      style={{ 
-                        height: `${height * 100}%`,
-                        animationDelay: `${i * 100}ms`,
-                        opacity: 0.5 + (i * 0.07)
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center gap-1 mt-1.5 text-xs font-medium text-emerald-400">
-                <TrendingUp className="h-3 w-3" />
-                <span>Crescente</span>
-              </div>
-            </div>
-          </div>
+        </div>
+
+        {/* Charts Row - Platform Distribution and Engagement */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ChartPiePlatforms 
+            data={chartPlatformData.length > 0 ? chartPlatformData : [{ platform: t('noData'), value: 1 }]} 
+            title={t('dashboard.platform_distribution')} 
+          />
+          <ChartEngagement
+            data={socialMetrics?.platformEngagement || []}
+            title={t('engagementRate') + ' por Plataforma'}
+          />
         </div>
 
         {/* Platform Cards - Real data from social accounts */}
