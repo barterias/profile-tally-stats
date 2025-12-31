@@ -417,9 +417,9 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
           duration: video?.lengthSeconds || undefined,
           isShort: video?.type === 'short' || video?.isShort === true,
         }))
-        .filter((v: any) => v.videoId);
+        .filter((v: any) => v.isShort && v.videoId); // Only shorts
 
-      console.log(`[ScrapeCreators] Videos from API: ${shortsFromApi.length}`);
+      console.log(`[ScrapeCreators] Shorts from API: ${shortsFromApi.length}`);
     } catch (videosError) {
       console.error('[ScrapeCreators] Error fetching channel feed:', videosError);
     }
@@ -455,13 +455,13 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
       }
     }
 
-    // Keep only top 10 by views for storage/UI
+    // Keep only top 10 shorts by views for storage/UI
     data.videos = shortsFromApi
       .slice()
       .sort((a, b) => (b.viewsCount || 0) - (a.viewsCount || 0))
       .slice(0, 10);
 
-    console.log(`[YouTube] Final top videos count: ${data.videos.length}`);
+    console.log(`[YouTube] Final shorts count: ${data.videos.length}`);
   }
 
   // Set scraped videos count
