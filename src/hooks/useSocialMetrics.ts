@@ -9,6 +9,7 @@ export interface SocialMetricsSummary {
   totalLikes: number;
   totalComments: number;
   totalVideos: number;
+  engagementRate: number;
   accountsCount: {
     instagram: number;
     tiktok: number;
@@ -132,6 +133,10 @@ export function useSocialMetrics() {
       const totalLikes = igLikes + ttLikes + tiktokLikes + ytLikes;
       const totalComments = igComments + ttComments + ytComments;
       const totalVideos = (instagramPosts.data?.length || 0) + (tiktokVids.data?.length || 0) + (youtubeVids.data?.length || 0);
+      
+      // Calculate engagement rate: (likes + comments) / views * 100
+      const totalEngagement = totalLikes + totalComments;
+      const engagementRate = totalViews > 0 ? (totalEngagement / totalViews) * 100 : 0;
 
       const platformBreakdown = [
         {
@@ -163,6 +168,7 @@ export function useSocialMetrics() {
         totalLikes,
         totalComments,
         totalVideos,
+        engagementRate,
         accountsCount: {
           instagram: instagramAccounts.length,
           tiktok: tiktokAccounts.length,
