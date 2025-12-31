@@ -170,7 +170,7 @@ function DashboardAdminContent() {
         </div>
 
         {/* Social Media Stats Grid - Real data from useSocialMetrics hook */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
           <MetricCardGlow
             title={t('followers')}
             value={formatNumber(socialMetrics?.totalFollowers || 0)}
@@ -198,7 +198,7 @@ function DashboardAdminContent() {
         </div>
 
         {/* Charts Row - Platform Distribution and Engagement */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-6">
           <ChartPiePlatforms 
             data={chartPlatformData.length > 0 ? chartPlatformData : [{ platform: t('noData'), value: 1 }]} 
             title={t('dashboard.platform_distribution')} 
@@ -210,7 +210,7 @@ function DashboardAdminContent() {
         </div>
 
         {/* Platform Cards - Real data from social accounts */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
           {socialMetrics?.platformBreakdown.map((platform) => (
             <GlowCard key={platform.platform} className="p-5" glowColor={
               platform.platform === 'Instagram' ? 'purple' :
@@ -247,7 +247,7 @@ function DashboardAdminContent() {
         <PendingAccountsCard />
 
         {/* Social Media Overview */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-6">
           <GlowCard className="p-6">
             <h3 className="text-lg font-semibold mb-4">{t('socialMediaOverview')}</h3>
             <div className="space-y-4">
