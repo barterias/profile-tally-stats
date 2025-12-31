@@ -15,6 +15,9 @@ export interface InstagramAccount {
   last_synced_at: string | null;
   created_at: string;
   updated_at: string;
+  total_views?: number | null;
+  approval_status?: string | null;
+  scraped_posts_count?: number | null;
 }
 
 export interface InstagramPost {

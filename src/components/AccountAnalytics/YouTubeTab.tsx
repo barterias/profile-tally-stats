@@ -134,9 +134,9 @@ export function YouTubeTab() {
 
   const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.total_views || 0) - Number(a.total_views || 0));
   const totalSubscribers = visibleAccounts.reduce((sum, acc) => sum + (acc.subscribers_count || 0), 0);
-  // Calculate total views from actual videos (content) instead of channel total_views
-  const totalViews = allVideos.reduce((sum, video) => sum + Number(video.views_count || 0), 0);
-  const totalVideos = allVideos.length || visibleAccounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
+  // Use account's total_views (from profile) as it's more accurate than sum of scraped videos
+  const totalViews = visibleAccounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
+  const totalVideos = visibleAccounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';

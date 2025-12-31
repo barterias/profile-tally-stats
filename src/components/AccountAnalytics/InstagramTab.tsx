@@ -134,8 +134,13 @@ export function InstagramTab() {
   // Calculate totals and sort by followers
   const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.followers_count || 0) - Number(a.followers_count || 0));
   const totalFollowers = visibleAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
-  const totalViews = visibleAccounts.reduce((sum, acc) => sum + (viewsByAccount[acc.id] || 0), 0);
-  const totalPosts = visibleAccounts.reduce((sum, acc) => sum + (postCountByAccount[acc.id] || 0), 0);
+  // Use account's total_views (from profile) - fallback to derived views from posts
+  const totalViews = visibleAccounts.reduce((sum, acc) => {
+    const accountViews = Number(acc.total_views || 0);
+    const derivedViews = viewsByAccount[acc.id] || 0;
+    return sum + (accountViews > 0 ? accountViews : derivedViews);
+  }, 0);
+  const totalPosts = visibleAccounts.reduce((sum, acc) => sum + (postCountByAccount[acc.id] || acc.posts_count || 0), 0);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
