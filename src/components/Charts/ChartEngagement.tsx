@@ -76,35 +76,18 @@ export function ChartEngagement({ data, title, isLoading }: ChartEngagementProps
     return <ChartSkeleton type="bar" title={title} />;
   }
 
-  // Transform data: use engagement if available, otherwise use reachRate as fallback
+  // Use reach rate (views / followers) for all platforms
   const dataWithColors = data.map(item => {
-    const hasEngagement = item.likes > 0 || item.comments > 0;
-    const displayValue = hasEngagement ? item.engagement : item.reachRate;
-    const metricType = hasEngagement ? 'engagement' : 'reach';
-    
     return {
       ...item,
-      displayValue,
-      metricType,
+      displayValue: item.reachRate,
       color: platformColors[item.platform.toLowerCase()] || '#8b5cf6'
     };
   });
 
   return (
     <GlowCard className="h-full animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <div className="flex gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-primary"></span>
-            Engajamento
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-primary/50"></span>
-            Alcance
-          </span>
-        </div>
-      </div>
+      <h3 className="text-lg font-semibold mb-4">{title}</h3>
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={dataWithColors} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -124,7 +107,7 @@ export function ChartEngagement({ data, title, isLoading }: ChartEngagementProps
             <Tooltip content={<CustomTooltip />} />
             <Bar 
               dataKey="displayValue" 
-              name="Taxa"
+              name="Alcance"
               radius={[8, 8, 0, 0]}
               animationBegin={0}
               animationDuration={800}
@@ -134,7 +117,6 @@ export function ChartEngagement({ data, title, isLoading }: ChartEngagementProps
                 <Cell 
                   key={`cell-${index}`} 
                   fill={entry.color}
-                  opacity={entry.metricType === 'reach' ? 0.6 : 1}
                   className="transition-opacity duration-300 hover:opacity-80"
                 />
               ))}

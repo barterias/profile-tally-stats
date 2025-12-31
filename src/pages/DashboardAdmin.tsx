@@ -205,7 +205,7 @@ function DashboardAdminContent() {
           />
           <ChartEngagement
             data={socialMetrics?.platformEngagement || []}
-            title={t('engagementRate') + ' por Plataforma'}
+            title="Taxa de Alcance por Plataforma"
           />
         </div>
 
