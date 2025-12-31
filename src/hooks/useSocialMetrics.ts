@@ -8,6 +8,9 @@ export interface PlatformEngagement {
   engagement: number;
   likes: number;
   comments: number;
+  views: number;
+  followers: number;
+  reachRate: number; // views / followers * 100 - fallback metric
 }
 
 export interface SocialMetricsSummary {
@@ -171,24 +174,34 @@ export function useSocialMetrics() {
       ];
 
       // Calculate engagement per platform
+      // Uses traditional engagement (likes + comments) / views, with fallback to reach rate (views / followers)
       const platformEngagement: PlatformEngagement[] = [
         {
           platform: 'Instagram',
           engagement: igViews > 0 ? ((igLikes + igComments) / igViews) * 100 : 0,
           likes: igLikes,
           comments: igComments,
+          views: igViews,
+          followers: instagramFollowers,
+          reachRate: instagramFollowers > 0 ? (igViews / instagramFollowers) * 100 : 0,
         },
         {
           platform: 'TikTok',
           engagement: ttViews > 0 ? ((ttLikes + ttComments) / ttViews) * 100 : 0,
           likes: ttLikes,
           comments: ttComments,
+          views: ttViews,
+          followers: tiktokFollowers,
+          reachRate: tiktokFollowers > 0 ? (ttViews / tiktokFollowers) * 100 : 0,
         },
         {
           platform: 'YouTube',
           engagement: ytViews > 0 ? ((ytLikes + ytComments) / ytViews) * 100 : 0,
           likes: ytLikes,
           comments: ytComments,
+          views: ytViews,
+          followers: youtubeSubscribers,
+          reachRate: youtubeSubscribers > 0 ? (ytViews / youtubeSubscribers) * 100 : 0,
         },
       ];
 
