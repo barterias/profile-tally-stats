@@ -246,14 +246,8 @@ function DashboardAdminContent() {
         {/* Pending Approvals */}
         <PendingAccountsCard />
 
-        {/* Charts Row */}
-
-        {/* Charts Row */}
+        {/* Social Media Overview */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ChartPiePlatforms 
-            data={chartPlatformData.length > 0 ? chartPlatformData : [{ platform: t('noData'), value: 1 }]} 
-            title={t('dashboard.platform_distribution')} 
-          />
           <GlowCard className="p-6">
             <h3 className="text-lg font-semibold mb-4">{t('socialMediaOverview')}</h3>
             <div className="space-y-4">
