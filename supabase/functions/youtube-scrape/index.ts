@@ -417,17 +417,17 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
           duration: video?.lengthSeconds || undefined,
           isShort: video?.type === 'short' || video?.isShort === true,
         }))
-        .filter((v: any) => v.isShort && v.videoId);
+        .filter((v: any) => v.videoId);
 
-      console.log(`[ScrapeCreators] Shorts from API filter: ${shortsFromApi.length}`);
+      console.log(`[ScrapeCreators] Videos from API: ${shortsFromApi.length}`);
     } catch (videosError) {
       console.error('[ScrapeCreators] Error fetching channel feed:', videosError);
     }
 
-    // If ScrapeCreators returned 0 shorts, fallback to native scraping
+    // If ScrapeCreators returned 0 items, fallback to native shorts scraping
     if (shortsFromApi.length === 0) {
-      console.log('[YouTube] ScrapeCreators returned 0 shorts, trying native scraping...');
-      
+      console.log('[YouTube] ScrapeCreators returned 0 items, trying native shorts scraping...');
+
       // Resolve channelId if we don't have it
       let resolvedChannelId = data.channelId;
       if (!resolvedChannelId && cleanHandle) {
@@ -455,9 +455,13 @@ async function getYoutubeChannelMetrics(identifier: string, fetchVideos: boolean
       }
     }
 
-    // Limit to 10 shorts
-    data.videos = shortsFromApi.slice(0, 10);
-    console.log(`[YouTube] Final shorts count: ${data.videos.length}`);
+    // Keep only top 10 by views for storage/UI
+    data.videos = shortsFromApi
+      .slice()
+      .sort((a, b) => (b.viewsCount || 0) - (a.viewsCount || 0))
+      .slice(0, 10);
+
+    console.log(`[YouTube] Final top videos count: ${data.videos.length}`);
   }
 
   // Set scraped videos count

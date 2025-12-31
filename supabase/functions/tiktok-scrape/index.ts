@@ -187,46 +187,51 @@ Deno.serve(async (req) => {
 
     if (fetchVideos) {
       try {
-        console.log('[TikTok Scrape] Fetching videos...');
-        
-      const params: Record<string, string> = {
-        handle: cleanUsername,
-        count: '10', // Max 10 videos per account
-      };
-        
-        // Use existing cursor if continuing
-        if (existingCursor) {
-          params.cursor = existingCursor;
-          console.log(`[TikTok Scrape] Using cursor: ${existingCursor}`);
-        }
-        
-        const videosResult = await fetchScrapeCreators('/v3/tiktok/profile/videos', params);
-        
-        console.log('[TikTok Scrape] Videos response keys:', Object.keys(videosResult || {}));
-        
-        // ScrapeCreators v3 returns videos in "aweme_list" field
-        const videosArray =
-          (Array.isArray(videosResult?.aweme_list) ? videosResult.aweme_list : null) ||
-          (Array.isArray(videosResult?.itemList) ? videosResult.itemList : null) ||
-          (Array.isArray(videosResult?.data?.itemList) ? videosResult.data.itemList : null) ||
-          (Array.isArray(videosResult?.data?.aweme_list) ? videosResult.data.aweme_list : null) ||
-          (Array.isArray(videosResult?.data) ? videosResult.data : null) ||
-          (Array.isArray(videosResult?.videos) ? videosResult.videos : null) ||
-          [];
+        console.log('[TikTok Scrape] Fetching videos (paged)...');
 
-        // Get next cursor for pagination
-        newCursor = videosResult?.cursor || videosResult?.next_cursor || videosResult?.data?.cursor || null;
-        
-        console.log(`[TikTok Scrape] Found ${videosArray.length} videos, next cursor: ${newCursor ? 'yes' : 'no'}`);
+        // We fetch multiple pages in a single run to get a more accurate total_views.
+        // We still keep cursor support to continue later if needed.
+        const pageSize = 30;
+        const maxPages = 10; // safety limit: up to 300 videos per sync
 
-        if (videosArray.length > 0) {
-          // Limit to 10 videos max
-          const limitedVideos = videosArray.slice(0, 10);
-          const mappedVideos = limitedVideos.map((video: any) => {
+        let cursorToUse: string | null = existingCursor || null;
+        let page = 0;
+
+        while (page < maxPages) {
+          const params: Record<string, string> = {
+            handle: cleanUsername,
+            count: String(pageSize),
+          };
+
+          if (cursorToUse) {
+            params.cursor = cursorToUse;
+          }
+
+          const videosResult = await fetchScrapeCreators('/v3/tiktok/profile/videos', params);
+
+          // ScrapeCreators v3 returns videos in "aweme_list" field
+          const videosArray =
+            (Array.isArray(videosResult?.aweme_list) ? videosResult.aweme_list : null) ||
+            (Array.isArray(videosResult?.itemList) ? videosResult.itemList : null) ||
+            (Array.isArray(videosResult?.data?.itemList) ? videosResult.data.itemList : null) ||
+            (Array.isArray(videosResult?.data?.aweme_list) ? videosResult.data.aweme_list : null) ||
+            (Array.isArray(videosResult?.data) ? videosResult.data : null) ||
+            (Array.isArray(videosResult?.videos) ? videosResult.videos : null) ||
+            [];
+
+          const next = videosResult?.cursor || videosResult?.next_cursor || videosResult?.data?.cursor || null;
+
+          console.log(`[TikTok Scrape] Page ${page + 1}: ${videosArray.length} videos, next cursor: ${next ? 'yes' : 'no'}`);
+
+          if (!Array.isArray(videosArray) || videosArray.length === 0) {
+            newCursor = null;
+            break;
+          }
+
+          const mappedVideos = videosArray.map((video: any) => {
             const videoId = video?.id || video?.aweme_id || video?.videoId || '';
             const stats = video?.stats || video?.statistics || {};
-            
-            // Extract thumbnail URL from various possible formats
+
             const coverObj = video?.video?.cover || video?.video?.origin_cover || video?.cover;
             let thumbnailUrl = undefined;
             if (typeof coverObj === 'string') {
@@ -236,7 +241,7 @@ Deno.serve(async (req) => {
             } else if (video?.thumbnailUrl) {
               thumbnailUrl = typeof video.thumbnailUrl === 'string' ? video.thumbnailUrl : video.thumbnailUrl?.url_list?.[0];
             }
-            
+
             return {
               videoId,
               videoUrl: `https://www.tiktok.com/@${cleanUsername}/video/${videoId}`,
@@ -248,17 +253,27 @@ Deno.serve(async (req) => {
               sharesCount: toInt(stats?.shareCount ?? stats?.share_count ?? video?.shareCount ?? video?.shares),
               musicTitle: video?.music?.title || video?.musicTitle || undefined,
               duration: toInt(video?.video?.duration ?? video?.duration),
-              postedAt: video?.createTime ? new Date(video.createTime * 1000).toISOString() : 
-                       video?.postedAt || video?.posted_at || undefined,
+              postedAt: video?.createTime
+                ? new Date(video.createTime * 1000).toISOString()
+                : video?.postedAt || video?.posted_at || undefined,
             };
-          });
+          }).filter((v: any) => v.videoId);
 
-          data.videos = mappedVideos;
-          data.scrapedVideosCount = mappedVideos.length;
-          console.log(`[TikTok Scrape] Mapped ${mappedVideos.length} videos (limited to 10 max)`);
-        } else {
-          console.log('[TikTok Scrape] No videos found in response');
+          // Accumulate in memory; we'll upsert to DB later in the existing save loop
+          data.videos = [...(data.videos || []), ...mappedVideos];
+
+          cursorToUse = next;
+          newCursor = next;
+          page += 1;
+
+          // Stop if there's no next cursor
+          if (!cursorToUse) {
+            break;
+          }
         }
+
+        data.scrapedVideosCount = data.videos?.length || 0;
+        console.log(`[TikTok Scrape] Total fetched this run: ${data.scrapedVideosCount}`);
       } catch (videosError) {
         console.error('[TikTok Scrape] Error fetching videos:', videosError);
         // Continue without videos - don't fail the whole request
@@ -367,29 +382,10 @@ Deno.serve(async (req) => {
         }
         console.log(`[TikTok Scrape] Saved ${savedCount} new videos, updated ${updatedCount} existing`);
 
-        // Keep only the latest fetched videos (max 10) to avoid accumulating old records
-        const fetchedIds = Array.from(
-          new Set(
-            (data.videos || [])
-              .map((v) => v.videoId)
-              .filter((id): id is string => typeof id === 'string' && id.length > 0),
-          ),
-        ).slice(0, 10);
+        // NOTE: We no longer delete old videos here.
+        // We keep accumulating videos so totals can reflect more accurately.
+        // The UI will show only top 10 for the account.
 
-        if (fetchedIds.length > 0) {
-          const inList = `(${fetchedIds.map((id) => `"${id}"`).join(',')})`;
-          const { error: cleanupError } = await supabase
-            .from('tiktok_videos')
-            .delete()
-            .eq('account_id', accountId)
-            .not('video_id', 'in', inList);
-
-          if (cleanupError) {
-            console.error('[TikTok Scrape] Error cleaning up old tiktok_videos:', cleanupError);
-          } else {
-            console.log(`[TikTok Scrape] Cleanup complete, kept ${fetchedIds.length} videos`);
-          }
-        }
       }
 
       // Calculate totals from ALL videos in database
