@@ -10,14 +10,24 @@ export default function PendingApproval() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [checking, setChecking] = useState(true);
-  const email = localStorage.getItem("pending_email");
+  const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
     const checkApprovalStatus = async () => {
-      if (!email) {
-        navigate("/auth");
-        return;
+      let storedEmail = localStorage.getItem("pending_email");
+      
+      // Aguardar um momento para o localStorage ser atualizado
+      if (!storedEmail) {
+        // Dar uma pequena chance para o localStorage ser atualizado
+        await new Promise(resolve => setTimeout(resolve, 500));
+        storedEmail = localStorage.getItem("pending_email");
+        if (!storedEmail) {
+          navigate("/auth");
+          return;
+        }
       }
+      
+      setEmail(storedEmail);
 
       // Verificar se o usuário já foi aprovado (existe em auth)
       const { data: { user } } = await supabase.auth.getUser();
@@ -30,10 +40,11 @@ export default function PendingApproval() {
       }
 
       // Verificar se ainda está na tabela pending_users
+      const currentEmail = localStorage.getItem("pending_email");
       const { data: pendingUser } = await supabase
         .from("pending_users")
         .select("email")
-        .eq("email", email)
+        .eq("email", currentEmail || "")
         .maybeSingle();
 
       // Se não está mais na tabela pending_users e não foi aprovado, foi rejeitado
@@ -62,8 +73,9 @@ export default function PendingApproval() {
           console.log('Usuário removido da fila de pendentes:', payload);
           
           // Verificar se o email deletado é o nosso
+          const currentEmail = localStorage.getItem("pending_email");
           const deletedEmail = (payload.old as any)?.email;
-          if (deletedEmail !== email) return;
+          if (deletedEmail !== currentEmail) return;
           
           // Verificar se foi aprovado tentando fazer login
           // (o admin criou o usuário com a senha que estava armazenada)
@@ -87,7 +99,7 @@ export default function PendingApproval() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [email, navigate]);
+  }, [navigate]);
 
   const handleLogout = () => {
     localStorage.removeItem("pending_email");
