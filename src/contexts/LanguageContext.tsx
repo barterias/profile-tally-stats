@@ -52,6 +52,9 @@ const translations: Translations = {
   "pending.access_granted_desc": { pt: "Você receberá acesso após aprovação", en: "You will receive access after approval" },
   "pending.auto_update": { pt: "Esta página irá atualizar automaticamente quando seu cadastro for aprovado.", en: "This page will automatically update when your registration is approved." },
   "pending.back_to_login": { pt: "Voltar para Login", en: "Back to Login" },
+  "pending.discord_title": { pt: "Entre no nosso Discord!", en: "Join our Discord!" },
+  "pending.discord_subtitle": { pt: "Para participar da nossa plataforma, entre no nosso Discord", en: "To participate in our platform, join our Discord" },
+  "pending.join_discord": { pt: "Entrar no Discord", en: "Join Discord" },
 
   // Navigation
   "nav.dashboard": { pt: "Dashboard", en: "Dashboard" },
