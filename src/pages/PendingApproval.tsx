@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, MessageCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/components/LanguageSelector";
 
@@ -178,6 +178,33 @@ export default function PendingApproval() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Discord Banner */}
+          <div className="bg-[#5865F2]/10 border border-[#5865F2]/30 rounded-lg p-5 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="bg-[#5865F2] p-2 rounded-lg">
+                <MessageCircle className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">
+                  {t("pending.discord_title")}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {t("pending.discord_subtitle")}
+                </p>
+              </div>
+            </div>
+            <a 
+              href="https://discord.gg/CbHykZ9we" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full bg-[#5865F2] hover:bg-[#4752C4] text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+            >
+              <MessageCircle className="h-4 w-4" />
+              {t("pending.join_discord")}
+              <ExternalLink className="h-3 w-3" />
+            </a>
           </div>
 
           {/* Info adicional */}
