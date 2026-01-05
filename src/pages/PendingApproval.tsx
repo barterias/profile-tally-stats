@@ -39,16 +39,13 @@ export default function PendingApproval() {
         return;
       }
 
-      // Verificar se ainda está na tabela pending_users
+      // Verificar se ainda está na tabela pending_users usando RPC seguro
       const currentEmail = localStorage.getItem("pending_email");
       const { data: pendingUser } = await supabase
-        .from("pending_users")
-        .select("email")
-        .eq("email", currentEmail || "")
-        .maybeSingle();
+        .rpc('check_pending_user_status', { p_email: currentEmail || "" });
 
       // Se não está mais na tabela pending_users e não foi aprovado, foi rejeitado
-      if (!pendingUser && !user) {
+      if ((!pendingUser || pendingUser.length === 0) && !user) {
         localStorage.removeItem("pending_email");
         navigate("/auth");
         return;
