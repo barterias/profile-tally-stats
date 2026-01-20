@@ -1171,6 +1171,33 @@ export type Database = {
         }
         Relationships: []
       }
+      social_account_links: {
+        Row: {
+          account_id: string
+          id: string
+          is_owner: boolean | null
+          linked_at: string | null
+          platform: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          id?: string
+          is_owner?: boolean | null
+          linked_at?: string | null
+          platform: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          id?: string
+          is_owner?: boolean | null
+          linked_at?: string | null
+          platform?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       social_videos: {
         Row: {
           comments: number | null
