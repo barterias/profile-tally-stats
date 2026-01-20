@@ -136,10 +136,13 @@ async function resolveFinalUrl(url: string, maxHops = 5): Promise<string> {
 async function fetchTikTokVideo(videoId: string, apiKey: string): Promise<VideoDetails | null> {
   console.log(`Fetching TikTok video: ${videoId}`);
 
-  // Try paid API first
+  // Construct full video URL for API (ScrapeCreators V1 uses url param, not video_id)
+  const videoUrl = `https://www.tiktok.com/@_/video/${videoId}`;
+
+  // Try paid API first - V1 endpoint with full URL
   try {
     const response = await fetch(
-      `https://api.scrapecreators.com/v2/tiktok/video?video_id=${encodeURIComponent(videoId)}`,
+      `https://api.scrapecreators.com/v1/tiktok/video?url=${encodeURIComponent(videoUrl)}`,
       {
         method: 'GET',
         headers: {
