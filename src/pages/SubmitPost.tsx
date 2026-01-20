@@ -744,6 +744,8 @@ export default function SubmitPost() {
                 {platforms.map((platform) => {
                   const Icon = platform.icon;
                   const accountCount = getAccountsForPlatform(platform.id).length;
+                  const canProceedWithoutAccount = role === "admin" || role === "client";
+
                   return (
                     <Card
                       key={platform.id}
@@ -751,18 +753,18 @@ export default function SubmitPost() {
                         formData.platform === platform.id
                           ? "neon-border bg-primary/5"
                           : "hover:border-primary/50"
-                      } ${accountCount === 0 ? "opacity-50" : ""}`}
-                      onClick={() =>
-                        setFormData({ ...formData, platform: platform.id })
-                      }
+                      } ${accountCount === 0 && !canProceedWithoutAccount ? "opacity-50" : ""}`}
+                      onClick={() => setFormData({ ...formData, platform: platform.id })}
                     >
                       <div className="flex flex-col items-center text-center space-y-4">
                         <Icon className={`h-12 w-12 ${platform.color}`} />
                         <h3 className="font-semibold">{platform.name}</h3>
                         <p className="text-xs text-muted-foreground">
-                          {accountCount === 0 
-                            ? "Nenhuma conta cadastrada" 
-                            : `${accountCount} conta${accountCount > 1 ? 's' : ''} cadastrada${accountCount > 1 ? 's' : ''}`}
+                          {accountCount === 0
+                            ? canProceedWithoutAccount
+                              ? "Sem conta no seu perfil (ok)"
+                              : "Nenhuma conta cadastrada"
+                            : `${accountCount} conta${accountCount > 1 ? "s" : ""} cadastrada${accountCount > 1 ? "s" : ""}`}
                         </p>
                         {formData.platform === platform.id && (
                           <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
@@ -776,20 +778,29 @@ export default function SubmitPost() {
               </div>
 
               {formData.platform && getAccountsForPlatform(formData.platform).length === 0 && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Você precisa cadastrar uma conta de {platforms.find(p => p.id === formData.platform)?.name} em{" "}
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto text-destructive underline"
-                      onClick={() => navigate("/account-analytics")}
-                    >
-                      Account Analytics
-                    </Button>{" "}
-                    antes de enviar vídeos.
-                  </AlertDescription>
-                </Alert>
+                (role === "admin" || role === "client") ? (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Você não tem uma conta de {platforms.find(p => p.id === formData.platform)?.name} vinculada no seu perfil, mas pode continuar e o vídeo ficará para validação manual.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Você precisa cadastrar uma conta de {platforms.find(p => p.id === formData.platform)?.name} em{" "}
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-destructive underline"
+                        onClick={() => navigate("/account-analytics")}
+                      >
+                        Account Analytics
+                      </Button>{" "}
+                      antes de enviar vídeos.
+                    </AlertDescription>
+                  </Alert>
+                )
               )}
             </div>
           )}
