@@ -165,8 +165,18 @@ export default function SubmitPost() {
 
   const validateLinkViaAPI = async (link: string, platformId: string, index: number): Promise<{ valid: boolean; username?: string; error?: string; apiError?: boolean }> => {
     const accounts = getAccountsForPlatform(platformId);
-    
+
+    // Admin/cliente podem enviar links mesmo sem ter a conta cadastrada no próprio perfil.
+    // Nesse caso, segue para validação manual (não bloqueia o fluxo).
     if (accounts.length === 0) {
+      if (role === "admin" || role === "client") {
+        return {
+          valid: true,
+          apiError: true,
+          error: "Sem conta vinculada no seu perfil. O vídeo será validado manualmente.",
+        };
+      }
+
       return { valid: false, error: "Nenhuma conta cadastrada para esta plataforma" };
     }
 
@@ -286,7 +296,10 @@ export default function SubmitPost() {
     // Check if user has accounts for the selected platform
     if (currentStep === 1) {
       const accounts = getAccountsForPlatform(formData.platform);
-      if (accounts.length === 0) {
+
+      // Admin/cliente podem prosseguir mesmo sem conta vinculada no próprio perfil
+      // (ex: cadastrando vídeo para contas de outros usuários). Clippers continuam bloqueados.
+      if (accounts.length === 0 && role !== "admin" && role !== "client") {
         toast({
           title: "Conta não cadastrada",
           description: `Você precisa cadastrar uma conta de ${platforms.find(p => p.id === formData.platform)?.name} em Account Analytics antes de enviar vídeos.`,

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ interface SocialAccount {
 
 export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoModalProps) {
   const { user } = useAuth();
+  const { isAdmin, isClient } = useUserRole();
   const [loading, setLoading] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
@@ -244,6 +246,16 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
       } else {
         const videoUsername = data.data?.author?.username?.toLowerCase()?.replace('@', '');
         const accounts = getAccountsForPlatform(selectedPlatform);
+
+        // Admin/cliente: se não houver conta vinculada no próprio perfil, não bloqueia — validação manual.
+        if ((isAdmin || isClient) && accounts.length === 0) {
+          setValidatedLinks(prev => ({
+            ...prev,
+            [index]: { valid: true, error: "Será validado manualmente" },
+          }));
+          return;
+        }
+
         const matchingAccount = accounts.find(a => a.username.toLowerCase().replace('@', '') === videoUsername);
 
         if (matchingAccount) {
@@ -417,7 +429,10 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
                 {availablePlatforms.map(platform => {
                   const Icon = platformIcons[platform] || Video;
                   const accounts = getAccountsForPlatform(platform);
-                  const isDisabled = accounts.length === 0;
+
+                  // Clippers precisam ter conta vinculada; admin/cliente podem enviar link mesmo sem ter conta no próprio perfil.
+                  const canProceedWithoutAccount = isAdmin || isClient;
+                  const isDisabled = !canProceedWithoutAccount && accounts.length === 0;
                   
                   return (
                     <Button
