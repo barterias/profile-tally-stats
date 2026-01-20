@@ -38,11 +38,29 @@ function extractVideoId(url: string, platform: string): string | null {
     if (platform === 'tiktok') {
       // Common TikTok formats:
       // - https://www.tiktok.com/@user/video/1234567890
+      // - https://www.tiktok.com/@user?item_id=1234567890 (sometimes after redirects)
       // - https://www.tiktok.com/t/ZXXXX/ (short link -> needs redirect resolving)
-      // - https://vm.tiktok.com/XXXX/ (short link -> needs redirect resolving)
+      // - https://vm.tiktok.com/XXXX/ / https://vt.tiktok.com/XXXX/ (short link)
       // After resolving, most end up with /@user/video/<id>
+
+      // 1) Path-based IDs
       const match = url.match(/\/(?:video|v)\/(\d{8,25})/);
-      return match ? match[1] : null;
+      if (match) return match[1];
+
+      // 2) Query-param IDs
+      try {
+        const u = new URL(url);
+        const qpId =
+          u.searchParams.get('item_id') ||
+          u.searchParams.get('share_item_id') ||
+          u.searchParams.get('video_id') ||
+          u.searchParams.get('aweme_id');
+        if (qpId && /^\d{8,25}$/.test(qpId)) return qpId;
+      } catch {
+        // ignore URL parsing failures
+      }
+
+      return null;
     }
 
     if (platform === 'instagram') {
