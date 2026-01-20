@@ -63,38 +63,42 @@ export default function Campaigns() {
 
             let totalViews = 0;
             if (videos && videos.length > 0) {
-              const [allInstagramVideos, allTikTokVideos] = await Promise.all([
-                externalSupabase.getAllVideos(),
-                externalSupabase.getSocialVideos(),
-              ]);
+              try {
+                const [allInstagramVideos, allTikTokVideos] = await Promise.all([
+                  externalSupabase.getAllVideos().catch(() => []),
+                  externalSupabase.getSocialVideos().catch(() => []),
+                ]);
 
-              const viewsPromises = videos.map(async (video) => {
-                try {
-                  if (video.platform === "instagram") {
-                    const match = allInstagramVideos.find((v) => v.link === video.video_link);
-                    return match?.views || 0;
-                  } else if (video.platform === "tiktok") {
-                    const videoIdMatch = video.video_link.match(/\/video\/(\d+)/);
-                    const videoId = videoIdMatch ? videoIdMatch[1] : null;
+                const viewsPromises = videos.map(async (video) => {
+                  try {
+                    if (video.platform === "instagram") {
+                      const match = allInstagramVideos.find((v) => v.link === video.video_link);
+                      return match?.views || 0;
+                    } else if (video.platform === "tiktok") {
+                      const videoIdMatch = video.video_link.match(/\/video\/(\d+)/);
+                      const videoId = videoIdMatch ? videoIdMatch[1] : null;
 
-                    if (videoId) {
-                      const match = allTikTokVideos.find((v) => v.video_id === videoId);
-                      if (match) return match.views || 0;
+                      if (videoId) {
+                        const match = allTikTokVideos.find((v) => v.video_id === videoId);
+                        if (match) return match.views || 0;
+                      }
+
+                      const matchByLink = allTikTokVideos.find(
+                        (v) => v.link === video.video_link || v.video_url?.includes(video.video_link)
+                      );
+                      return matchByLink?.views || 0;
                     }
-
-                    const matchByLink = allTikTokVideos.find(
-                      (v) => v.link === video.video_link || v.video_url?.includes(video.video_link)
-                    );
-                    return matchByLink?.views || 0;
+                  } catch (error) {
+                    console.error("Erro ao buscar métricas:", error);
                   }
-                } catch (error) {
-                  console.error("Erro ao buscar métricas:", error);
-                }
-                return 0;
-              });
+                  return 0;
+                });
 
-              const viewsArray = await Promise.all(viewsPromises);
-              totalViews = viewsArray.reduce((sum, views) => sum + views, 0);
+                const viewsArray = await Promise.all(viewsPromises);
+                totalViews = viewsArray.reduce((sum, views) => sum + views, 0);
+              } catch (error) {
+                console.error("Erro ao buscar métricas externas:", error);
+              }
             }
 
             return {
