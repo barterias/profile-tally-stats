@@ -102,6 +102,18 @@ function isTikTokShortLink(url: string): boolean {
   }
 }
 
+function extractTikTokUsername(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const match = u.pathname.match(/^\/(@[^\/]+)\/video\//) || u.pathname.match(/^\/@([^\/\?]+)\/video\//);
+    const username = match?.[1]?.replace('@', '') || null;
+    if (!username || username === '_' || username === 'user') return null;
+    return username;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveFinalUrl(url: string, maxHops = 5): Promise<string> {
   // Use GET with redirect-follow to resolve TikTok short links; returns final response.url
   let current = url;
@@ -133,16 +145,16 @@ async function resolveFinalUrl(url: string, maxHops = 5): Promise<string> {
   return current;
 }
 
-async function fetchTikTokVideo(videoId: string, apiKey: string): Promise<VideoDetails | null> {
+async function fetchTikTokVideo(videoId: string, apiKey: string, inputUrl?: string): Promise<VideoDetails | null> {
   console.log(`Fetching TikTok video: ${videoId}`);
 
-  // Construct full video URL for API (ScrapeCreators V1 uses url param, not video_id)
-  const videoUrl = `https://www.tiktok.com/@_/video/${videoId}`;
+  const preferredUrl = inputUrl || `https://www.tiktok.com/@_/video/${videoId}`;
+  const usernameFromUrl = inputUrl ? extractTikTokUsername(inputUrl) : null;
 
-  // Try paid API first - V1 endpoint with full URL
+  // Try paid API first - ScrapeCreators V1 endpoint with full URL
   try {
     const response = await fetch(
-      `https://api.scrapecreators.com/v1/tiktok/video?url=${encodeURIComponent(videoUrl)}`,
+      `https://api.scrapecreators.com/v1/tiktok/video?url=${encodeURIComponent(preferredUrl)}`,
       {
         method: 'GET',
         headers: {
@@ -158,10 +170,19 @@ async function fetchTikTokVideo(videoId: string, apiKey: string): Promise<VideoD
 
       console.log('TikTok video data received:', JSON.stringify(video).substring(0, 500));
 
-      return {
+      // Some responses are "success" but contain a restriction (e.g. cross_border_violation)
+      const statusMsg = String(video.statusMsg || video.status_msg || '').toLowerCase();
+      const statusCode = Number(video.statusCode || video.status_code || 0);
+      const isRestricted = statusCode === 10231 || statusMsg.includes('cross_border');
+
+      const mapped: VideoDetails = {
         platform: 'tiktok',
+        source: 'api',
         videoId: video.id || video.aweme_id || videoId,
-        videoUrl: video.share_url || video.video?.playAddr || `https://www.tiktok.com/@${video.author?.unique_id || 'user'}/video/${videoId}`,
+        videoUrl:
+          video.share_url ||
+          video.video?.playAddr ||
+          (usernameFromUrl ? `https://www.tiktok.com/@${usernameFromUrl}/video/${videoId}` : `https://www.tiktok.com/@_/video/${videoId}`),
         caption: video.desc || video.description,
         thumbnailUrl: video.video?.cover || video.video?.originCover || video.cover,
         viewsCount: video.stats?.playCount || video.play_count || video.statistics?.playCount || 0,
@@ -176,21 +197,125 @@ async function fetchTikTokVideo(videoId: string, apiKey: string): Promise<VideoD
           avatarUrl: video.author?.avatar_larger || video.author?.avatarLarger,
         },
       };
+
+      // If API returned real metrics, we're done
+      const hasAnyMetrics = (mapped.viewsCount || 0) > 0 || (mapped.likesCount || 0) > 0 || (mapped.commentsCount || 0) > 0;
+      if (hasAnyMetrics && !isRestricted) return mapped;
+
+      // Otherwise: try the profile-videos endpoint (this is what the working tiktok-scrape flow uses)
+      if (usernameFromUrl) {
+        const fromProfile = await fetchTikTokVideoFromProfileVideos(videoId, usernameFromUrl, apiKey);
+        if (fromProfile) return fromProfile;
+      }
+
+      // If restricted and we still have basic info, return it (frontend may accept for manual validation)
+      if (mapped.caption || mapped.thumbnailUrl) return { ...mapped, viewsCount: 0, likesCount: 0, commentsCount: 0, sharesCount: 0 };
+    } else {
+      console.error('TikTok video API error:', response.status);
     }
-    console.error('TikTok video API error:', response.status);
   } catch (e) {
     console.error('TikTok fetch error:', e);
   }
 
-  // Fallback: native scraping using oembed endpoint
+  // Fallback: native scraping using oembed endpoint (no metrics)
   console.log('[TikTok] Trying native oembed fallback...');
-  const nativeResult = await fetchTikTokVideoNative(videoId);
-  return nativeResult;
+  return await fetchTikTokVideoNative(videoId, preferredUrl);
 }
 
-async function fetchTikTokVideoNative(videoId: string): Promise<VideoDetails | null> {
+async function fetchTikTokVideoFromProfileVideos(videoId: string, username: string, apiKey: string): Promise<VideoDetails | null> {
   try {
-    const videoPageUrl = `https://www.tiktok.com/@_/video/${videoId}`;
+    const cleanUsername = username.replace('@', '').trim();
+
+    console.log(`[TikTok] Profile videos fallback: ${cleanUsername}`);
+
+    const pageSize = 30;
+    const maxPages = 10;
+    let cursor: string | null = null;
+
+    for (let page = 0; page < maxPages; page++) {
+      const url = new URL('https://api.scrapecreators.com/v3/tiktok/profile/videos');
+      url.searchParams.set('handle', cleanUsername);
+      url.searchParams.set('count', String(pageSize));
+      if (cursor) url.searchParams.set('cursor', cursor);
+
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        console.error('[TikTok] Profile videos fallback error:', res.status);
+        return null;
+      }
+
+      const data = await res.json();
+
+      const list =
+        (Array.isArray(data?.aweme_list) ? data.aweme_list : null) ||
+        (Array.isArray(data?.data?.aweme_list) ? data.data.aweme_list : null) ||
+        (Array.isArray(data?.itemList) ? data.itemList : null) ||
+        (Array.isArray(data?.data?.itemList) ? data.data.itemList : null) ||
+        [];
+
+      const hit = list.find((v: any) => String(v?.id || v?.aweme_id || v?.videoId || '') === String(videoId));
+      if (hit) {
+        const stats = hit?.stats || hit?.statistics || {};
+        const coverObj = hit?.video?.cover || hit?.video?.origin_cover || hit?.cover;
+
+        const thumbnailUrl =
+          typeof coverObj === 'string'
+            ? coverObj
+            : coverObj?.url_list?.[0]
+              ? coverObj.url_list[0]
+              : undefined;
+
+        const viewsCount = Number(stats?.playCount ?? stats?.play_count ?? hit?.playCount ?? hit?.views ?? 0) || 0;
+        const likesCount = Number(stats?.diggCount ?? stats?.digg_count ?? hit?.diggCount ?? hit?.likes ?? 0) || 0;
+        const commentsCount = Number(stats?.commentCount ?? stats?.comment_count ?? hit?.commentCount ?? hit?.comments ?? 0) || 0;
+        const sharesCount = Number(stats?.shareCount ?? stats?.share_count ?? hit?.shareCount ?? hit?.shares ?? 0) || 0;
+
+        return {
+          platform: 'tiktok',
+          source: 'api',
+          videoId: String(hit?.id || hit?.aweme_id || videoId),
+          videoUrl: `https://www.tiktok.com/@${cleanUsername}/video/${videoId}`,
+          caption: hit?.desc || hit?.description || hit?.caption,
+          thumbnailUrl,
+          viewsCount,
+          likesCount,
+          commentsCount,
+          sharesCount,
+          duration: hit?.video?.duration || hit?.duration,
+          publishedAt: hit?.createTime ? new Date(hit.createTime * 1000).toISOString() : undefined,
+          author: { username: cleanUsername },
+        };
+      }
+
+      const next = data?.cursor || data?.next_cursor || data?.data?.cursor || null;
+      const hasMore = !!next && String(next) !== String(cursor);
+
+      console.log(`[TikTok] Profile videos fallback page ${page + 1}: ${Array.isArray(list) ? list.length : 0} items, hasMore=${hasMore}`);
+
+      cursor = next ? String(next) : null;
+      if (!hasMore) break;
+    }
+
+    console.log('[TikTok] Profile videos fallback: video not found after pagination');
+    return null;
+  } catch (e) {
+    console.error('[TikTok] Profile videos fallback exception:', e);
+    return null;
+  }
+}
+
+
+async function fetchTikTokVideoNative(videoId: string, videoUrl?: string): Promise<VideoDetails | null> {
+  try {
+    // Prefer the real URL (with username) because TikTok may block placeholder usernames
+    const videoPageUrl = videoUrl || `https://www.tiktok.com/@_/video/${videoId}`;
     const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(videoPageUrl)}`;
 
     const res = await fetch(oembedUrl, {
@@ -233,6 +358,7 @@ async function fetchTikTokVideoNative(videoId: string): Promise<VideoDetails | n
     return null;
   }
 }
+
 
 async function fetchInstagramPost(postId: string, apiKey: string): Promise<VideoDetails | null> {
   console.log(`Fetching Instagram post: ${postId}`);
@@ -596,6 +722,7 @@ Deno.serve(async (req) => {
 
     let platform = providedPlatform;
     let videoId = providedVideoId;
+    let resolvedUrl: string | undefined;
 
     if (videoUrl) {
       const rawUrl = String(videoUrl).trim();
@@ -617,6 +744,8 @@ Deno.serve(async (req) => {
           console.error('[video-details] failed to resolve TikTok short link:', e);
         }
       }
+
+      resolvedUrl = workingUrl;
 
       videoId = extractVideoId(workingUrl, platform);
       if (!videoId) {
@@ -648,7 +777,7 @@ Deno.serve(async (req) => {
 
     switch (platform) {
       case 'tiktok':
-        videoDetails = await fetchTikTokVideo(videoId, apiKey);
+        videoDetails = await fetchTikTokVideo(videoId, apiKey, resolvedUrl);
         break;
       case 'instagram':
         videoDetails = await fetchInstagramPost(videoId, apiKey);
