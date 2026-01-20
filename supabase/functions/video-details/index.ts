@@ -36,17 +36,21 @@ function detectPlatform(url: string): string | null {
 function extractVideoId(url: string, platform: string): string | null {
   try {
     if (platform === 'tiktok') {
-      // TikTok: https://www.tiktok.com/@user/video/1234567890
-      const match = url.match(/video\/(\d+)/);
+      // Common TikTok formats:
+      // - https://www.tiktok.com/@user/video/1234567890
+      // - https://www.tiktok.com/t/ZXXXX/ (short link -> needs redirect resolving)
+      // - https://vm.tiktok.com/XXXX/ (short link -> needs redirect resolving)
+      // After resolving, most end up with /@user/video/<id>
+      const match = url.match(/\/(?:video|v)\/(\d{8,25})/);
       return match ? match[1] : null;
     }
-    
+
     if (platform === 'instagram') {
       // Instagram: https://www.instagram.com/p/ABC123/ or /reel/ABC123/
       const match = url.match(/\/(p|reel|reels)\/([^\/\?]+)/);
       return match ? match[2] : null;
     }
-    
+
     if (platform === 'youtube') {
       // YouTube: https://www.youtube.com/watch?v=ABC123 or https://youtu.be/ABC123 or /shorts/ABC123
       const urlObj = new URL(url);
@@ -59,11 +63,53 @@ function extractVideoId(url: string, platform: string): string | null {
       }
       return urlObj.searchParams.get('v');
     }
-    
+
     return null;
   } catch {
     return null;
   }
+}
+
+function isTikTokShortLink(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, '');
+    // vm.tiktok.com, m.tiktok.com, tiktok.com/t/... etc
+    return host === 'vm.tiktok.com' || host === 'm.tiktok.com' || (host === 'tiktok.com' && u.pathname.startsWith('/t/'));
+  } catch {
+    return false;
+  }
+}
+
+async function resolveFinalUrl(url: string, maxHops = 5): Promise<string> {
+  // Use GET with redirect-follow to resolve TikTok short links; returns final response.url
+  let current = url;
+
+  for (let i = 0; i < maxHops; i++) {
+    const res = await fetch(current, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; LovableBot/1.0)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+    });
+
+    // If fetch followed redirects, res.url will be the final URL already.
+    if (res.url && res.url !== current) {
+      current = res.url;
+    }
+
+    // If it already looks like a canonical TikTok video URL, stop.
+    if (current.includes('tiktok.com') && current.includes('/video/')) {
+      return current;
+    }
+
+    // Otherwise, no more useful information to gain.
+    return current;
+  }
+
+  return current;
 }
 
 async function fetchTikTokVideo(videoId: string, apiKey: string): Promise<VideoDetails | null> {
@@ -474,28 +520,40 @@ Deno.serve(async (req) => {
     let videoId = providedVideoId;
 
     if (videoUrl) {
-      platform = detectPlatform(videoUrl);
+      const rawUrl = String(videoUrl).trim();
+      let workingUrl = rawUrl;
+
+      platform = detectPlatform(workingUrl);
       if (!platform) {
         return new Response(
           JSON.stringify({ success: false, error: 'Could not detect platform from URL' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      
-      videoId = extractVideoId(videoUrl, platform);
+
+      // TikTok short links often don't contain /video/<id> until redirects are resolved.
+      if (platform === 'tiktok' && isTikTokShortLink(workingUrl)) {
+        try {
+          workingUrl = await resolveFinalUrl(workingUrl);
+        } catch (e) {
+          console.error('[video-details] failed to resolve TikTok short link:', e);
+        }
+      }
+
+      videoId = extractVideoId(workingUrl, platform);
       if (!videoId) {
         // Provide more specific error message based on URL pattern
         let errorMessage = 'Could not extract video ID from URL';
         if (platform === 'instagram') {
-          if (!videoUrl.includes('/p/') && !videoUrl.includes('/reel')) {
+          if (!workingUrl.includes('/p/') && !workingUrl.includes('/reel')) {
             errorMessage = 'URL deve ser de um post ou reel do Instagram (não perfil)';
           }
         } else if (platform === 'tiktok') {
-          if (!videoUrl.includes('/video/')) {
+          if (!workingUrl.includes('/video/') && !workingUrl.includes('/v/')) {
             errorMessage = 'URL deve ser de um vídeo do TikTok (não perfil)';
           }
         } else if (platform === 'youtube') {
-          if (!videoUrl.includes('/shorts/') && !videoUrl.includes('watch?v=') && !videoUrl.includes('youtu.be/')) {
+          if (!workingUrl.includes('/shorts/') && !workingUrl.includes('watch?v=') && !workingUrl.includes('youtu.be/')) {
             errorMessage = 'URL deve ser de um vídeo ou short do YouTube';
           }
         }
