@@ -74,8 +74,11 @@ function isTikTokShortLink(url: string): boolean {
   try {
     const u = new URL(url);
     const host = u.hostname.replace(/^www\./, '');
-    // vm.tiktok.com, m.tiktok.com, tiktok.com/t/... etc
-    return host === 'vm.tiktok.com' || host === 'm.tiktok.com' || (host === 'tiktok.com' && u.pathname.startsWith('/t/'));
+    // Common TikTok short-link subdomains: vm, vt, m, and tiktok.com/t/...
+    const shortSubdomains = ['vm.tiktok.com', 'vt.tiktok.com', 'm.tiktok.com'];
+    if (shortSubdomains.includes(host)) return true;
+    if (host === 'tiktok.com' && u.pathname.startsWith('/t/')) return true;
+    return false;
   } catch {
     return false;
   }
@@ -114,46 +117,100 @@ async function resolveFinalUrl(url: string, maxHops = 5): Promise<string> {
 
 async function fetchTikTokVideo(videoId: string, apiKey: string): Promise<VideoDetails | null> {
   console.log(`Fetching TikTok video: ${videoId}`);
-  
-  const response = await fetch(
-    `https://api.scrapecreators.com/v2/tiktok/video?video_id=${encodeURIComponent(videoId)}`,
-    {
-      method: 'GET',
-      headers: {
-        'x-api-key': apiKey,
-        'Content-Type': 'application/json',
-      },
-    }
-  );
 
-  if (!response.ok) {
+  // Try paid API first
+  try {
+    const response = await fetch(
+      `https://api.scrapecreators.com/v2/tiktok/video?video_id=${encodeURIComponent(videoId)}`,
+      {
+        method: 'GET',
+        headers: {
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      const video = data.data || data;
+
+      console.log('TikTok video data received:', JSON.stringify(video).substring(0, 500));
+
+      return {
+        platform: 'tiktok',
+        videoId: video.id || video.aweme_id || videoId,
+        videoUrl: video.share_url || video.video?.playAddr || `https://www.tiktok.com/@${video.author?.unique_id || 'user'}/video/${videoId}`,
+        caption: video.desc || video.description,
+        thumbnailUrl: video.video?.cover || video.video?.originCover || video.cover,
+        viewsCount: video.stats?.playCount || video.play_count || video.statistics?.playCount || 0,
+        likesCount: video.stats?.diggCount || video.digg_count || video.statistics?.diggCount || 0,
+        commentsCount: video.stats?.commentCount || video.comment_count || video.statistics?.commentCount || 0,
+        sharesCount: video.stats?.shareCount || video.share_count || video.statistics?.shareCount || 0,
+        duration: video.video?.duration || video.duration,
+        publishedAt: video.createTime ? new Date(video.createTime * 1000).toISOString() : undefined,
+        author: {
+          username: video.author?.unique_id || video.author?.uniqueId,
+          displayName: video.author?.nickname,
+          avatarUrl: video.author?.avatar_larger || video.author?.avatarLarger,
+        },
+      };
+    }
     console.error('TikTok video API error:', response.status);
-    return null;
+  } catch (e) {
+    console.error('TikTok fetch error:', e);
   }
 
-  const data = await response.json();
-  const video = data.data || data;
-  
-  console.log('TikTok video data received:', JSON.stringify(video).substring(0, 500));
+  // Fallback: native scraping using oembed endpoint
+  console.log('[TikTok] Trying native oembed fallback...');
+  const nativeResult = await fetchTikTokVideoNative(videoId);
+  return nativeResult;
+}
 
-  return {
-    platform: 'tiktok',
-    videoId: video.id || video.aweme_id || videoId,
-    videoUrl: video.share_url || video.video?.playAddr || `https://www.tiktok.com/@${video.author?.unique_id || 'user'}/video/${videoId}`,
-    caption: video.desc || video.description,
-    thumbnailUrl: video.video?.cover || video.video?.originCover || video.cover,
-    viewsCount: video.stats?.playCount || video.play_count || video.statistics?.playCount || 0,
-    likesCount: video.stats?.diggCount || video.digg_count || video.statistics?.diggCount || 0,
-    commentsCount: video.stats?.commentCount || video.comment_count || video.statistics?.commentCount || 0,
-    sharesCount: video.stats?.shareCount || video.share_count || video.statistics?.shareCount || 0,
-    duration: video.video?.duration || video.duration,
-    publishedAt: video.createTime ? new Date(video.createTime * 1000).toISOString() : undefined,
-    author: {
-      username: video.author?.unique_id || video.author?.uniqueId,
-      displayName: video.author?.nickname,
-      avatarUrl: video.author?.avatar_larger || video.author?.avatarLarger,
-    },
-  };
+async function fetchTikTokVideoNative(videoId: string): Promise<VideoDetails | null> {
+  try {
+    const videoPageUrl = `https://www.tiktok.com/@_/video/${videoId}`;
+    const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(videoPageUrl)}`;
+
+    const res = await fetch(oembedUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; LovableBot/1.0)',
+        Accept: 'application/json',
+      },
+    });
+
+    if (!res.ok) {
+      console.error('[TikTok Native] oembed failed:', res.status);
+      return null;
+    }
+
+    const oembed = await res.json();
+    console.log('[TikTok Native] oembed result:', JSON.stringify(oembed).substring(0, 500));
+
+    // oembed provides limited info: author_name, author_url, title (caption), thumbnail_url
+    const authorUsername = oembed.author_unique_id || oembed.author_url?.match(/@([^\/\?]+)/)?.[1] || '';
+
+    return {
+      platform: 'tiktok',
+      videoId,
+      videoUrl: videoPageUrl,
+      source: 'native',
+      caption: oembed.title,
+      title: oembed.title,
+      thumbnailUrl: oembed.thumbnail_url,
+      viewsCount: 0, // oembed does not include stats
+      likesCount: 0,
+      commentsCount: 0,
+      sharesCount: 0,
+      author: {
+        username: authorUsername,
+        displayName: oembed.author_name,
+      },
+    };
+  } catch (e) {
+    console.error('[TikTok Native] error:', e);
+    return null;
+  }
 }
 
 async function fetchInstagramPost(postId: string, apiKey: string): Promise<VideoDetails | null> {
@@ -586,12 +643,31 @@ Deno.serve(async (req) => {
     }
 
     if (!videoDetails) {
-      const errorMsg = platform === 'instagram' 
-        ? 'Não foi possível obter detalhes do vídeo. O post pode ser privado, deletado ou a API está temporariamente indisponível.'
-        : 'Failed to fetch video details';
+      // Return partial success so frontend can still accept the submission with manual validation
+      // We know the video ID was extracted; we just couldn't fetch metrics.
+      const videoUrl = platform === 'tiktok'
+        ? `https://www.tiktok.com/@_/video/${videoId}`
+        : platform === 'instagram'
+        ? `https://www.instagram.com/p/${videoId}/`
+        : `https://www.youtube.com/watch?v=${videoId}`;
+
       return new Response(
-        JSON.stringify({ success: false, error: errorMsg }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          success: true,
+          partial: true,
+          error: 'Não foi possível obter métricas (vídeo pode ser privado). O vídeo será validado manualmente.',
+          data: {
+            platform,
+            videoId,
+            videoUrl,
+            viewsCount: 0,
+            likesCount: 0,
+            commentsCount: 0,
+            sharesCount: 0,
+            author: null,
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
