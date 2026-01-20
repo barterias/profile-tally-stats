@@ -288,6 +288,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_active: boolean
+          is_private: boolean
           max_paid_views: number | null
           min_views: number | null
           name: string
@@ -310,6 +311,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_private?: boolean
           max_paid_views?: number | null
           min_views?: number | null
           name: string
@@ -332,6 +334,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_private?: boolean
           max_paid_views?: number | null
           min_views?: number | null
           name?: string

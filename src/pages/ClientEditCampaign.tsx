@@ -16,7 +16,7 @@ import { PrizeConfigForm } from "@/components/Ranking/PrizeConfigForm";
 import { useCompetitionPrizes, PrizeConfig } from "@/hooks/useCompetitionPrizes";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { Trophy, ArrowLeft, Save, DollarSign, Flame, Target } from "lucide-react";
+import { Trophy, ArrowLeft, Save, DollarSign, Flame, Target, Lock } from "lucide-react";
 import { CampaignType } from "@/types/campaign";
 
 function ClientEditCampaignContent() {
@@ -41,6 +41,7 @@ function ClientEditCampaignContent() {
     prizeDescription: "",
     rules: "",
     isActive: true,
+    isPrivate: false,
     campaign_type: "pay_per_view" as CampaignType,
     payment_rate: 0,
     min_views: 0,
@@ -114,6 +115,7 @@ function ClientEditCampaignContent() {
         prizeDescription: data.prize_description || "",
         rules: data.rules || "",
         isActive: data.is_active,
+        isPrivate: data.is_private || false,
         campaign_type: (data.campaign_type || 'pay_per_view') as CampaignType,
         payment_rate: Number(data.payment_rate || 0),
         min_views: Number(data.min_views || 0),
@@ -146,6 +148,7 @@ function ClientEditCampaignContent() {
           prize_description: campaign.prizeDescription,
           rules: campaign.rules,
           is_active: campaign.isActive,
+          is_private: campaign.isPrivate,
           campaign_type: campaign.campaign_type,
           payment_rate: campaign.payment_rate,
           min_views: campaign.min_views,
@@ -228,6 +231,27 @@ function ClientEditCampaignContent() {
               checked={campaign.isActive}
               onCheckedChange={(checked) =>
                 setCampaign({ ...campaign, isActive: checked })
+              }
+            />
+          </div>
+
+          {/* Private Campaign */}
+          <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/30">
+            <div className="flex items-center gap-3">
+              <Lock className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <Label className="text-base font-semibold">Campanha Privada</Label>
+                <p className="text-sm text-muted-foreground">
+                  {campaign.isPrivate 
+                    ? "Visível apenas para participantes aprovados" 
+                    : "Visível para todos os usuários"}
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={campaign.isPrivate}
+              onCheckedChange={(checked) =>
+                setCampaign({ ...campaign, isPrivate: checked })
               }
             />
           </div>
