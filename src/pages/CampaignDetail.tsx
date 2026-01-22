@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { GlowCard } from "@/components/ui/GlowCard";
+import { ProfessionalRanking } from "@/components/Ranking/ProfessionalRanking";
 import MainLayout from "@/components/Layout/MainLayout";
 import {
   AlertDialog,
@@ -28,12 +29,7 @@ import {
   Users,
   Video,
   Eye,
-  Heart,
-  MessageCircle,
-  Share2,
   Instagram,
-  Music,
-  Youtube,
   Edit,
   Play,
   Pause,
@@ -41,6 +37,7 @@ import {
   RefreshCw,
   Loader2,
 } from "lucide-react";
+import { SiTiktok, SiYoutube } from "react-icons/si";
 import { format } from "date-fns";
 import { ptBR, enUS } from "date-fns/locale";
 import { toast } from "sonner";
@@ -353,8 +350,8 @@ function CampaignDetailContent() {
   const campaignPlatforms = campaign.platforms || [campaign.platform];
   const getPlatformIcon = (platform: string) => {
     if (platform === "instagram") return Instagram;
-    if (platform === "tiktok") return Music;
-    if (platform === "youtube") return Youtube;
+    if (platform === "tiktok") return SiTiktok;
+    if (platform === "youtube") return SiYoutube;
     return Video;
   };
 
@@ -512,10 +509,7 @@ function CampaignDetailContent() {
           <div className="lg:col-span-2">
             <GlowCard>
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-primary" />
-                  {t('campaign.video_ranking')}
-                </h3>
+                <div /> {/* Spacer for alignment */}
                 {(isAdmin || isOwner) && videos.length > 0 && (
                   <Button
                     variant="outline"
@@ -533,144 +527,27 @@ function CampaignDetailContent() {
                 )}
               </div>
 
-              {videos.length === 0 ? (
-                <div className="text-center py-12">
-                  <Video className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
-                  <p className="text-muted-foreground">{t('campaign.no_videos')}</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {t('campaign.no_videos_desc')}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {videos.map((video, index) => (
-                    <div
-                      key={video.id}
-                      className={`p-4 rounded-xl transition-all hover:scale-[1.01] ${
-                        index === 0
-                          ? "bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20"
-                          : index === 1
-                          ? "bg-gradient-to-r from-gray-400/10 to-gray-500/10 border border-gray-400/20"
-                          : index === 2
-                          ? "bg-gradient-to-r from-orange-600/10 to-orange-700/10 border border-orange-600/20"
-                          : "bg-muted/30 border border-border/50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        {/* Position */}
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                          index === 0
-                            ? "bg-yellow-500/20 text-yellow-400"
-                            : index === 1
-                            ? "bg-gray-400/20 text-gray-300"
-                            : index === 2
-                            ? "bg-orange-600/20 text-orange-400"
-                            : "bg-muted text-muted-foreground"
-                        }`}>
-                          {index + 1}
-                        </div>
-
-                        {/* Platform Icon */}
-                        <div className="hidden sm:flex">
-                          {video.platform === "instagram" && (
-                            <Instagram className="h-5 w-5 text-pink-400" />
-                          )}
-                          {video.platform === "tiktok" && (
-                            <Music className="h-5 w-5 text-cyan-400" />
-                          )}
-                          {video.platform === "youtube" && (
-                            <Youtube className="h-5 w-5 text-red-400" />
-                          )}
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{video.username}</p>
-                          <a
-                            href={video.video_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary/70 hover:text-primary hover:underline truncate block"
-                          >
-                            {t('common.view')} ↗
-                          </a>
-                        </div>
-
-                        {/* Stats */}
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-background/50">
-                            <Eye className="h-3.5 w-3.5 text-green-400" />
-                            <span className="font-semibold">{formatNumber(video.views)}</span>
-                          </div>
-                          <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-background/50">
-                            <Heart className="h-3.5 w-3.5 text-red-400" />
-                            <span>{formatNumber(video.likes)}</span>
-                          </div>
-                          <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-md bg-background/50">
-                            <MessageCircle className="h-3.5 w-3.5 text-blue-400" />
-                            <span>{formatNumber(video.comments)}</span>
-                          </div>
-                          {video.shares > 0 && (
-                            <div className="hidden lg:flex items-center gap-1.5 px-2 py-1 rounded-md bg-background/50">
-                              <Share2 className="h-3.5 w-3.5 text-purple-400" />
-                              <span>{formatNumber(video.shares)}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Admin/Owner Actions */}
-                        {(isAdmin || isOwner) && (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleSyncVideoMetrics(video)}
-                              title="Atualizar métricas"
-                            >
-                              <RefreshCw className="h-4 w-4" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  disabled={deletingVideoId === video.id}
-                                  title="Remover vídeo"
-                                >
-                                  {deletingVideoId === video.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>{t('campaign.confirm_remove')}</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    {t('campaign.confirm_remove_desc')}
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeleteVideo(video.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    {t('common.delete')}
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <ProfessionalRanking
+                videos={videos.slice(0, 15).map(v => ({
+                  id: v.id,
+                  video_link: v.video_link,
+                  platform: v.platform,
+                  views: v.views,
+                  likes: v.likes,
+                  comments: v.comments,
+                  shares: v.shares,
+                  username: v.username,
+                }))}
+                title={t('campaign.video_ranking')}
+                maxItems={15}
+                showActions={isAdmin || isOwner}
+                onSync={(video) => {
+                  const fullVideo = videos.find(v => v.id === video.id);
+                  if (fullVideo) handleSyncVideoMetrics(fullVideo);
+                }}
+                onDelete={(video) => handleDeleteVideo(video.id)}
+                syncing={syncingMetrics}
+              />
             </GlowCard>
           </div>
         </div>
