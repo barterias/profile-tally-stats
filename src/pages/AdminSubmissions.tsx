@@ -78,6 +78,7 @@ function AdminSubmissionsContent() {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [submissions, setSubmissions] = useState<VideoSubmission[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -97,8 +98,10 @@ function AdminSubmissionsContent() {
     fetchSubmissions();
   }, []);
 
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = async (isRefresh = false) => {
     try {
+      if (isRefresh) setRefreshing(true);
+      
       const { data: videosData, error } = await supabase
         .from("campaign_videos")
         .select("*, campaigns(name)")
@@ -128,11 +131,13 @@ function AdminSubmissionsContent() {
       }));
 
       setSubmissions(enrichedData);
+      if (isRefresh) toast.success(t("common.data_updated") || "Dados atualizados!");
     } catch (error) {
       console.error("Error fetching submissions:", error);
       toast.error(t("submissions.error_loading"));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -371,9 +376,9 @@ function AdminSubmissionsContent() {
                 {t("submissions.approve_all") || "Aprovar Todos"} ({pendingCount})
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={fetchSubmissions}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              {t("common.refresh")}
+            <Button variant="outline" size="sm" onClick={() => fetchSubmissions(true)} disabled={refreshing}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? t("common.loading") || "Carregando..." : t("common.refresh")}
             </Button>
             <Button variant="outline" size="sm" onClick={exportFullReport}>
               <Download className="h-4 w-4 mr-2" />
