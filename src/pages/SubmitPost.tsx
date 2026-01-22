@@ -555,6 +555,26 @@ export default function SubmitPost() {
         throw new Error("Adicione pelo menos um link");
       }
 
+      // Check for duplicate links in the current campaign
+      const { data: existingVideos, error: checkError } = await supabase
+        .from("campaign_videos")
+        .select("video_link")
+        .eq("campaign_id", formData.campaignId)
+        .in("video_link", validLinks);
+
+      if (checkError) {
+        console.error("Error checking duplicates:", checkError);
+        throw new Error("Erro ao verificar vídeos existentes");
+      }
+
+      const existingLinks = new Set((existingVideos || []).map(v => v.video_link));
+      const duplicateLinks = validLinks.filter(link => existingLinks.has(link));
+
+      if (duplicateLinks.length > 0) {
+        const duplicateCount = duplicateLinks.length;
+        throw new Error(`${duplicateCount} link(s) já cadastrado(s) nesta campanha. Remova os duplicados antes de enviar.`);
+      }
+
       // Check if all links have been validated
       const allLinksValidated = validLinks.every((_, index) => validatedLinks[index]?.valid === true);
       
