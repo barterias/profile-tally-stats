@@ -6,9 +6,11 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ProfessionalRanking } from "@/components/Ranking/ProfessionalRanking";
+import { ParticipantsList } from "@/components/Campaign/ParticipantsList";
 import MainLayout from "@/components/Layout/MainLayout";
 import { cn } from "@/lib/utils";
 import {
@@ -68,6 +70,19 @@ interface CampaignVideo {
   hashtags?: string[];
 }
 
+interface Participant {
+  id: string;
+  user_id: string;
+  username: string;
+  avatar_url?: string;
+  status: string;
+  applied_at: string;
+  approved_at?: string;
+  total_videos?: number;
+  total_views?: number;
+  rank_position?: number;
+}
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -94,10 +109,12 @@ function CampaignDetailContent() {
   const { t, language } = useLanguage();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [videos, setVideos] = useState<CampaignVideo[]>([]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
   const [syncingMetrics, setSyncingMetrics] = useState(false);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("ranking");
   
   const dateLocale = language === 'pt' ? ptBR : enUS;
 
@@ -112,6 +129,7 @@ function CampaignDetailContent() {
 
   useEffect(() => {
     fetchCampaignData();
+    fetchParticipants();
     checkOwnership();
   }, [id, user]);
 
@@ -307,6 +325,111 @@ function CampaignDetailContent() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchParticipants = async () => {
+    if (!id) return;
+    
+    try {
+      // Fetch participants
+      const { data: participantsData, error } = await supabase
+        .from("campaign_participants")
+        .select("*")
+        .eq("campaign_id", id)
+        .order("applied_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (participantsData && participantsData.length > 0) {
+        // Get user profiles
+        const userIds = [...new Set(participantsData.map(p => p.user_id))];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, username, avatar_url")
+          .in("id", userIds);
+
+        const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+        // Get video stats per user
+        const { data: videoStats } = await supabase
+          .from("campaign_videos")
+          .select("submitted_by, views")
+          .eq("campaign_id", id);
+
+        const userStats = new Map<string, { videos: number; views: number }>();
+        videoStats?.forEach(v => {
+          const current = userStats.get(v.submitted_by) || { videos: 0, views: 0 };
+          userStats.set(v.submitted_by, {
+            videos: current.videos + 1,
+            views: current.views + (v.views || 0),
+          });
+        });
+
+        // Build participants list with rankings
+        const approvedWithStats = participantsData
+          .filter(p => p.status === "approved")
+          .map(p => ({
+            ...p,
+            total_views: userStats.get(p.user_id)?.views || 0,
+          }))
+          .sort((a, b) => b.total_views - a.total_views);
+
+        const rankMap = new Map(approvedWithStats.map((p, i) => [p.user_id, i + 1]));
+
+        const processedParticipants: Participant[] = participantsData.map(p => {
+          const profile = profilesMap.get(p.user_id);
+          const stats = userStats.get(p.user_id);
+          return {
+            id: p.id,
+            user_id: p.user_id,
+            username: profile?.username || "Usuário",
+            avatar_url: profile?.avatar_url,
+            status: p.status,
+            applied_at: p.applied_at,
+            approved_at: p.approved_at,
+            total_videos: stats?.videos || 0,
+            total_views: stats?.views || 0,
+            rank_position: p.status === "approved" ? rankMap.get(p.user_id) : undefined,
+          };
+        });
+
+        setParticipants(processedParticipants);
+      } else {
+        setParticipants([]);
+      }
+    } catch (error) {
+      console.error("Error fetching participants:", error);
+    }
+  };
+
+  const handleApproveParticipant = async (participantId: string) => {
+    try {
+      const { error } = await supabase.rpc("approve_participant", {
+        p_participant_id: participantId,
+      });
+
+      if (error) throw error;
+      
+      toast.success("Participante aprovado!");
+      fetchParticipants();
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao aprovar participante");
+    }
+  };
+
+  const handleRejectParticipant = async (participantId: string) => {
+    try {
+      const { error } = await supabase.rpc("reject_participant", {
+        p_participant_id: participantId,
+      });
+
+      if (error) throw error;
+      
+      toast.success("Participante rejeitado");
+      fetchParticipants();
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao rejeitar participante");
     }
   };
 
@@ -667,53 +790,89 @@ function CampaignDetailContent() {
             )}
           </motion.div>
 
-          {/* Right Column - Ranking */}
+          {/* Right Column - Tabs (Ranking & Participants) */}
           <motion.div 
             variants={itemVariants}
             className="lg:col-span-2"
           >
             <div className="rounded-2xl border border-border/50 bg-gradient-to-br from-card via-card/80 to-card/50 p-6 backdrop-blur-sm">
-              {/* Sync Button */}
-              {(isAdmin || isOwner) && videos.length > 0 && (
-                <div className="flex justify-end mb-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSyncAllMetrics}
-                    disabled={syncingMetrics}
-                    className="gap-2"
-                  >
-                    {syncingMetrics ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    {syncingMetrics ? t('campaign.syncing') : t('campaign.sync_all')}
-                  </Button>
-                </div>
-              )}
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <div className="flex items-center justify-between mb-6">
+                  <TabsList className="bg-muted/30 border border-border/50">
+                    <TabsTrigger
+                      value="ranking"
+                      className="gap-2 data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
+                    >
+                      <Trophy className="h-4 w-4" />
+                      Ranking
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="participants"
+                      className="gap-2 data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
+                    >
+                      <Users className="h-4 w-4" />
+                      Participantes
+                      {participants.filter(p => p.status === "requested").length > 0 && (
+                        <Badge className="ml-1 h-5 w-5 p-0 flex items-center justify-center bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                          {participants.filter(p => p.status === "requested").length}
+                        </Badge>
+                      )}
+                    </TabsTrigger>
+                  </TabsList>
 
-              <ProfessionalRanking
-                videos={videos.slice(0, 15).map(v => ({
-                  id: v.id,
-                  video_link: v.video_link,
-                  platform: v.platform,
-                  views: v.views,
-                  likes: v.likes,
-                  comments: v.comments,
-                  shares: v.shares,
-                  username: v.username,
-                }))}
-                title={t('campaign.video_ranking')}
-                maxItems={15}
-                showActions={isAdmin || isOwner}
-                onSync={(video) => {
-                  const fullVideo = videos.find(v => v.id === video.id);
-                  if (fullVideo) handleSyncVideoMetrics(fullVideo);
-                }}
-                onDelete={(video) => handleDeleteVideo(video.id)}
-                syncing={syncingMetrics}
-              />
+                  {/* Sync Button - Only show on ranking tab */}
+                  {activeTab === "ranking" && (isAdmin || isOwner) && videos.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSyncAllMetrics}
+                      disabled={syncingMetrics}
+                      className="gap-2"
+                    >
+                      {syncingMetrics ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      {syncingMetrics ? t('campaign.syncing') : t('campaign.sync_all')}
+                    </Button>
+                  )}
+                </div>
+
+                <TabsContent value="ranking" className="mt-0">
+                  <ProfessionalRanking
+                    videos={videos.slice(0, 15).map(v => ({
+                      id: v.id,
+                      video_link: v.video_link,
+                      platform: v.platform,
+                      views: v.views,
+                      likes: v.likes,
+                      comments: v.comments,
+                      shares: v.shares,
+                      username: v.username,
+                    }))}
+                    title={t('campaign.video_ranking')}
+                    maxItems={15}
+                    showActions={isAdmin || isOwner}
+                    onSync={(video) => {
+                      const fullVideo = videos.find(v => v.id === video.id);
+                      if (fullVideo) handleSyncVideoMetrics(fullVideo);
+                    }}
+                    onDelete={(video) => handleDeleteVideo(video.id)}
+                    syncing={syncingMetrics}
+                  />
+                </TabsContent>
+
+                <TabsContent value="participants" className="mt-0">
+                  <ParticipantsList
+                    participants={participants}
+                    showActions={isAdmin || isOwner}
+                    onApprove={handleApproveParticipant}
+                    onReject={handleRejectParticipant}
+                    language={language}
+                  />
+                </TabsContent>
+              </Tabs>
             </div>
           </motion.div>
         </div>
