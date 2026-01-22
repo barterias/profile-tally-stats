@@ -115,29 +115,56 @@ export default function SubmitPost() {
   const fetchUserAccounts = async () => {
     if (!user) return;
 
-    // Fetch all social accounts for the user with IDs
+    // Admins see ALL accounts, others see only their own
+    const isAdminOrClient = role === 'admin' || role === 'client';
+
     const [tiktokRes, instagramRes, youtubeRes] = await Promise.all([
-      supabase
-        .from("tiktok_accounts")
-        .select("id, username, profile_url")
-        .eq("user_id", user.id)
-        .eq("is_active", true),
-      supabase
-        .from("instagram_accounts")
-        .select("id, username, profile_url")
-        .eq("user_id", user.id)
-        .eq("is_active", true),
-      supabase
-        .from("youtube_accounts")
-        .select("id, username, profile_url")
-        .eq("user_id", user.id)
-        .eq("is_active", true),
+      isAdminOrClient
+        ? supabase
+            .from("tiktok_accounts")
+            .select("id, username, profile_url")
+            .or('is_active.is.null,is_active.eq.true')
+        : supabase
+            .from("tiktok_accounts")
+            .select("id, username, profile_url")
+            .eq("user_id", user.id)
+            .eq("is_active", true),
+      isAdminOrClient
+        ? supabase
+            .from("instagram_accounts")
+            .select("id, username, profile_url")
+            .or('is_active.is.null,is_active.eq.true')
+        : supabase
+            .from("instagram_accounts")
+            .select("id, username, profile_url")
+            .eq("user_id", user.id)
+            .eq("is_active", true),
+      isAdminOrClient
+        ? supabase
+            .from("youtube_accounts")
+            .select("id, username, profile_url")
+            .or('is_active.is.null,is_active.eq.true')
+        : supabase
+            .from("youtube_accounts")
+            .select("id, username, profile_url")
+            .eq("user_id", user.id)
+            .eq("is_active", true),
     ]);
 
+    // Deduplicate by username for admins/clients
+    const dedupeByUsername = (accounts: SocialAccount[]) => {
+      const seen = new Set<string>();
+      return accounts.filter(acc => {
+        if (seen.has(acc.username.toLowerCase())) return false;
+        seen.add(acc.username.toLowerCase());
+        return true;
+      });
+    };
+
     setUserAccounts({
-      tiktok: tiktokRes.data || [],
-      instagram: instagramRes.data || [],
-      youtube: youtubeRes.data || [],
+      tiktok: isAdminOrClient ? dedupeByUsername(tiktokRes.data || []) : (tiktokRes.data || []),
+      instagram: isAdminOrClient ? dedupeByUsername(instagramRes.data || []) : (instagramRes.data || []),
+      youtube: isAdminOrClient ? dedupeByUsername(youtubeRes.data || []) : (youtubeRes.data || []),
     });
   };
 
