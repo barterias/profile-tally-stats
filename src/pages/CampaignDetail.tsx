@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,20 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { GlowCard } from "@/components/ui/GlowCard";
 import { ProfessionalRanking } from "@/components/Ranking/ProfessionalRanking";
 import MainLayout from "@/components/Layout/MainLayout";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 import {
   Trophy,
   ArrowLeft,
@@ -33,12 +23,19 @@ import {
   Edit,
   Play,
   Pause,
-  Trash2,
   RefreshCw,
   Loader2,
+  Sparkles,
+  Target,
+  Clock,
+  TrendingUp,
+  Heart,
+  MessageCircle,
+  FileText,
+  Hash,
 } from "lucide-react";
 import { SiTiktok, SiYoutube } from "react-icons/si";
-import { format } from "date-fns";
+import { format, differenceInDays, isPast } from "date-fns";
 import { ptBR, enUS } from "date-fns/locale";
 import { toast } from "sonner";
 
@@ -70,6 +67,23 @@ interface CampaignVideo {
   username?: string;
   hashtags?: string[];
 }
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { type: "spring" as const, stiffness: 300, damping: 24 },
+  },
+};
 
 function CampaignDetailContent() {
   const { id } = useParams<{ id: string }>();
@@ -167,12 +181,10 @@ function CampaignDetailContent() {
           shares: data.data.sharesCount || 0,
         };
         
-        // Update local state
         setVideos(videos.map(v => 
           v.id === video.id ? { ...v, ...updatedMetrics } : v
         ).sort((a, b) => (b.views || 0) - (a.views || 0)));
         
-        // Update database
         await supabase
           .from("campaign_videos")
           .update(updatedMetrics)
@@ -195,9 +207,7 @@ function CampaignDetailContent() {
     for (const video of videos) {
       try {
         const { data, error } = await supabase.functions.invoke('video-details', {
-          body: { 
-            videoUrl: video.video_link,
-          },
+          body: { videoUrl: video.video_link },
         });
 
         if (!error && data?.success && data?.data) {
@@ -214,21 +224,15 @@ function CampaignDetailContent() {
             .eq("id", video.id);
           
           if (updateError) {
-            console.error(`Error updating video ${video.id}:`, updateError);
             errorCount++;
           } else {
-            // Update local state immediately
             setVideos(prev => prev.map(v => 
-              v.id === video.id 
-                ? { ...v, ...updatedMetrics }
-                : v
+              v.id === video.id ? { ...v, ...updatedMetrics } : v
             ));
             successCount++;
           }
         } else if (data?.invalidUrl) {
-          // URL is invalid (e.g., profile URL instead of video URL)
           invalidUrlCount++;
-          console.warn(`Invalid URL for video ${video.id}: ${video.video_link}`);
         } else {
           errorCount++;
         }
@@ -237,19 +241,12 @@ function CampaignDetailContent() {
       }
     }
 
-    // Refresh data
     await fetchCampaignData();
     setSyncingMetrics(false);
     
-    if (successCount > 0) {
-      toast.success(`${successCount} ${t('campaign.videos_updated')}`);
-    }
-    if (invalidUrlCount > 0) {
-      toast.warning(`${invalidUrlCount} ${t('campaign.invalid_links')} (${t('campaign.profile_url_not_allowed')})`);
-    }
-    if (errorCount > 0) {
-      toast.error(`${errorCount} ${t('campaign.videos_error')}`);
-    }
+    if (successCount > 0) toast.success(`${successCount} ${t('campaign.videos_updated')}`);
+    if (invalidUrlCount > 0) toast.warning(`${invalidUrlCount} ${t('campaign.invalid_links')}`);
+    if (errorCount > 0) toast.error(`${errorCount} ${t('campaign.videos_error')}`);
   };
 
   const fetchCampaignData = async () => {
@@ -263,14 +260,12 @@ function CampaignDetailContent() {
       if (campaignError) throw campaignError;
       setCampaign(campaignData);
 
-      // Fetch videos submitted to this campaign - use stored data from campaign_videos table
       const { data: videosData } = await supabase
         .from("campaign_videos")
         .select("*")
         .eq("campaign_id", id);
 
       if (videosData && videosData.length > 0) {
-        // Get usernames for all submitted_by users
         const userIds = [...new Set(videosData?.map(v => v.submitted_by).filter(Boolean))];
         let usernamesMap: Record<string, string> = {};
         
@@ -285,7 +280,6 @@ function CampaignDetailContent() {
           }
         }
 
-        // Process videos using stored metrics from campaign_videos table
         const processedVideos = videosData.map((video) => ({
           id: video.id,
           video_link: video.video_link,
@@ -316,7 +310,6 @@ function CampaignDetailContent() {
     }
   };
 
-
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
@@ -327,7 +320,11 @@ function CampaignDetailContent() {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-[60vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full"
+          />
         </div>
       </MainLayout>
     );
@@ -336,13 +333,18 @@ function CampaignDetailContent() {
   if (!campaign) {
     return (
       <MainLayout>
-        <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-          <Trophy className="h-16 w-16 text-muted-foreground mb-4" />
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center justify-center h-[60vh] text-center"
+        >
+          <Trophy className="h-20 w-20 text-muted-foreground/30 mb-6" />
           <h2 className="text-2xl font-bold mb-2">{t('campaign.not_found')}</h2>
-          <Button onClick={() => navigate("/campaigns")} className="mt-4">
+          <p className="text-muted-foreground mb-6">A campanha que você procura não existe</p>
+          <Button onClick={() => navigate("/campaigns")} size="lg">
             {t('campaign.back_to_campaigns')}
           </Button>
-        </div>
+        </motion.div>
       </MainLayout>
     );
   }
@@ -355,177 +357,341 @@ function CampaignDetailContent() {
     return Video;
   };
 
+  const getPlatformColor = (platform: string) => {
+    if (platform === "instagram") return "text-pink-400";
+    if (platform === "tiktok") return "text-cyan-400";
+    if (platform === "youtube") return "text-red-500";
+    return "text-muted-foreground";
+  };
+
   const totalViews = videos.reduce((sum, v) => sum + (v.views || 0), 0);
+  const totalLikes = videos.reduce((sum, v) => sum + (v.likes || 0), 0);
+  const totalComments = videos.reduce((sum, v) => sum + (v.comments || 0), 0);
   const totalParticipants = new Set(videos.map(v => v.username)).size;
+  
+  const daysRemaining = differenceInDays(new Date(campaign.end_date), new Date());
+  const isEnded = isPast(new Date(campaign.end_date));
+  const engagementRate = totalViews > 0 ? ((totalLikes + totalComments) / totalViews * 100).toFixed(2) : "0";
 
   return (
     <MainLayout>
-      <div className="space-y-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate(getBackPath())}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
-                  {campaign.name}
-                </h1>
-                <Badge className={campaign.is_active ? "bg-green-500/20 text-green-400" : "bg-muted"}>
-                  {campaign.is_active ? t('campaign.active_status') : t('campaign.ended_status')}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  {format(new Date(campaign.start_date), "dd MMM", { locale: dateLocale })} - {format(new Date(campaign.end_date), "dd MMM yyyy", { locale: dateLocale })}
-                </div>
-                <div className="flex items-center gap-1">
-                  {campaignPlatforms.map((platform) => {
-                    const Icon = getPlatformIcon(platform);
-                    return <Icon key={platform} className="h-4 w-4" />;
-                  })}
-                </div>
-              </div>
-            </div>
+      <motion.div 
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="space-y-8"
+      >
+        {/* Hero Header */}
+        <motion.div 
+          variants={itemVariants}
+          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent border border-primary/20 p-6 md:p-8"
+        >
+          {/* Background Pattern */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_30%_20%,_var(--tw-gradient-stops))] from-primary via-transparent to-transparent" />
           </div>
           
-          {/* Admin Actions - Only for admins */}
-          {isAdmin && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/admin/edit-campaign/${campaign.id}`)}
+          <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            {/* Left Side - Campaign Info */}
+            <div className="flex items-start gap-4">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => navigate(getBackPath())}
+                className="rounded-full bg-background/50 backdrop-blur-sm hover:bg-background/80 shrink-0"
               >
-                <Edit className="h-4 w-4 mr-2" />
-                {t('common.edit')}
+                <ArrowLeft className="h-5 w-5" />
               </Button>
-              <Button
-                variant={campaign.is_active ? "outline" : "default"}
-                size="sm"
-                onClick={handleToggleStatus}
-              >
-                {campaign.is_active ? (
-                  <>
-                    <Pause className="h-4 w-4 mr-2" />
-                    {t('campaigns.pause')}
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4 mr-2" />
-                    {t('campaigns.activate')}
-                  </>
+              
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-foreground via-foreground to-foreground/70 bg-clip-text">
+                    {campaign.name}
+                  </h1>
+                  <Badge 
+                    className={cn(
+                      "px-3 py-1 text-sm font-medium gap-1.5",
+                      campaign.is_active 
+                        ? "bg-green-500/20 text-green-400 border-green-500/30" 
+                        : "bg-muted text-muted-foreground border-border"
+                    )}
+                  >
+                    <span className={cn(
+                      "w-2 h-2 rounded-full",
+                      campaign.is_active ? "bg-green-400 animate-pulse" : "bg-muted-foreground"
+                    )} />
+                    {campaign.is_active ? t('campaign.active_status') : t('campaign.ended_status')}
+                  </Badge>
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-4 text-sm">
+                  {/* Date Range */}
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/50 backdrop-blur-sm border border-border/50">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <span className="text-muted-foreground">
+                      {format(new Date(campaign.start_date), "dd MMM", { locale: dateLocale })} - {format(new Date(campaign.end_date), "dd MMM yyyy", { locale: dateLocale })}
+                    </span>
+                  </div>
+                  
+                  {/* Time Remaining */}
+                  {!isEnded && campaign.is_active && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/30">
+                      <Clock className="h-4 w-4 text-orange-400" />
+                      <span className="text-orange-400 font-medium">
+                        {daysRemaining} {language === 'pt' ? 'dias restantes' : 'days left'}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Platforms */}
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/50 backdrop-blur-sm border border-border/50">
+                    {campaignPlatforms.map((platform) => {
+                      const Icon = getPlatformIcon(platform);
+                      return (
+                        <Icon 
+                          key={platform} 
+                          className={cn("h-4 w-4", getPlatformColor(platform))} 
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Hashtags */}
+                {campaign.hashtags && campaign.hashtags.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Hash className="h-4 w-4 text-primary" />
+                    {campaign.hashtags.slice(0, 5).map((tag, i) => (
+                      <span 
+                        key={i}
+                        className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary border border-primary/20"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
                 )}
-              </Button>
+              </div>
             </div>
-          )}
-        </div>
+            
+            {/* Right Side - Admin Actions */}
+            {(isAdmin || isOwner) && (
+              <div className="flex items-center gap-2 lg:flex-col lg:items-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/admin/edit-campaign/${campaign.id}`)}
+                  className="gap-2 bg-background/50 backdrop-blur-sm"
+                >
+                  <Edit className="h-4 w-4" />
+                  {t('common.edit')}
+                </Button>
+                <Button
+                  variant={campaign.is_active ? "outline" : "default"}
+                  size="sm"
+                  onClick={handleToggleStatus}
+                  className={cn(
+                    "gap-2",
+                    !campaign.is_active && "bg-green-500 hover:bg-green-600"
+                  )}
+                >
+                  {campaign.is_active ? (
+                    <>
+                      <Pause className="h-4 w-4" />
+                      {t('campaigns.pause')}
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4" />
+                      {t('campaigns.activate')}
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </motion.div>
 
-        {/* Hashtags Badge */}
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <GlowCard glowColor="green">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground font-medium">{t('campaign.total_views')}</p>
-                <p className="text-3xl font-bold mt-1">{formatNumber(totalViews)}</p>
+        {/* Stats Grid */}
+        <motion.div 
+          variants={containerVariants}
+          className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4"
+        >
+          {[
+            { 
+              label: t('campaign.total_views'), 
+              value: formatNumber(totalViews), 
+              icon: Eye, 
+              color: "green",
+              gradient: "from-green-500/20 to-emerald-500/10",
+              iconBg: "bg-green-500/15",
+              iconColor: "text-green-400"
+            },
+            { 
+              label: t('campaign.recognized_videos'), 
+              value: videos.length.toString(), 
+              icon: Video, 
+              color: "blue",
+              gradient: "from-blue-500/20 to-cyan-500/10",
+              iconBg: "bg-blue-500/15",
+              iconColor: "text-blue-400"
+            },
+            { 
+              label: t('campaigns.participants'), 
+              value: totalParticipants.toString(), 
+              icon: Users, 
+              color: "purple",
+              gradient: "from-purple-500/20 to-pink-500/10",
+              iconBg: "bg-purple-500/15",
+              iconColor: "text-purple-400"
+            },
+            { 
+              label: "Total Likes", 
+              value: formatNumber(totalLikes), 
+              icon: Heart, 
+              color: "red",
+              gradient: "from-red-500/20 to-pink-500/10",
+              iconBg: "bg-red-500/15",
+              iconColor: "text-red-400"
+            },
+            { 
+              label: "Comentários", 
+              value: formatNumber(totalComments), 
+              icon: MessageCircle, 
+              color: "cyan",
+              gradient: "from-cyan-500/20 to-blue-500/10",
+              iconBg: "bg-cyan-500/15",
+              iconColor: "text-cyan-400"
+            },
+            { 
+              label: "Engajamento", 
+              value: `${engagementRate}%`, 
+              icon: TrendingUp, 
+              color: "amber",
+              gradient: "from-amber-500/20 to-orange-500/10",
+              iconBg: "bg-amber-500/15",
+              iconColor: "text-amber-400"
+            },
+          ].map((stat, index) => (
+            <motion.div
+              key={stat.label}
+              variants={itemVariants}
+              whileHover={{ scale: 1.02, y: -2 }}
+              className={cn(
+                "relative overflow-hidden rounded-2xl border p-4",
+                "bg-gradient-to-br backdrop-blur-sm",
+                stat.gradient,
+                `border-${stat.color}-500/20`
+              )}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium mb-1">{stat.label}</p>
+                  <p className="text-2xl font-bold">{stat.value}</p>
+                </div>
+                <div className={cn("p-2 rounded-xl", stat.iconBg)}>
+                  <stat.icon className={cn("h-5 w-5", stat.iconColor)} />
+                </div>
               </div>
-              <div className="p-3 rounded-xl bg-green-500/15">
-                <Eye className="h-6 w-6 text-green-400" />
-              </div>
-            </div>
-          </GlowCard>
-          
-          <GlowCard glowColor="blue">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground font-medium">{t('campaign.recognized_videos')}</p>
-                <p className="text-3xl font-bold mt-1">{videos.length}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-blue-500/15">
-                <Video className="h-6 w-6 text-blue-400" />
-              </div>
-            </div>
-          </GlowCard>
-          
-          <GlowCard glowColor="purple">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground font-medium">{t('campaigns.participants')}</p>
-                <p className="text-3xl font-bold mt-1">{totalParticipants}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-purple-500/15">
-                <Users className="h-6 w-6 text-purple-400" />
-              </div>
-            </div>
-          </GlowCard>
-        </div>
+            </motion.div>
+          ))}
+        </motion.div>
 
+        {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Campaign Info */}
-          <div className="space-y-6">
+          <motion.div variants={containerVariants} className="space-y-6">
             {/* Description */}
             {campaign.description && (
-              <GlowCard>
-                <h3 className="font-semibold mb-3">{t('campaign.about')}</h3>
+              <motion.div 
+                variants={itemVariants}
+                whileHover={{ scale: 1.01 }}
+                className="rounded-2xl border border-border/50 bg-gradient-to-br from-card to-card/50 p-6 backdrop-blur-sm"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <FileText className="h-4 w-4 text-primary" />
+                  </div>
+                  <h3 className="font-semibold">{t('campaign.about')}</h3>
+                </div>
                 <p className="text-muted-foreground text-sm leading-relaxed">
                   {campaign.description}
                 </p>
-              </GlowCard>
+              </motion.div>
             )}
 
             {/* Prize */}
             {campaign.prize_description && (
-              <GlowCard glowColor="orange">
+              <motion.div 
+                variants={itemVariants}
+                whileHover={{ scale: 1.01 }}
+                className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent p-6"
+              >
+                <motion.div
+                  animate={{ opacity: [0.3, 0.6, 0.3] }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                  className="absolute top-2 right-2"
+                >
+                  <Sparkles className="h-5 w-5 text-amber-400" />
+                </motion.div>
+                
                 <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-orange-500/15">
-                    <Award className="h-5 w-5 text-orange-400" />
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 ring-1 ring-amber-500/30">
+                    <Award className="h-5 w-5 text-amber-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">{t('campaign.prizes')}</h3>
-                    <p className="text-sm text-muted-foreground">{campaign.prize_description}</p>
+                    <h3 className="font-bold text-amber-400 mb-2">{t('campaign.prizes')}</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{campaign.prize_description}</p>
                   </div>
                 </div>
-              </GlowCard>
+              </motion.div>
             )}
 
             {/* Rules */}
             {campaign.rules && (
-              <GlowCard>
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-primary" />
-                  {t('campaigns.rules')}
-                </h3>
+              <motion.div 
+                variants={itemVariants}
+                whileHover={{ scale: 1.01 }}
+                className="rounded-2xl border border-border/50 bg-gradient-to-br from-card to-card/50 p-6 backdrop-blur-sm"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Target className="h-4 w-4 text-primary" />
+                  </div>
+                  <h3 className="font-semibold">{t('campaigns.rules')}</h3>
+                </div>
                 <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
                   {campaign.rules}
                 </p>
-              </GlowCard>
+              </motion.div>
             )}
-          </div>
+          </motion.div>
 
           {/* Right Column - Ranking */}
-          <div className="lg:col-span-2">
-            <GlowCard>
-              <div className="flex items-center justify-between mb-6">
-                <div /> {/* Spacer for alignment */}
-                {(isAdmin || isOwner) && videos.length > 0 && (
+          <motion.div 
+            variants={itemVariants}
+            className="lg:col-span-2"
+          >
+            <div className="rounded-2xl border border-border/50 bg-gradient-to-br from-card via-card/80 to-card/50 p-6 backdrop-blur-sm">
+              {/* Sync Button */}
+              {(isAdmin || isOwner) && videos.length > 0 && (
+                <div className="flex justify-end mb-4">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleSyncAllMetrics}
                     disabled={syncingMetrics}
+                    className="gap-2"
                   >
                     {syncingMetrics ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <RefreshCw className="h-4 w-4 mr-2" />
+                      <RefreshCw className="h-4 w-4" />
                     )}
                     {syncingMetrics ? t('campaign.syncing') : t('campaign.sync_all')}
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
 
               <ProfessionalRanking
                 videos={videos.slice(0, 15).map(v => ({
@@ -548,10 +714,10 @@ function CampaignDetailContent() {
                 onDelete={(video) => handleDeleteVideo(video.id)}
                 syncing={syncingMetrics}
               />
-            </GlowCard>
-          </div>
+            </div>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
     </MainLayout>
   );
 }
