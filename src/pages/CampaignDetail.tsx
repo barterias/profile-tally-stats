@@ -298,19 +298,43 @@ function CampaignDetailContent() {
           }
         }
 
-        const processedVideos = videosData.map((video) => ({
-          id: video.id,
-          video_link: video.video_link,
-          platform: video.platform,
-          views: video.views || 0,
-          likes: video.likes || 0,
-          comments: video.comments || 0,
-          shares: video.shares || 0,
-          submitted_at: video.submitted_at,
-          submitted_by: video.submitted_by,
-          verified: video.verified,
-          username: usernamesMap[video.submitted_by] || `${t('campaign.participant')} #${video.id.slice(0, 4)}`,
-        })).sort((a, b) => (b.views || 0) - (a.views || 0));
+        const processedVideos = videosData.map((video) => {
+          // Extract username from video link
+          let videoUsername: string | null = null;
+          const link = video.video_link || '';
+          
+          if (video.platform?.toLowerCase() === 'instagram') {
+            // Instagram: https://www.instagram.com/reel/xxx/ or /p/xxx/
+            const igMatch = link.match(/instagram\.com\/(?:reel|p)\/[^\/]+/);
+            if (igMatch) {
+              // Try to extract from /username/reel/ pattern
+              const userMatch = link.match(/instagram\.com\/([^\/]+)\/(?:reel|p)\//);
+              if (userMatch) videoUsername = userMatch[1];
+            }
+          } else if (video.platform?.toLowerCase() === 'tiktok') {
+            // TikTok: https://www.tiktok.com/@username/video/xxx
+            const ttMatch = link.match(/tiktok\.com\/@([^\/]+)/);
+            if (ttMatch) videoUsername = ttMatch[1];
+          } else if (video.platform?.toLowerCase() === 'youtube') {
+            // YouTube: username not easily extractable from URL, fallback to submitter
+            videoUsername = null;
+          }
+          
+          return {
+            id: video.id,
+            video_link: video.video_link,
+            platform: video.platform,
+            views: video.views || 0,
+            likes: video.likes || 0,
+            comments: video.comments || 0,
+            shares: video.shares || 0,
+            submitted_at: video.submitted_at,
+            submitted_by: video.submitted_by,
+            verified: video.verified,
+            // Prioritize extracted video username over submitter's profile
+            username: videoUsername || usernamesMap[video.submitted_by] || `${t('campaign.participant')} #${video.id.slice(0, 4)}`,
+          };
+        }).sort((a, b) => (b.views || 0) - (a.views || 0));
 
         setVideos(processedVideos);
       } else {
