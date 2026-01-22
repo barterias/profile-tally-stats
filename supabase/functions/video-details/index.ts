@@ -313,50 +313,174 @@ async function fetchTikTokVideoFromProfileVideos(videoId: string, username: stri
 
 
 async function fetchTikTokVideoNative(videoId: string, videoUrl?: string): Promise<VideoDetails | null> {
-  try {
-    // Prefer the real URL (with username) because TikTok may block placeholder usernames
-    const videoPageUrl = videoUrl || `https://www.tiktok.com/@_/video/${videoId}`;
-    const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(videoPageUrl)}`;
+  const videoPageUrl = videoUrl || `https://www.tiktok.com/@_/video/${videoId}`;
+  
+  let viewsCount = 0;
+  let likesCount = 0;
+  let commentsCount = 0;
+  let sharesCount = 0;
+  let caption = '';
+  let thumbnailUrl = '';
+  let authorUsername = '';
+  let authorDisplayName = '';
 
+  // Step 1: Try oembed first (most reliable for basic info, sometimes includes thumbnail)
+  try {
+    const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(videoPageUrl)}`;
     const res = await fetch(oembedUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; LovableBot/1.0)',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         Accept: 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
       },
     });
 
-    if (!res.ok) {
-      console.error('[TikTok Native] oembed failed:', res.status);
-      return null;
+    if (res.ok) {
+      const oembed = await res.json();
+      console.log('[TikTok Native] oembed success:', JSON.stringify(oembed).substring(0, 400));
+      
+      caption = oembed.title || '';
+      thumbnailUrl = oembed.thumbnail_url || '';
+      authorUsername = oembed.author_unique_id || oembed.author_url?.match(/@([^\/\?]+)/)?.[1] || '';
+      authorDisplayName = oembed.author_name || '';
+    } else {
+      console.log('[TikTok Native] oembed failed with status:', res.status);
     }
-
-    const oembed = await res.json();
-    console.log('[TikTok Native] oembed result:', JSON.stringify(oembed).substring(0, 500));
-
-    // oembed provides limited info: author_name, author_url, title (caption), thumbnail_url
-    const authorUsername = oembed.author_unique_id || oembed.author_url?.match(/@([^\/\?]+)/)?.[1] || '';
-
-    return {
-      platform: 'tiktok',
-      videoId,
-      videoUrl: videoPageUrl,
-      source: 'native',
-      caption: oembed.title,
-      title: oembed.title,
-      thumbnailUrl: oembed.thumbnail_url,
-      viewsCount: 0, // oembed does not include stats
-      likesCount: 0,
-      commentsCount: 0,
-      sharesCount: 0,
-      author: {
-        username: authorUsername,
-        displayName: oembed.author_name,
-      },
-    };
   } catch (e) {
-    console.error('[TikTok Native] error:', e);
-    return null;
+    console.log('[TikTok Native] oembed error:', e);
   }
+
+  // Step 2: Try HTML scraping for metrics (may be blocked by TikTok)
+  const browserHeaders = {
+    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+  };
+
+  try {
+    console.log('[TikTok Native] Fetching video page HTML...');
+    const pageRes = await fetch(videoPageUrl, { 
+      headers: browserHeaders,
+      redirect: 'follow',
+    });
+    
+    if (pageRes.ok) {
+      const html = await pageRes.text();
+      console.log('[TikTok Native] HTML length:', html.length);
+
+      // Only try to parse if we got a substantial response (not a block page)
+      if (html.length > 5000) {
+        // Try UNIVERSAL_DATA
+        const universalDataMatch = html.match(/<script[^>]*id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([^<]+)<\/script>/);
+        if (universalDataMatch) {
+          try {
+            const jsonData = JSON.parse(universalDataMatch[1]);
+            const scope = jsonData?.__DEFAULT_SCOPE__ || jsonData;
+            const videoDetail = scope?.['webapp.video-detail'] || scope?.videoDetail;
+            const itemStruct = videoDetail?.itemInfo?.itemStruct || videoDetail?.itemStruct;
+            
+            if (itemStruct) {
+              const stats = itemStruct.stats || itemStruct.statistics || {};
+              viewsCount = Number(stats.playCount || stats.play_count || 0);
+              likesCount = Number(stats.diggCount || stats.digg_count || 0);
+              commentsCount = Number(stats.commentCount || stats.comment_count || 0);
+              sharesCount = Number(stats.shareCount || stats.share_count || 0);
+              
+              if (!caption) caption = itemStruct.desc || '';
+              if (!thumbnailUrl) thumbnailUrl = itemStruct.video?.cover || itemStruct.video?.originCover || '';
+              if (!authorUsername) authorUsername = itemStruct.author?.uniqueId || '';
+              if (!authorDisplayName) authorDisplayName = itemStruct.author?.nickname || '';
+              
+              console.log('[TikTok Native] Extracted from UNIVERSAL_DATA:', { viewsCount, likesCount });
+            }
+          } catch (parseErr) {
+            console.log('[TikTok Native] Failed to parse UNIVERSAL_DATA');
+          }
+        }
+
+        // Try SIGI_STATE
+        if (viewsCount === 0) {
+          const sigiMatch = html.match(/<script[^>]*id="SIGI_STATE"[^>]*>([^<]+)<\/script>/);
+          if (sigiMatch) {
+            try {
+              const sigiData = JSON.parse(sigiMatch[1]);
+              const itemModule = sigiData?.ItemModule || {};
+              const videoData = itemModule[videoId] || Object.values(itemModule)[0];
+              
+              if (videoData) {
+                const stats = videoData.stats || {};
+                viewsCount = Number(stats.playCount || 0);
+                likesCount = Number(stats.diggCount || 0);
+                commentsCount = Number(stats.commentCount || 0);
+                sharesCount = Number(stats.shareCount || 0);
+                
+                console.log('[TikTok Native] Extracted from SIGI_STATE:', { viewsCount, likesCount });
+              }
+            } catch (parseErr) {
+              console.log('[TikTok Native] Failed to parse SIGI_STATE');
+            }
+          }
+        }
+
+        // Regex fallback for playCount
+        if (viewsCount === 0) {
+          const playCountMatch = html.match(/"playCount"\s*:\s*(\d+)/);
+          if (playCountMatch) {
+            viewsCount = Number(playCountMatch[1]);
+            console.log('[TikTok Native] Extracted playCount from regex:', viewsCount);
+          }
+          
+          const diggMatch = html.match(/"diggCount"\s*:\s*(\d+)/);
+          if (diggMatch) likesCount = Number(diggMatch[1]);
+          
+          const commentMatch = html.match(/"commentCount"\s*:\s*(\d+)/);
+          if (commentMatch) commentsCount = Number(commentMatch[1]);
+          
+          const shareMatch = html.match(/"shareCount"\s*:\s*(\d+)/);
+          if (shareMatch) sharesCount = Number(shareMatch[1]);
+        }
+
+        // Meta tags fallback
+        if (!thumbnailUrl) {
+          const ogImageMatch = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/);
+          if (ogImageMatch) thumbnailUrl = ogImageMatch[1];
+        }
+        
+        if (!caption) {
+          const descMatch = html.match(/<meta[^>]*name="description"[^>]*content="([^"]+)"/);
+          if (descMatch) caption = descMatch[1];
+        }
+      } else {
+        console.log('[TikTok Native] HTML too small, likely blocked by TikTok');
+      }
+    }
+  } catch (e) {
+    console.log('[TikTok Native] HTML fetch error:', e);
+  }
+
+  console.log('[TikTok Native] Final result:', { viewsCount, likesCount, commentsCount, caption: caption.substring(0, 50), authorUsername });
+
+  return {
+    platform: 'tiktok',
+    videoId,
+    videoUrl: videoPageUrl,
+    source: 'native',
+    caption,
+    title: caption,
+    thumbnailUrl,
+    viewsCount,
+    likesCount,
+    commentsCount,
+    sharesCount,
+    author: {
+      username: authorUsername,
+      displayName: authorDisplayName,
+    },
+  };
 }
 
 
