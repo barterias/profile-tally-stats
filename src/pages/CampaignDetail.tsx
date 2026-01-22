@@ -298,26 +298,71 @@ function CampaignDetailContent() {
           }
         }
 
-        const processedVideos = videosData.map((video) => {
-          // Extract username from video link
-          let videoUsername: string | null = null;
-          const link = video.video_link || '';
+        // Build a map of video URLs to social account usernames
+        const videoLinksMap: Record<string, string> = {};
+        
+        // Fetch Instagram post usernames
+        const igVideos = videosData.filter(v => v.platform?.toLowerCase() === 'instagram');
+        if (igVideos.length > 0) {
+          const igLinks = igVideos.map(v => v.video_link).filter(Boolean);
+          const { data: igPosts } = await supabase
+            .from('instagram_posts')
+            .select('post_url, account_id, instagram_accounts!inner(username)')
+            .in('post_url', igLinks);
           
-          if (video.platform?.toLowerCase() === 'instagram') {
-            // Instagram: https://www.instagram.com/reel/xxx/ or /p/xxx/
-            const igMatch = link.match(/instagram\.com\/(?:reel|p)\/[^\/]+/);
-            if (igMatch) {
-              // Try to extract from /username/reel/ pattern
-              const userMatch = link.match(/instagram\.com\/([^\/]+)\/(?:reel|p)\//);
-              if (userMatch) videoUsername = userMatch[1];
-            }
-          } else if (video.platform?.toLowerCase() === 'tiktok') {
-            // TikTok: https://www.tiktok.com/@username/video/xxx
-            const ttMatch = link.match(/tiktok\.com\/@([^\/]+)/);
+          if (igPosts) {
+            igPosts.forEach((post: any) => {
+              if (post.post_url && post.instagram_accounts?.username) {
+                videoLinksMap[post.post_url] = post.instagram_accounts.username;
+              }
+            });
+          }
+        }
+
+        // Fetch TikTok video usernames
+        const ttVideos = videosData.filter(v => v.platform?.toLowerCase() === 'tiktok');
+        if (ttVideos.length > 0) {
+          const ttLinks = ttVideos.map(v => v.video_link).filter(Boolean);
+          const { data: ttPosts } = await supabase
+            .from('tiktok_videos')
+            .select('video_url, account_id, tiktok_accounts!inner(username)')
+            .in('video_url', ttLinks);
+          
+          if (ttPosts) {
+            ttPosts.forEach((post: any) => {
+              if (post.video_url && post.tiktok_accounts?.username) {
+                videoLinksMap[post.video_url] = post.tiktok_accounts.username;
+              }
+            });
+          }
+        }
+
+        // Fetch YouTube video usernames
+        const ytVideos = videosData.filter(v => v.platform?.toLowerCase() === 'youtube');
+        if (ytVideos.length > 0) {
+          const ytLinks = ytVideos.map(v => v.video_link).filter(Boolean);
+          const { data: ytPosts } = await supabase
+            .from('youtube_videos')
+            .select('video_url, account_id, youtube_accounts!inner(channel_name)')
+            .in('video_url', ytLinks);
+          
+          if (ytPosts) {
+            ytPosts.forEach((post: any) => {
+              if (post.video_url && post.youtube_accounts?.channel_name) {
+                videoLinksMap[post.video_url] = post.youtube_accounts.channel_name;
+              }
+            });
+          }
+        }
+
+        const processedVideos = videosData.map((video) => {
+          // Try to get username from database lookup first
+          let videoUsername: string | null = videoLinksMap[video.video_link] || null;
+          
+          // Fallback: extract from TikTok URL if not found in DB
+          if (!videoUsername && video.platform?.toLowerCase() === 'tiktok') {
+            const ttMatch = video.video_link?.match(/tiktok\.com\/@([^\/]+)/);
             if (ttMatch) videoUsername = ttMatch[1];
-          } else if (video.platform?.toLowerCase() === 'youtube') {
-            // YouTube: username not easily extractable from URL, fallback to submitter
-            videoUsername = null;
           }
           
           return {
@@ -331,7 +376,7 @@ function CampaignDetailContent() {
             submitted_at: video.submitted_at,
             submitted_by: video.submitted_by,
             verified: video.verified,
-            // Prioritize extracted video username over submitter's profile
+            // Prioritize social account username over submitter's profile
             username: videoUsername || usernamesMap[video.submitted_by] || `${t('campaign.participant')} #${video.id.slice(0, 4)}`,
           };
         }).sort((a, b) => (b.views || 0) - (a.views || 0));
