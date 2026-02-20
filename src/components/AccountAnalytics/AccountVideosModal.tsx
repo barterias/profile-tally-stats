@@ -29,7 +29,7 @@ interface Video {
 }
 
 interface AccountVideosModalProps {
-  platform: 'instagram' | 'youtube' | 'tiktok';
+  platform: 'instagram' | 'youtube' | 'tiktok' | 'kwai';
   accountName: string;
   videos: Video[];
   isLoading: boolean;
@@ -49,6 +49,7 @@ const platformLabels = {
   instagram: 'Posts',
   youtube: 'Vídeos',
   tiktok: 'Vídeos',
+  kwai: 'Vídeos',
 };
 
 export function AccountVideosModal({
@@ -121,7 +122,7 @@ export function AccountVideosModal({
               <div>
                 <DialogTitle>{platformLabels[platform]} de @{accountName}</DialogTitle>
                 <DialogDescription>
-                  Top 10 {platformLabels[platform].toLowerCase()} com mais visualizações. Clique para abrir no {platform === 'youtube' ? 'YouTube' : platform === 'instagram' ? 'Instagram' : 'TikTok'}.
+                  Top 10 {platformLabels[platform].toLowerCase()} com mais visualizações. Clique para abrir no {platform === 'youtube' ? 'YouTube' : platform === 'instagram' ? 'Instagram' : platform === 'kwai' ? 'Kwai' : 'TikTok'}.
                 </DialogDescription>
               </div>
               <Button 
@@ -223,7 +224,7 @@ export function AccountVideosModal({
       <AddVideoByLinkModal
         open={addByLinkOpen}
         onOpenChange={setAddByLinkOpen}
-        platform={platform}
+        platform={platform === 'kwai' ? 'tiktok' : platform}
         accountId={accountId}
         onSuccess={handleAddByLinkSuccess}
       />

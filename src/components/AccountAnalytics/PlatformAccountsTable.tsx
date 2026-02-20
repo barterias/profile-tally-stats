@@ -42,7 +42,7 @@ interface AccountData {
 }
 
 interface PlatformAccountsTableProps {
-  platform: 'instagram' | 'youtube' | 'tiktok';
+  platform: 'instagram' | 'youtube' | 'tiktok' | 'kwai';
   accounts: AccountData[];
   isLoading: boolean;
   onSync: (accountId: string, continueFrom?: boolean) => void;
@@ -59,12 +59,14 @@ const platformUrls = {
   instagram: (username: string) => `https://instagram.com/${username}`,
   youtube: (username: string) => `https://youtube.com/@${username}`,
   tiktok: (username: string) => `https://tiktok.com/@${username}`,
+  kwai: (username: string) => `https://www.kwai.com/@${username}`,
 };
 
 const platformLabels = {
   instagram: { followers: 'Seguidores', posts: 'Posts', videos: 'Ver Posts', contentLabel: 'Posts' },
   youtube: { followers: 'Inscritos', posts: 'Vídeos', videos: 'Ver Vídeos', contentLabel: 'Vídeos' },
   tiktok: { followers: 'Seguidores', posts: 'Vídeos', videos: 'Ver Vídeos', contentLabel: 'Vídeos' },
+  kwai: { followers: 'Seguidores', posts: 'Vídeos', videos: 'Ver Vídeos', contentLabel: 'Vídeos' },
 };
 
 export function PlatformAccountsTable({

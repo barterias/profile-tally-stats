@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 interface AddAccountModalProps {
-  platform: 'instagram' | 'youtube' | 'tiktok';
+  platform: 'instagram' | 'youtube' | 'tiktok' | 'kwai';
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAdd: (username: string) => void;
@@ -38,6 +38,13 @@ const platformConfig = {
   tiktok: {
     icon: Music2,
     title: 'Adicionar Conta do TikTok',
+    description: 'Digite o nome de usuário da conta que deseja monitorar',
+    placeholder: '@username',
+    label: 'Nome de usuário',
+  },
+  kwai: {
+    icon: Music2,
+    title: 'Adicionar Conta do Kwai',
     description: 'Digite o nome de usuário da conta que deseja monitorar',
     placeholder: '@username',
     label: 'Nome de usuário',

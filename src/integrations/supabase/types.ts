@@ -836,6 +836,191 @@ export type Database = {
           },
         ]
       }
+      kwai_accounts: {
+        Row: {
+          approval_status: string | null
+          approved_at: string | null
+          approved_by: string | null
+          bio: string | null
+          created_at: string
+          display_name: string | null
+          followers_count: number | null
+          following_count: number | null
+          id: string
+          is_active: boolean | null
+          last_synced_at: string | null
+          likes_count: number | null
+          next_cursor: string | null
+          profile_image_url: string | null
+          profile_url: string
+          scraped_videos_count: number | null
+          total_views: number | null
+          updated_at: string
+          user_id: string
+          username: string
+          videos_count: number | null
+        }
+        Insert: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          followers_count?: number | null
+          following_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          likes_count?: number | null
+          next_cursor?: string | null
+          profile_image_url?: string | null
+          profile_url: string
+          scraped_videos_count?: number | null
+          total_views?: number | null
+          updated_at?: string
+          user_id: string
+          username: string
+          videos_count?: number | null
+        }
+        Update: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          followers_count?: number | null
+          following_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          likes_count?: number | null
+          next_cursor?: string | null
+          profile_image_url?: string | null
+          profile_url?: string
+          scraped_videos_count?: number | null
+          total_views?: number | null
+          updated_at?: string
+          user_id?: string
+          username?: string
+          videos_count?: number | null
+        }
+        Relationships: []
+      }
+      kwai_metrics_history: {
+        Row: {
+          account_id: string
+          comments_count: number | null
+          followers_count: number | null
+          id: string
+          likes_count: number | null
+          recorded_at: string
+          shares_count: number | null
+          video_id: string | null
+          views_count: number | null
+        }
+        Insert: {
+          account_id: string
+          comments_count?: number | null
+          followers_count?: number | null
+          id?: string
+          likes_count?: number | null
+          recorded_at?: string
+          shares_count?: number | null
+          video_id?: string | null
+          views_count?: number | null
+        }
+        Update: {
+          account_id?: string
+          comments_count?: number | null
+          followers_count?: number | null
+          id?: string
+          likes_count?: number | null
+          recorded_at?: string
+          shares_count?: number | null
+          video_id?: string | null
+          views_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kwai_metrics_history_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kwai_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kwai_metrics_history_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "kwai_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kwai_videos: {
+        Row: {
+          account_id: string
+          caption: string | null
+          comments_count: number | null
+          created_at: string
+          duration: number | null
+          id: string
+          likes_count: number | null
+          music_title: string | null
+          posted_at: string | null
+          shares_count: number | null
+          thumbnail_url: string | null
+          updated_at: string
+          video_id: string | null
+          video_url: string
+          views_count: number | null
+        }
+        Insert: {
+          account_id: string
+          caption?: string | null
+          comments_count?: number | null
+          created_at?: string
+          duration?: number | null
+          id?: string
+          likes_count?: number | null
+          music_title?: string | null
+          posted_at?: string | null
+          shares_count?: number | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          video_id?: string | null
+          video_url: string
+          views_count?: number | null
+        }
+        Update: {
+          account_id?: string
+          caption?: string | null
+          comments_count?: number | null
+          created_at?: string
+          duration?: number | null
+          id?: string
+          likes_count?: number | null
+          music_title?: string | null
+          posted_at?: string | null
+          shares_count?: number | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          video_id?: string | null
+          video_url?: string
+          views_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kwai_videos_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kwai_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metrics_snapshots: {
         Row: {
           by_platform: Json | null

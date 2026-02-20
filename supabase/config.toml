@@ -15,6 +15,9 @@ verify_jwt = false
 [functions.tiktok-scrape]
 verify_jwt = false
 
+[functions.kwai-scrape]
+verify_jwt = false
+
 [functions.sync-all-accounts]
 verify_jwt = false
 
