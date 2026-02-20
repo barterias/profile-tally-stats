@@ -5,10 +5,11 @@ import MainLayout from '@/components/Layout/MainLayout';
 import { InstagramTab } from '@/components/AccountAnalytics/InstagramTab';
 import { YouTubeTab } from '@/components/AccountAnalytics/YouTubeTab';
 import { TikTokTab } from '@/components/AccountAnalytics/TikTokTab';
+import { KwaiTab } from '@/components/AccountAnalytics/KwaiTab';
 
 import { useRealtimeAccounts } from '@/hooks/useRealtimeAccounts';
 
-export type PlatformType = 'instagram' | 'youtube' | 'tiktok';
+export type PlatformType = 'instagram' | 'youtube' | 'tiktok' | 'kwai';
 
 export default function AccountAnalytics() {
   const [activeTab, setActiveTab] = useState<PlatformType>('instagram');
@@ -35,7 +36,7 @@ export default function AccountAnalytics() {
 
         {/* Platform Tabs */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as PlatformType)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
+          <TabsList className="grid w-full grid-cols-4 max-w-lg">
             <TabsTrigger value="instagram" className="flex items-center gap-2">
               <Instagram className="h-4 w-4" />
               Instagram
@@ -47,6 +48,10 @@ export default function AccountAnalytics() {
             <TabsTrigger value="tiktok" className="flex items-center gap-2">
               <Music2 className="h-4 w-4" />
               TikTok
+            </TabsTrigger>
+            <TabsTrigger value="kwai" className="flex items-center gap-2">
+              <span className="text-xs font-bold">K</span>
+              Kwai
             </TabsTrigger>
           </TabsList>
 
@@ -60,6 +65,10 @@ export default function AccountAnalytics() {
 
           <TabsContent value="tiktok" className="mt-6">
             <TikTokTab />
+          </TabsContent>
+
+          <TabsContent value="kwai" className="mt-6">
+            <KwaiTab />
           </TabsContent>
         </Tabs>
       </div>
