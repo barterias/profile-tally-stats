@@ -89,7 +89,7 @@ export function useAddKwaiAccount() {
           if (updateError) throw updateError;
 
           const { data: syncData, error: syncError } = await supabase.functions.invoke('kwai-scrape', {
-            body: { accountId: (existing as any).id, username },
+            body: { accountId: (existing as any).id, username, resultsLimit: 200 },
           });
 
           if (syncError) {
@@ -121,7 +121,7 @@ export function useAddKwaiAccount() {
       if (insertError) throw insertError;
 
       const { data: syncData, error: syncError } = await supabase.functions.invoke('kwai-scrape', {
-        body: { accountId: (newAccount as any).id, username },
+        body: { accountId: (newAccount as any).id, username, resultsLimit: 200 },
       });
 
       if (syncError) {
@@ -165,9 +165,9 @@ export function useSyncKwaiAccount() {
 
       if (!account) throw new Error('Conta não encontrada');
 
-      const { data: result, error } = await supabase.functions.invoke('kwai-scrape', {
-        body: { accountId, username: (account as any).username },
-      });
+        const { data: result, error } = await supabase.functions.invoke('kwai-scrape', {
+          body: { accountId, username: (account as any).username, resultsLimit: 200 },
+        });
 
       if (error) {
         const parsed = parseInvokeError(error);
@@ -205,7 +205,7 @@ export function useSyncAllKwaiAccounts() {
       const results = await Promise.allSettled(
         accounts.map(async (acc) => {
           const { data, error } = await supabase.functions.invoke('kwai-scrape', {
-            body: { accountId: acc.id, username: acc.username },
+            body: { accountId: acc.id, username: acc.username, resultsLimit: 200 },
           });
 
           if (error) {

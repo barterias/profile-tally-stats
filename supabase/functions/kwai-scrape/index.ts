@@ -396,7 +396,7 @@ serve(async (req) => {
       });
     }
 
-    const { username, accountId, resultsLimit = 50 } = await req.json();
+    const { username, accountId, resultsLimit = 200 } = await req.json();
 
     const normalizedUsername = normalizeKwaiUsername(username);
 
@@ -415,7 +415,8 @@ serve(async (req) => {
     const profilePromise = scrapeKwaiProfile(normalizedUsername);
 
     // Start Apify run for videos
-    const run = await startApifyRun(APIFY_API_TOKEN, normalizedUsername, Number(resultsLimit) || 50);
+    const normalizedLimit = Math.min(Math.max(Number(resultsLimit) || 200, 50), 300);
+    const run = await startApifyRun(APIFY_API_TOKEN, normalizedUsername, normalizedLimit);
     const runId = run?.data?.id;
     if (!runId) throw new Error("Apify runId missing");
 
@@ -437,7 +438,7 @@ serve(async (req) => {
       bio: safeString(firstItem?.bio || firstItem?.description || firstItem?.signature),
       followersCount: profileScrape.followersCount || toInt(firstItem?.followersCount || firstItem?.followers || firstItem?.fanCount || 0),
       followingCount: profileScrape.followingCount || toInt(firstItem?.followingCount || firstItem?.following || 0),
-      videosCount: toInt(firstItem?.videoCount || firstItem?.videosCount || items.length),
+      videosCount: Math.max(toInt(firstItem?.videoCount || firstItem?.videosCount || 0), videos.length),
       likesCount: profileScrape.likesCount || toInt(firstItem?.totalLikes || firstItem?.likesCount || 0),
       scrapedVideosCount: videos.length,
       totalViews: videos.reduce((sum, v) => sum + (v.viewsCount || 0), 0),
