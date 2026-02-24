@@ -65,15 +65,14 @@ export function useAddKwaiAccount() {
   const { user, isAdmin } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ username: kwaiUserId, isClientOrAdmin }: { username: string; isClientOrAdmin?: boolean }) => {
+    mutationFn: async ({ username, isClientOrAdmin }: { username: string; isClientOrAdmin?: boolean }) => {
       const autoApprove = isClientOrAdmin || isAdmin;
 
-      // Check if account with this kwai user ID already exists
       const { data: existing } = await supabase
         .from('kwai_accounts' as any)
         .select('id, is_active')
         .eq('user_id', user?.id)
-        .eq('username', kwaiUserId)
+        .eq('username', username)
         .maybeSingle();
 
       if (existing) {
@@ -90,7 +89,7 @@ export function useAddKwaiAccount() {
           if (updateError) throw updateError;
 
           const { data: syncData, error: syncError } = await supabase.functions.invoke('kwai-scrape', {
-            body: { accountId: (existing as any).id, username: kwaiUserId },
+            body: { accountId: (existing as any).id, username },
           });
 
           if (syncError) {
@@ -111,8 +110,8 @@ export function useAddKwaiAccount() {
         .from('kwai_accounts' as any)
         .insert({
           user_id: user?.id,
-          username: kwaiUserId,
-          profile_url: `https://www.kwai.com/@${kwaiUserId}`,
+          username,
+          profile_url: `https://www.kwai.com/@${username}`,
           is_active: true,
           ...(autoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
         })
@@ -122,7 +121,7 @@ export function useAddKwaiAccount() {
       if (insertError) throw insertError;
 
       const { data: syncData, error: syncError } = await supabase.functions.invoke('kwai-scrape', {
-        body: { accountId: (newAccount as any).id, username: kwaiUserId },
+        body: { accountId: (newAccount as any).id, username },
       });
 
       if (syncError) {

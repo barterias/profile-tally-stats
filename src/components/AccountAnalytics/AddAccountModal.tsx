@@ -45,9 +45,9 @@ const platformConfig = {
   kwai: {
     icon: Music2,
     title: 'Adicionar Conta do Kwai',
-    description: 'Digite o ID numérico da conta Kwai (encontrado na URL do perfil)',
-    placeholder: 'Ex: 123456789',
-    label: 'ID da Conta Kwai',
+    description: 'Digite o nome de usuário da conta que deseja monitorar',
+    placeholder: '@username',
+    label: 'Nome de usuário',
   },
 };
 
@@ -65,11 +65,9 @@ export function AddAccountModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (username.trim()) {
-      // For kwai, pass the ID directly; for others, remove @ prefix
-      const cleanValue = platform === 'kwai' 
-        ? username.trim() 
-        : username.trim().replace(/^@/, '');
-      onAdd(cleanValue);
+      // Remove @ if present
+      const cleanUsername = username.trim().replace(/^@/, '');
+      onAdd(cleanUsername);
     }
   };
 
