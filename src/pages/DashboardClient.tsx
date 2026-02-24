@@ -205,7 +205,7 @@ function DashboardClientContent() {
         </div>
 
         {/* Metric Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card className="bg-blue-950/40 border-blue-800/30">
             <CardContent className="p-4 lg:p-6">
               <div className="flex items-center justify-between mb-2">
@@ -236,17 +236,6 @@ function DashboardClientContent() {
               </div>
               <p className="text-2xl lg:text-3xl font-bold text-foreground">{formatNumber(metrics.totalEngagement)}</p>
               <p className="text-xs text-muted-foreground mt-1">Interações totais</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-purple-950/40 border-purple-800/30">
-            <CardContent className="p-4 lg:p-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-purple-300">Prazo da Campanha</span>
-                <Calendar className="h-4 w-4 text-purple-400" />
-              </div>
-              <p className="text-lg lg:text-xl font-bold text-foreground">{campaignStatus.label}</p>
-              <p className="text-xs text-muted-foreground mt-1">{campaignStatus.sub}</p>
             </CardContent>
           </Card>
         </div>
