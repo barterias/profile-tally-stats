@@ -138,9 +138,9 @@ export function AdminSubmitVideoModal({ open, onOpenChange, onSuccess, preselect
         // Buscar métricas em background
         supabase.functions
           .invoke("video-details", { body: { videoUrl: link } })
-          .then(({ data: metricsData }) => {
+          .then(async ({ data: metricsData }) => {
             if (metricsData?.success && metricsData?.data) {
-              supabase
+              await supabase
                 .from("campaign_videos")
                 .update({
                   views: metricsData.data.viewsCount || 0,
