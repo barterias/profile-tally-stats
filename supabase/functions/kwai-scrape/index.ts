@@ -68,6 +68,121 @@ function normalizeKwaiUsername(input: string): string {
   return username.replace(/^@/, "").trim().toLowerCase();
 }
 
+async function scrapeKwaiProfile(username: string): Promise<{
+  displayName?: string;
+  profileImageUrl?: string;
+  followersCount: number;
+  followingCount: number;
+  likesCount: number;
+}> {
+  const profileUrl = `https://www.kwai.com/@${username}`;
+  console.log(`[Kwai Profile] Fetching profile page: ${profileUrl}`);
+
+  try {
+    const res = await fetch(profileUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+      },
+    });
+
+    if (!res.ok) {
+      console.warn(`[Kwai Profile] HTTP ${res.status}`);
+      return { followersCount: 0, followingCount: 0, likesCount: 0 };
+    }
+
+    const html = await res.text();
+
+    // Extract from JSON-LD or embedded data
+    const extract = (patterns: RegExp[]): number => {
+      for (const p of patterns) {
+        const m = html.match(p);
+        if (m?.[1]) {
+          const n = Number(m[1].replace(/[.,]/g, ""));
+          if (Number.isFinite(n)) return n;
+        }
+      }
+      return 0;
+    };
+
+    // Try to extract profile data from the page's embedded JSON/scripts
+    let displayName: string | undefined;
+    let profileImageUrl: string | undefined;
+    let followersCount = 0;
+    let followingCount = 0;
+    let likesCount = 0;
+
+    // Try parsing __NEXT_DATA__ or similar embedded JSON
+    const jsonMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
+    if (jsonMatch?.[1]) {
+      try {
+        const nextData = JSON.parse(jsonMatch[1]);
+        const findUserData = (obj: any, depth = 0): any => {
+          if (!obj || depth > 8) return null;
+          if (obj.fan !== undefined || obj.followerCount !== undefined || obj.fansCount !== undefined) return obj;
+          if (typeof obj === "object") {
+            for (const k of Object.keys(obj)) {
+              const r = findUserData(obj[k], depth + 1);
+              if (r) return r;
+            }
+          }
+          return null;
+        };
+        const userData = findUserData(nextData);
+        if (userData) {
+          followersCount = toInt(userData.fan ?? userData.followerCount ?? userData.fansCount ?? 0);
+          followingCount = toInt(userData.follow ?? userData.followingCount ?? 0);
+          likesCount = toInt(userData.like ?? userData.likeCount ?? userData.liked ?? 0);
+          displayName = safeString(userData.name ?? userData.userName ?? userData.user_name);
+          profileImageUrl = safeString(userData.headUrl ?? userData.avatar ?? userData.photo);
+          console.log(`[Kwai Profile] From __NEXT_DATA__: followers=${followersCount}, likes=${likesCount}`);
+        }
+      } catch (e) {
+        console.warn(`[Kwai Profile] Failed to parse __NEXT_DATA__:`, e);
+      }
+    }
+
+    // Fallback: extract from OG/meta tags and visible HTML patterns
+    if (followersCount === 0) {
+      // Try common patterns in Kwai HTML
+      followersCount = extract([
+        /\"fan\"\s*:\s*(\d+)/,
+        /\"followerCount\"\s*:\s*(\d+)/,
+        /\"fansCount\"\s*:\s*(\d+)/,
+        /(\d[\d.,]*)\s*(?:Seguidores|Followers)/i,
+      ]);
+      followingCount = extract([
+        /\"follow\"\s*:\s*(\d+)/,
+        /\"followingCount\"\s*:\s*(\d+)/,
+        /(\d[\d.,]*)\s*(?:Seguindo|Following)/i,
+      ]);
+      likesCount = extract([
+        /\"like\"\s*:\s*(\d+)/,
+        /\"likeCount\"\s*:\s*(\d+)/,
+        /(\d[\d.,]*)\s*(?:Curtidas|Likes)/i,
+      ]);
+    }
+
+    if (!displayName) {
+      const ogTitle = html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/);
+      if (ogTitle?.[1]) displayName = safeString(ogTitle[1]);
+    }
+
+    if (!profileImageUrl) {
+      const ogImg = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/);
+      if (ogImg?.[1]) profileImageUrl = safeString(ogImg[1]);
+    }
+
+    console.log(`[Kwai Profile] Result: name=${displayName}, followers=${followersCount}, following=${followingCount}, likes=${likesCount}`);
+
+    return { displayName, profileImageUrl, followersCount, followingCount, likesCount };
+  } catch (e) {
+    console.error(`[Kwai Profile] Error:`, e);
+    return { followersCount: 0, followingCount: 0, likesCount: 0 };
+  }
+}
+
 async function startApifyRun(apifyToken: string, username: string, resultsLimit: number): Promise<ApifyRunResponse> {
   console.log(`[Apify Kwai] Starting run for: ${username} (limit=${resultsLimit})`);
 
@@ -296,7 +411,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Start Apify run
+    // Scrape profile data directly from Kwai page (parallel with Apify)
+    const profilePromise = scrapeKwaiProfile(normalizedUsername);
+
+    // Start Apify run for videos
     const run = await startApifyRun(APIFY_API_TOKEN, normalizedUsername, Number(resultsLimit) || 50);
     const runId = run?.data?.id;
     if (!runId) throw new Error("Apify runId missing");
@@ -308,17 +426,19 @@ serve(async (req) => {
 
     const videos = mapApifyItemsToVideos(items);
 
-    // Try to extract profile data from the items (may vary by actor)
+    // Get profile data from direct scrape
+    const profileScrape = await profilePromise;
+
     const firstItem = items?.[0] || {};
     const profileData: KwaiScrapedData = {
-      username: safeString(firstItem?.username || firstItem?.authorUsername || firstItem?.userId) || normalizedUsername,
-      displayName: safeString(firstItem?.displayName || firstItem?.nickname || firstItem?.authorName || firstItem?.name),
-      profileImageUrl: safeString(firstItem?.avatarUrl || firstItem?.profileImage || firstItem?.avatar || firstItem?.authorAvatar),
+      username: normalizedUsername,
+      displayName: profileScrape.displayName || safeString(firstItem?.displayName || firstItem?.nickname || firstItem?.authorName || firstItem?.name),
+      profileImageUrl: profileScrape.profileImageUrl || safeString(firstItem?.avatarUrl || firstItem?.profileImage || firstItem?.avatar || firstItem?.authorAvatar),
       bio: safeString(firstItem?.bio || firstItem?.description || firstItem?.signature),
-      followersCount: toInt(firstItem?.followersCount || firstItem?.followers || firstItem?.fanCount || 0),
-      followingCount: toInt(firstItem?.followingCount || firstItem?.following || 0),
+      followersCount: profileScrape.followersCount || toInt(firstItem?.followersCount || firstItem?.followers || firstItem?.fanCount || 0),
+      followingCount: profileScrape.followingCount || toInt(firstItem?.followingCount || firstItem?.following || 0),
       videosCount: toInt(firstItem?.videoCount || firstItem?.videosCount || items.length),
-      likesCount: toInt(firstItem?.totalLikes || firstItem?.likesCount || 0),
+      likesCount: profileScrape.likesCount || toInt(firstItem?.totalLikes || firstItem?.likesCount || 0),
       scrapedVideosCount: videos.length,
       totalViews: videos.reduce((sum, v) => sum + (v.viewsCount || 0), 0),
       videos,
