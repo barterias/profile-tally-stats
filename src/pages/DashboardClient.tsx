@@ -1,332 +1,368 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MainLayout from "@/components/Layout/MainLayout";
-import { GlowCard } from "@/components/ui/GlowCard";
-import { MetricCardGlow } from "@/components/ui/MetricCardGlow";
-import { ChartLineViews } from "@/components/Charts/ChartLineViews";
-import { ChartPiePlatforms } from "@/components/Charts/ChartPiePlatforms";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLanguage } from "@/contexts/LanguageContext";
-import { useClientMetrics, useClientPlatformDistribution } from "@/hooks/useClientMetrics";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  Users, 
-  Eye, 
-  Video,
-  RefreshCw,
-  Sparkles,
-  BarChart3,
-  Heart,
-  Instagram,
-  Youtube,
-  Trophy,
-  Target,
-} from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Eye, CheckCircle, TrendingUp, Calendar, BarChart3, Activity, PieChart } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
+
+interface CampaignMetrics {
+  campaignName: string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  totalViews: number;
+  totalVideos: number;
+  totalEngagement: number;
+  platformViews: { platform: string; views: number }[];
+  platformEngagement: { platform: string; engagement: number }[];
+  platformDistribution: { name: string; value: number }[];
+}
 
 function DashboardClientContent() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t } = useLanguage();
-  const queryClient = useQueryClient();
+  const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState<CampaignMetrics | null>(null);
+  const [username, setUsername] = useState("");
 
-  const { data: clientMetrics, isLoading, refetch } = useClientMetrics();
-  const platformDistribution = useClientPlatformDistribution();
+  useEffect(() => {
+    if (user?.id) {
+      fetchClientData();
+    }
+  }, [user?.id]);
+
+  const fetchClientData = async () => {
+    try {
+      // Get user profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", user!.id)
+        .maybeSingle();
+      setUsername(profile?.username || "Cliente");
+
+      // Get owned campaigns
+      const { data: ownership } = await supabase
+        .from("campaign_owners")
+        .select("campaign_id")
+        .eq("user_id", user!.id);
+
+      const campaignIds = (ownership || []).map((o) => o.campaign_id);
+
+      if (campaignIds.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      // Get campaign details
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("*")
+        .in("id", campaignIds)
+        .limit(1)
+        .maybeSingle();
+
+      if (!campaign) {
+        setLoading(false);
+        return;
+      }
+
+      // Get campaign videos
+      const { data: videos } = await supabase
+        .from("campaign_videos")
+        .select("platform, views, likes, comments, shares")
+        .eq("campaign_id", campaign.id);
+
+      const vids = videos || [];
+
+      // Calculate platform metrics
+      const platformMap = new Map<string, { views: number; engagement: number; count: number }>();
+      for (const v of vids) {
+        const p = v.platform || "Outro";
+        const existing = platformMap.get(p) || { views: 0, engagement: 0, count: 0 };
+        existing.views += Number(v.views || 0);
+        existing.engagement += Number(v.likes || 0) + Number(v.comments || 0) + Number(v.shares || 0);
+        existing.count += 1;
+        platformMap.set(p, existing);
+      }
+
+      const platformViews = Array.from(platformMap.entries()).map(([platform, d]) => ({
+        platform: formatPlatformName(platform),
+        views: d.views,
+      }));
+
+      const platformEngagement = Array.from(platformMap.entries()).map(([platform, d]) => ({
+        platform: formatPlatformName(platform),
+        engagement: d.engagement,
+      }));
+
+      const platformDistribution = Array.from(platformMap.entries()).map(([platform, d]) => ({
+        name: formatPlatformName(platform),
+        value: d.count,
+      }));
+
+      const totalViews = vids.reduce((s, v) => s + Number(v.views || 0), 0);
+      const totalEngagement = vids.reduce(
+        (s, v) => s + Number(v.likes || 0) + Number(v.comments || 0) + Number(v.shares || 0),
+        0
+      );
+
+      setMetrics({
+        campaignName: campaign.name,
+        startDate: campaign.start_date,
+        endDate: campaign.end_date,
+        isActive: campaign.is_active,
+        totalViews,
+        totalVideos: vids.length,
+        totalEngagement,
+        platformViews,
+        platformEngagement,
+        platformDistribution,
+      });
+    } catch (error) {
+      console.error("Error fetching client data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatPlatformName = (p: string) => {
+    const map: Record<string, string> = {
+      tiktok: "TikTok",
+      instagram: "Instagram",
+      youtube: "YouTube",
+      kwai: "Kwai",
+    };
+    return map[p.toLowerCase()] || p;
+  };
 
   const formatNumber = (num: number) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(0)}K`;
-    return num.toString();
+    return num.toLocaleString("pt-BR");
   };
 
-  const handleRefresh = () => {
-    refetch();
-    queryClient.invalidateQueries({ queryKey: ['client-metrics'] });
-  };
-
-  const generateViewsChartData = () => {
-    if (!clientMetrics?.platformBreakdown) {
-      return [{ date: 'Instagram', views: 0 }, { date: 'TikTok', views: 0 }, { date: 'YouTube', views: 0 }, { date: 'Kwai', views: 0 }];
+  const getCampaignStatus = () => {
+    if (!metrics) return { label: "—", sub: "" };
+    const end = new Date(metrics.endDate);
+    const now = new Date();
+    if (now > end) {
+      return { label: "Campanha finalizada", sub: `Até ${format(end, "dd 'de' MMMM", { locale: ptBR })}` };
     }
-    
-    return clientMetrics.platformBreakdown.map(p => ({
-      date: p.platform,
-      views: p.views
-    }));
+    const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return { label: `${diff} dias restantes`, sub: `Até ${format(end, "dd 'de' MMMM", { locale: ptBR })}` };
   };
 
-  const generatePieData = () => {
-    if (!platformDistribution || platformDistribution.length === 0) {
-      return [{ platform: t('noData'), value: 1 }];
-    }
-    return platformDistribution;
-  };
-
-  if (isLoading) {
+  if (loading) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-[60vh]">
-          <div className="text-center space-y-4">
-            <div className="relative">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto" />
-              <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-primary animate-pulse" />
-            </div>
-            <p className="text-muted-foreground">{t('loadingDashboard')}</p>
-          </div>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary" />
         </div>
       </MainLayout>
     );
   }
 
-  const hasCampaigns = clientMetrics && clientMetrics.totalCampaigns > 0;
-
-  if (!hasCampaigns) {
+  if (!metrics) {
     return (
       <MainLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-          <div className="p-6 rounded-full bg-primary/10 mb-6 animate-pulse-glow">
-            <Target className="h-16 w-16 text-primary" />
-          </div>
-          <h2 className="text-3xl font-bold mb-3 text-glow">
-            {t('dashboard.no_campaigns_found')}
-          </h2>
-          <p className="text-muted-foreground mb-6 max-w-md">
-            {t('dashboard.no_campaigns_desc')}
-          </p>
-          <Button onClick={() => navigate('/client/campaigns')} className="premium-gradient">
-            <Target className="h-4 w-4 mr-2" />
-            {t('dashboard.manage_campaigns')}
-          </Button>
+          <Calendar className="h-16 w-16 text-muted-foreground mb-4" />
+          <h2 className="text-2xl font-bold mb-2">Nenhuma campanha encontrada</h2>
+          <p className="text-muted-foreground">Aguarde o admin designar uma campanha para você.</p>
         </div>
       </MainLayout>
     );
   }
 
+  const campaignStatus = getCampaignStatus();
+  const COLORS = ["hsl(0, 70%, 55%)", "hsl(340, 70%, 55%)", "hsl(220, 70%, 55%)", "hsl(140, 70%, 55%)"];
+
   return (
     <MainLayout>
-      <div className="space-y-8 animate-fade-in">
+      <div className="space-y-6 animate-fade-in">
         {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex items-center gap-3">
           <div>
-            <h1 className="text-3xl lg:text-4xl font-bold text-glow">
-              {t('dashboard.client_title')}
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              {t('dashboard.client_subtitle')}
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              onClick={handleRefresh}
-              className="hover-glow"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              {t('common.refresh')}
-            </Button>
-            <Button 
-              onClick={() => navigate('/client/campaigns')}
-              className="premium-gradient"
-            >
-              <Target className="h-4 w-4 mr-2" />
-              {t('nav.campaigns')}
-            </Button>
+            <h1 className="text-2xl lg:text-3xl font-bold">Olá, {username}!</h1>
+            <p className="text-muted-foreground text-sm">{metrics.campaignName}</p>
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <MetricCardGlow
-            title={t('nav.campaigns')}
-            value={clientMetrics?.totalCampaigns || 0}
-            icon={Target}
-            glowColor="orange"
-          />
-          <MetricCardGlow
-            title={t('clippers')}
-            value={clientMetrics?.totalClippers || 0}
-            icon={Users}
-            glowColor="blue"
-          />
-          <MetricCardGlow
-            title={t('views')}
-            value={formatNumber(clientMetrics?.totalViews || 0)}
-            icon={Eye}
-            glowColor="purple"
-          />
-          <MetricCardGlow
-            title={t('likes')}
-            value={formatNumber(clientMetrics?.totalLikes || 0)}
-            icon={Heart}
-            glowColor="purple"
-          />
-          <MetricCardGlow
-            title={t('followers')}
-            value={formatNumber(clientMetrics?.totalFollowers || 0)}
-            icon={Users}
-            glowColor="green"
-          />
+        {/* Metric Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="bg-blue-950/40 border-blue-800/30">
+            <CardContent className="p-4 lg:p-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-blue-300">Views Totais</span>
+                <Eye className="h-4 w-4 text-blue-400" />
+              </div>
+              <p className="text-2xl lg:text-3xl font-bold text-foreground">{formatNumber(metrics.totalViews)}</p>
+              <p className="text-xs text-muted-foreground mt-1">Desde o início da campanha</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-emerald-950/40 border-emerald-800/30">
+            <CardContent className="p-4 lg:p-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-emerald-300">Vídeos Entregues</span>
+                <CheckCircle className="h-4 w-4 text-emerald-400" />
+              </div>
+              <p className="text-2xl lg:text-3xl font-bold text-foreground">{metrics.totalVideos}</p>
+              <p className="text-xs text-muted-foreground mt-1">Total de vídeos na campanha</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-amber-950/40 border-amber-800/30">
+            <CardContent className="p-4 lg:p-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-amber-300">Engajamento</span>
+                <TrendingUp className="h-4 w-4 text-amber-400" />
+              </div>
+              <p className="text-2xl lg:text-3xl font-bold text-foreground">{formatNumber(metrics.totalEngagement)}</p>
+              <p className="text-xs text-muted-foreground mt-1">Interações totais</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-purple-950/40 border-purple-800/30">
+            <CardContent className="p-4 lg:p-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-purple-300">Prazo da Campanha</span>
+                <Calendar className="h-4 w-4 text-purple-400" />
+              </div>
+              <p className="text-lg lg:text-xl font-bold text-foreground">{campaignStatus.label}</p>
+              <p className="text-xs text-muted-foreground mt-1">{campaignStatus.sub}</p>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Charts */}
+        {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ChartLineViews 
-            data={generateViewsChartData()} 
-            title={t('viewsByPlatform')}
-          />
-          <ChartPiePlatforms 
-            data={generatePieData()} 
-            title={t('platformDistribution')}
-          />
+          {/* Views por Plataforma */}
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-primary" />
+                Views por Plataforma
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={metrics.platformViews}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="platform" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                    <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        color: "hsl(var(--foreground))",
+                      }}
+                      formatter={(value: number) => [formatNumber(value), "Views"]}
+                    />
+                    <Bar dataKey="views" fill="hsl(var(--muted-foreground) / 0.4)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Engajamento por Plataforma */}
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" />
+                Engajamento por Plataforma
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={metrics.platformEngagement}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="platform" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                    <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        color: "hsl(var(--foreground))",
+                      }}
+                      formatter={(value: number) => [formatNumber(value), "Engajamento"]}
+                    />
+                    <Bar dataKey="engagement" fill="hsl(142, 71%, 45%)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Top Clippers & Platform Breakdown */}
+        {/* Distribution Chart */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Top Clippers */}
-          <GlowCard className="p-6" glowColor="orange">
-            <div className="flex items-center gap-3 mb-4">
-              <Trophy className="h-6 w-6 text-yellow-400" />
-              <h3 className="text-lg font-semibold">Top Clippers</h3>
-            </div>
-            {clientMetrics?.topClippers && clientMetrics.topClippers.length > 0 ? (
-              <div className="space-y-3">
-                {clientMetrics.topClippers.map((clipper, index) => (
-                  <div key={clipper.userId} className="flex items-center gap-3 p-3 rounded-lg bg-muted/10">
-                    <span className="text-lg font-bold text-primary w-6">#{index + 1}</span>
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={clipper.avatarUrl || undefined} />
-                      <AvatarFallback>{clipper.username.charAt(0).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{clipper.username}</p>
-                      <p className="text-xs text-muted-foreground">{clipper.platform}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold">{formatNumber(clipper.totalViews)}</p>
-                      <p className="text-xs text-muted-foreground">{t('views')}</p>
-                    </div>
-                  </div>
-                ))}
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <PieChart className="h-4 w-4 text-primary" />
+                Distribuição por Tipo
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsPieChart>
+                    <Pie
+                      data={metrics.platformDistribution}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={3}
+                      dataKey="value"
+                      label={({ name, value }) => `${value}`}
+                    >
+                      {metrics.platformDistribution.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        color: "hsl(var(--foreground))",
+                      }}
+                    />
+                    <Legend
+                      formatter={(value, entry: any) => {
+                        const item = metrics.platformDistribution.find((d) => d.name === value);
+                        return `${value} (${item?.value || 0})`;
+                      }}
+                    />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
               </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-8">
-                {t('dashboard.no_clipper_metrics')}
-              </p>
-            )}
-          </GlowCard>
-
-          {/* Platform Breakdown */}
-          <div className="space-y-4">
-            {/* Instagram */}
-            <GlowCard className="p-4" glowColor="purple">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-pink-500/20">
-                  <Instagram className="h-5 w-5 text-pink-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold">Instagram</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.accounts || 0} {t('dashboard.accounts')}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.views || 0)}</p>
-                  <p className="text-xs text-muted-foreground">{t('views')}</p>
-                </div>
-              </div>
-            </GlowCard>
-
-            {/* TikTok */}
-            <GlowCard className="p-4" glowColor="blue">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/20">
-                  <Video className="h-5 w-5 text-blue-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold">TikTok</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.accounts || 0} {t('dashboard.accounts')}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.views || 0)}</p>
-                  <p className="text-xs text-muted-foreground">{t('views')}</p>
-                </div>
-              </div>
-            </GlowCard>
-
-            {/* YouTube */}
-            <GlowCard className="p-4" glowColor="orange">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-red-500/20">
-                  <Youtube className="h-5 w-5 text-red-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold">YouTube</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.accounts || 0} {t('dashboard.accounts')}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.views || 0)}</p>
-                  <p className="text-xs text-muted-foreground">{t('views')}</p>
-                </div>
-              </div>
-            </GlowCard>
-
-            {/* Kwai */}
-            <GlowCard className="p-4" glowColor="green">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-orange-500/20">
-                  <Video className="h-5 w-5 text-orange-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold">Kwai</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'Kwai')?.accounts || 0} {t('dashboard.accounts')}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'Kwai')?.views || 0)}</p>
-                  <p className="text-xs text-muted-foreground">{t('views')}</p>
-                </div>
-              </div>
-            </GlowCard>
-          </div>
+            </CardContent>
+          </Card>
         </div>
-
-        {/* Quick Actions */}
-        <GlowCard className="p-6" glowColor="primary">
-          <h3 className="text-lg font-semibold mb-4">{t('quickActions')}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button 
-              variant="outline" 
-              className="h-auto py-4 flex-col gap-2"
-              onClick={() => navigate('/client/campaigns')}
-            >
-              <Target className="h-6 w-6" />
-              <span>{t('dashboard.manage_campaigns')}</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="h-auto py-4 flex-col gap-2"
-              onClick={() => navigate('/profile')}
-            >
-              <Users className="h-6 w-6" />
-              <span>{t('nav.profile')}</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="h-auto py-4 flex-col gap-2"
-              onClick={handleRefresh}
-            >
-              <RefreshCw className="h-6 w-6" />
-              <span>{t('syncData')}</span>
-            </Button>
-          </div>
-        </GlowCard>
       </div>
     </MainLayout>
   );
