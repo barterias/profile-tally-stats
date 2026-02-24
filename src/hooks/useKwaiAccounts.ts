@@ -29,7 +29,8 @@ function normalizeKwaiUsernameInput(input: string): string {
   if (!raw) return '';
 
   const urlMatch = raw.match(/kwai\.com\/@([^/?#]+)/i);
-  const username = (urlMatch?.[1] || raw).replace(/^@/, '').trim().toLowerCase();
+  // Preserve original case — Kwai URLs are case-sensitive
+  const username = (urlMatch?.[1] || raw).replace(/^@/, '').trim();
   return username;
 }
 
