@@ -10,7 +10,7 @@ import { useVideoDetails } from '@/hooks/useVideoDetails';
 interface AddVideoByLinkModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  platform: 'tiktok' | 'instagram' | 'youtube';
+  platform: 'tiktok' | 'instagram' | 'youtube' | 'kwai';
   accountId?: string;
   onSuccess?: () => void;
 }
@@ -36,6 +36,7 @@ export function AddVideoByLinkModal({
     if (url.includes('tiktok.com')) return 'tiktok';
     if (url.includes('instagram.com')) return 'instagram';
     if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
+    if (url.includes('kwai.com') || url.includes('kwd.com')) return 'kwai';
     return null;
   };
 
@@ -50,7 +51,7 @@ export function AddVideoByLinkModal({
     const detectedPlatform = detectPlatform(videoUrl);
     
     if (!detectedPlatform) {
-      toast.error('Link inválido. Use links do TikTok, Instagram ou YouTube.');
+      toast.error('Link inválido. Use links do TikTok, Instagram, YouTube ou Kwai.');
       return;
     }
 
@@ -106,6 +107,8 @@ export function AddVideoByLinkModal({
         return 'https://www.instagram.com/reel/ABC123...';
       case 'youtube':
         return 'https://www.youtube.com/watch?v=...';
+      case 'kwai':
+        return 'https://www.kwai.com/video/...';
       default:
         return 'Cole o link do vídeo aqui';
     }

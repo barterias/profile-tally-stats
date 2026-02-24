@@ -20,6 +20,7 @@ import {
   Loader2,
   AlertCircle,
   Users,
+  Video,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,10 +46,12 @@ export default function SubmitPost() {
     tiktok: SocialAccount[];
     instagram: SocialAccount[];
     youtube: SocialAccount[];
+    kwai: SocialAccount[];
   }>({
     tiktok: [],
     instagram: [],
     youtube: [],
+    kwai: [],
   });
   const [linkErrors, setLinkErrors] = useState<string[]>([]);
   const [importMode, setImportMode] = useState<"links" | "account">("links");
@@ -118,7 +121,7 @@ export default function SubmitPost() {
     // Admins see ALL accounts, others see only their own
     const isAdminOrClient = role === 'admin' || role === 'client';
 
-    const [tiktokRes, instagramRes, youtubeRes] = await Promise.all([
+    const [tiktokRes, instagramRes, youtubeRes, kwaiRes] = await Promise.all([
       isAdminOrClient
         ? supabase
             .from("tiktok_accounts")
@@ -146,6 +149,16 @@ export default function SubmitPost() {
             .or('is_active.is.null,is_active.eq.true')
         : supabase
             .from("youtube_accounts")
+            .select("id, username, profile_url")
+            .eq("user_id", user.id)
+            .eq("is_active", true),
+      isAdminOrClient
+        ? supabase
+            .from("kwai_accounts")
+            .select("id, username, profile_url")
+            .or('is_active.is.null,is_active.eq.true')
+        : supabase
+            .from("kwai_accounts")
             .select("id, username, profile_url")
             .eq("user_id", user.id)
             .eq("is_active", true),
@@ -165,6 +178,7 @@ export default function SubmitPost() {
       tiktok: isAdminOrClient ? dedupeByUsername(tiktokRes.data || []) : (tiktokRes.data || []),
       instagram: isAdminOrClient ? dedupeByUsername(instagramRes.data || []) : (instagramRes.data || []),
       youtube: isAdminOrClient ? dedupeByUsername(youtubeRes.data || []) : (youtubeRes.data || []),
+      kwai: isAdminOrClient ? dedupeByUsername(kwaiRes.data || []) : (kwaiRes.data || []),
     });
   };
 
@@ -172,6 +186,7 @@ export default function SubmitPost() {
     { id: "tiktok", name: "TikTok", icon: Music, color: "text-pink-500" },
     { id: "instagram", name: "Instagram", icon: Instagram, color: "text-purple-500" },
     { id: "youtube", name: "YouTube Shorts", icon: Youtube, color: "text-red-500" },
+    { id: "kwai", name: "Kwai", icon: Video, color: "text-orange-500" },
   ];
 
   const getAccountsForPlatform = (platformId: string): SocialAccount[] => {
@@ -182,6 +197,8 @@ export default function SubmitPost() {
         return userAccounts.instagram;
       case 'youtube':
         return userAccounts.youtube;
+      case 'kwai':
+        return userAccounts.kwai;
       default:
         return [];
     }
@@ -299,6 +316,8 @@ export default function SubmitPost() {
       return normalizedLink.includes('instagram.com');
     } else if (platformId === 'youtube') {
       return normalizedLink.includes('youtube.com') || normalizedLink.includes('youtu.be');
+    } else if (platformId === 'kwai') {
+      return normalizedLink.includes('kwai.com') || normalizedLink.includes('kwd.com');
     }
     
     return false;
@@ -391,6 +410,18 @@ export default function SubmitPost() {
           likes: v.likes_count || 0,
           comments: v.comments_count || 0,
           shares: 0,
+        }));
+      } else if (formData.platform === 'kwai') {
+        const { data } = await supabase
+          .from('kwai_videos')
+          .select('video_url, views_count, likes_count, comments_count, shares_count')
+          .eq('account_id', selectedAccount);
+        videos = (data || []).map(v => ({
+          video_url: v.video_url,
+          views: (v as any).views_count || 0,
+          likes: (v as any).likes_count || 0,
+          comments: (v as any).comments_count || 0,
+          shares: (v as any).shares_count || 0,
         }));
       }
       
