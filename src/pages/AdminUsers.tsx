@@ -65,6 +65,13 @@ interface AdminUser {
   date: string;
 }
 
+interface ClientCampaignInfo {
+  userId: string;
+  username: string;
+  email: string;
+  campaigns: { id: string; name: string; is_active: boolean }[];
+}
+
 function AdminUsersContent() {
   const { isAdmin } = useAuth();
   const { t, language } = useLanguage();
@@ -72,6 +79,7 @@ function AdminUsersContent() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [clientCampaigns, setClientCampaigns] = useState<ClientCampaignInfo[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title: string;
@@ -90,6 +98,7 @@ function AdminUsersContent() {
       return;
     }
     fetchUsers();
+    fetchClientCampaigns();
   }, [isAdmin]);
 
   const fetchUsers = async () => {
@@ -108,6 +117,63 @@ function AdminUsersContent() {
       toast.error(t("users.error_loading"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchClientCampaigns = async () => {
+    try {
+      // Get all campaign owners with their campaigns
+      const { data: owners, error: ownersError } = await supabase
+        .from("campaign_owners")
+        .select("user_id, campaign_id");
+      if (ownersError) throw ownersError;
+
+      if (!owners || owners.length === 0) {
+        setClientCampaigns([]);
+        return;
+      }
+
+      // Get campaign details
+      const campaignIds = [...new Set(owners.map(o => o.campaign_id))];
+      const { data: campaigns, error: campaignsError } = await supabase
+        .from("campaigns")
+        .select("id, name, is_active")
+        .in("id", campaignIds);
+      if (campaignsError) throw campaignsError;
+
+      const campaignMap = new Map((campaigns || []).map(c => [c.id, c]));
+
+      // Get user profiles
+      const userIds = [...new Set(owners.map(o => o.user_id))];
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, username");
+      if (profilesError) throw profilesError;
+
+      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+
+      // Group by user
+      const clientMap = new Map<string, ClientCampaignInfo>();
+      for (const owner of owners) {
+        if (!clientMap.has(owner.user_id)) {
+          const profile = profileMap.get(owner.user_id);
+          const userInfo = users.find(u => u.id === owner.user_id);
+          clientMap.set(owner.user_id, {
+            userId: owner.user_id,
+            username: profile?.username || userInfo?.username || "—",
+            email: userInfo?.email || "—",
+            campaigns: [],
+          });
+        }
+        const campaign = campaignMap.get(owner.campaign_id);
+        if (campaign) {
+          clientMap.get(owner.user_id)!.campaigns.push(campaign);
+        }
+      }
+
+      setClientCampaigns(Array.from(clientMap.values()));
+    } catch (error) {
+      console.error("Error loading client campaigns:", error);
     }
   };
 
@@ -177,6 +243,7 @@ function AdminUsersContent() {
 
   const pendingUsers = users.filter((u) => u.status === "pending");
   const activeUsers = users.filter((u) => u.status !== "pending");
+  const clientUsers = activeUsers.filter((u) => u.role === "client");
 
   const filteredPending = pendingUsers.filter(
     (u) =>
@@ -267,6 +334,10 @@ function AdminUsersContent() {
                   {pendingUsers.length}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="clients" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Clientes ({clientUsers.length})
             </TabsTrigger>
             <TabsTrigger value="active" className="flex items-center gap-2">
               <UserCheck className="h-4 w-4" />
@@ -470,6 +541,81 @@ function AdminUsersContent() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Clients Tab */}
+          <TabsContent value="clients">
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  Gerenciar Clientes
+                </CardTitle>
+                <CardDescription>
+                  Designe campanhas para cada cliente. Clientes só terão acesso às campanhas atribuídas.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {clientUsers.length === 0 && clientCampaigns.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">
+                      Nenhum cliente cadastrado. Promova um usuário a cliente na aba "Ativos".
+                    </p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Usuário</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Campanhas Designadas</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {clientUsers.map((user) => {
+                        const clientInfo = clientCampaigns.find(c => c.userId === user.id);
+                        const campaigns = clientInfo?.campaigns || [];
+                        return (
+                          <TableRow key={user.id}>
+                            <TableCell className="font-medium">{user.username}</TableCell>
+                            <TableCell>{user.email}</TableCell>
+                            <TableCell>
+                              {campaigns.length === 0 ? (
+                                <span className="text-muted-foreground text-sm">Nenhuma campanha</span>
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {campaigns.map((c) => (
+                                    <Badge
+                                      key={c.id}
+                                      variant={c.is_active ? "default" : "secondary"}
+                                      className="text-xs"
+                                    >
+                                      {c.name}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openClientModal(user.id, user.username)}
+                              >
+                                <Building2 className="h-4 w-4 mr-1" />
+                                Designar Campanhas
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
 
         {/* Confirm Dialog */}
@@ -504,7 +650,7 @@ function AdminUsersContent() {
           onOpenChange={(open) => setClientModal({ ...clientModal, open })}
           userId={clientModal.userId}
           username={clientModal.username}
-          onSuccess={fetchUsers}
+          onSuccess={() => { fetchUsers(); fetchClientCampaigns(); }}
         />
       </div>
     </MainLayout>
