@@ -45,9 +45,9 @@ const platformConfig = {
   kwai: {
     icon: Music2,
     title: 'Adicionar Conta do Kwai',
-    description: 'Digite o nome de usuário da conta que deseja monitorar',
-    placeholder: '@username',
-    label: 'Nome de usuário',
+    description: 'Use o @ID do perfil (não o nome exibido) ou cole o link completo da conta',
+    placeholder: '@ordojg... ou https://www.kwai.com/@ordojg...',
+    label: 'ID ou link do perfil',
   },
 };
 

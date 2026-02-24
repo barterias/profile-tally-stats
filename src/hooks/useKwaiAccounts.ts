@@ -24,6 +24,27 @@ function parseInvokeError(err: any): { status?: number; message: string } {
   return { status, message: raw };
 }
 
+function normalizeKwaiUsernameInput(input: string): string {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+
+  const urlMatch = raw.match(/kwai\.com\/@([^/?#]+)/i);
+  const username = (urlMatch?.[1] || raw).replace(/^@/, '').trim().toLowerCase();
+  return username;
+}
+
+function isLikelyInvalidKwaiResult(result: any): boolean {
+  const data = result?.data;
+  if (!data) return false;
+
+  const videos = Number(data?.scrapedVideosCount || 0);
+  const followers = Number(data?.followersCount || 0);
+  const likes = Number(data?.likesCount || 0);
+  const displayName = String(data?.displayName || '').toLowerCase();
+
+  return videos === 0 && followers === 0 && likes === 0 && displayName.includes('kwai-nuxt-pwa-pc');
+}
+
 export function useKwaiAccounts() {
   const { user } = useAuth();
 
@@ -66,13 +87,18 @@ export function useAddKwaiAccount() {
 
   return useMutation({
     mutationFn: async ({ username, isClientOrAdmin }: { username: string; isClientOrAdmin?: boolean }) => {
+      const normalizedUsername = normalizeKwaiUsernameInput(username);
+      if (!normalizedUsername) {
+        return { success: false, error: 'Informe o @ID da conta ou cole o link do perfil Kwai.' } satisfies FunctionInvokeFailure;
+      }
+
       const autoApprove = isClientOrAdmin || isAdmin;
 
       const { data: existing } = await supabase
         .from('kwai_accounts' as any)
         .select('id, is_active')
         .eq('user_id', user?.id)
-        .eq('username', username)
+        .eq('username', normalizedUsername)
         .maybeSingle();
 
       if (existing) {
@@ -89,7 +115,7 @@ export function useAddKwaiAccount() {
           if (updateError) throw updateError;
 
           const { data: syncData, error: syncError } = await supabase.functions.invoke('kwai-scrape', {
-            body: { accountId: (existing as any).id, username, resultsLimit: 200 },
+            body: { accountId: (existing as any).id, username: normalizedUsername, resultsLimit: 200 },
           });
 
           if (syncError) {
@@ -101,6 +127,13 @@ export function useAddKwaiAccount() {
             return { success: false, error: (syncData as any).error || 'Erro ao scrape do Kwai.', status: 402 } satisfies FunctionInvokeFailure;
           }
 
+          if (isLikelyInvalidKwaiResult(syncData)) {
+            return {
+              success: false,
+              error: 'Conta não encontrada no Kwai. Use o @ID do perfil (ex: @ordojg...) ou cole o link completo.',
+            } satisfies FunctionInvokeFailure;
+          }
+
           return { success: true, reactivated: true };
         }
         return { success: false, error: 'Conta já existe' } satisfies FunctionInvokeFailure;
@@ -110,8 +143,8 @@ export function useAddKwaiAccount() {
         .from('kwai_accounts' as any)
         .insert({
           user_id: user?.id,
-          username,
-          profile_url: `https://www.kwai.com/@${username}`,
+          username: normalizedUsername,
+          profile_url: `https://www.kwai.com/@${normalizedUsername}`,
           is_active: true,
           ...(autoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
         })
@@ -121,7 +154,7 @@ export function useAddKwaiAccount() {
       if (insertError) throw insertError;
 
       const { data: syncData, error: syncError } = await supabase.functions.invoke('kwai-scrape', {
-        body: { accountId: (newAccount as any).id, username, resultsLimit: 200 },
+        body: { accountId: (newAccount as any).id, username: normalizedUsername, resultsLimit: 200 },
       });
 
       if (syncError) {
@@ -131,6 +164,18 @@ export function useAddKwaiAccount() {
 
       if (syncData && (syncData as any).success === false) {
         return { success: false, error: (syncData as any).error || 'Erro ao scrape do Kwai.', status: 402 } satisfies FunctionInvokeFailure;
+      }
+
+      if (isLikelyInvalidKwaiResult(syncData)) {
+        await supabase.rpc('delete_social_account', {
+          p_account_id: (newAccount as any).id,
+          p_platform: 'kwai',
+        });
+
+        return {
+          success: false,
+          error: 'Conta não encontrada no Kwai. Use o @ID do perfil (ex: @ordojg...) ou cole o link completo.',
+        } satisfies FunctionInvokeFailure;
       }
 
       return { success: true };
@@ -159,15 +204,23 @@ export function useSyncKwaiAccount() {
     mutationFn: async ({ accountId }: { accountId: string }) => {
       const { data: account } = await supabase
         .from('kwai_accounts' as any)
-        .select('username')
+        .select('username, profile_url')
         .eq('id', accountId)
         .single();
 
       if (!account) throw new Error('Conta não encontrada');
 
-        const { data: result, error } = await supabase.functions.invoke('kwai-scrape', {
-          body: { accountId, username: (account as any).username, resultsLimit: 200 },
-        });
+      const normalizedUsername = normalizeKwaiUsernameInput((account as any).profile_url || (account as any).username || '');
+      if (!normalizedUsername) {
+        return {
+          success: false,
+          error: 'Conta sem identificador válido. Atualize para um @ID do Kwai ou link do perfil.',
+        } satisfies FunctionInvokeFailure;
+      }
+
+      const { data: result, error } = await supabase.functions.invoke('kwai-scrape', {
+        body: { accountId, username: normalizedUsername, resultsLimit: 200 },
+      });
 
       if (error) {
         const parsed = parseInvokeError(error);
@@ -176,6 +229,13 @@ export function useSyncKwaiAccount() {
 
       if (result && (result as any).success === false) {
         return { success: false, error: (result as any).error || 'Erro ao scrape do Kwai.', status: 402 } satisfies FunctionInvokeFailure;
+      }
+
+      if (isLikelyInvalidKwaiResult(result)) {
+        return {
+          success: false,
+          error: 'Conta não encontrada no Kwai. Use o @ID do perfil (ex: @ordojg...) ou cole o link completo.',
+        } satisfies FunctionInvokeFailure;
       }
 
       return { success: true, videosCount: (result as any)?.data?.scrapedVideosCount || 0 };
@@ -204,8 +264,14 @@ export function useSyncAllKwaiAccounts() {
     mutationFn: async (accounts: { id: string; username: string }[]) => {
       const results = await Promise.allSettled(
         accounts.map(async (acc) => {
+          const normalizedUsername = normalizeKwaiUsernameInput(acc.username);
+
+          if (!normalizedUsername) {
+            return { success: false, error: 'Conta com username inválido.' } as FunctionInvokeFailure;
+          }
+
           const { data, error } = await supabase.functions.invoke('kwai-scrape', {
-            body: { accountId: acc.id, username: acc.username, resultsLimit: 200 },
+            body: { accountId: acc.id, username: normalizedUsername, resultsLimit: 200 },
           });
 
           if (error) {
@@ -215,6 +281,10 @@ export function useSyncAllKwaiAccounts() {
 
           if (data && (data as any).success === false) {
             return { success: false, error: (data as any).error || 'Erro.' } as FunctionInvokeFailure;
+          }
+
+          if (isLikelyInvalidKwaiResult(data)) {
+            return { success: false, error: 'Conta não encontrada no Kwai (verifique o @ID).' } as FunctionInvokeFailure;
           }
 
           return { success: true } as const;
