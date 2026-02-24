@@ -53,6 +53,21 @@ function safeString(value: any): string | undefined {
   return s ? s : undefined;
 }
 
+function normalizeKwaiUsername(input: string): string {
+  const raw = String(input || "").trim();
+  if (!raw) return "";
+
+  let username = raw;
+
+  // Accept full profile URLs too: https://www.kwai.com/@username
+  const urlMatch = raw.match(/kwai\.com\/@([^/?#]+)/i);
+  if (urlMatch?.[1]) {
+    username = urlMatch[1];
+  }
+
+  return username.replace(/^@/, "").trim().toLowerCase();
+}
+
 async function startApifyRun(apifyToken: string, username: string, resultsLimit: number): Promise<ApifyRunResponse> {
   console.log(`[Apify Kwai] Starting run for: ${username} (limit=${resultsLimit})`);
 
@@ -268,7 +283,9 @@ serve(async (req) => {
 
     const { username, accountId, resultsLimit = 50 } = await req.json();
 
-    if (!username) {
+    const normalizedUsername = normalizeKwaiUsername(username);
+
+    if (!normalizedUsername) {
       return new Response(JSON.stringify({ success: false, error: "Username é obrigatório" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -280,7 +297,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Start Apify run
-    const run = await startApifyRun(APIFY_API_TOKEN, username.replace(/^@/, ""), Number(resultsLimit) || 50);
+    const run = await startApifyRun(APIFY_API_TOKEN, normalizedUsername, Number(resultsLimit) || 50);
     const runId = run?.data?.id;
     if (!runId) throw new Error("Apify runId missing");
 
@@ -294,7 +311,7 @@ serve(async (req) => {
     // Try to extract profile data from the items (may vary by actor)
     const firstItem = items?.[0] || {};
     const profileData: KwaiScrapedData = {
-      username: safeString(firstItem?.username || firstItem?.authorUsername || firstItem?.userId) || username,
+      username: safeString(firstItem?.username || firstItem?.authorUsername || firstItem?.userId) || normalizedUsername,
       displayName: safeString(firstItem?.displayName || firstItem?.nickname || firstItem?.authorName || firstItem?.name),
       profileImageUrl: safeString(firstItem?.avatarUrl || firstItem?.profileImage || firstItem?.avatar || firstItem?.authorAvatar),
       bio: safeString(firstItem?.bio || firstItem?.description || firstItem?.signature),
