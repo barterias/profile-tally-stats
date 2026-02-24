@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Video, Instagram, Music, Youtube, CheckCircle2, AlertCircle, Users } from "lucide-react";
+import { Loader2, Plus, Trash2, Video, Instagram, Music, Youtube, CheckCircle2, AlertCircle, Users, Clapperboard } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -44,7 +44,8 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
     tiktok: SocialAccount[];
     instagram: SocialAccount[];
     youtube: SocialAccount[];
-  }>({ tiktok: [], instagram: [], youtube: [] });
+    kwai: SocialAccount[];
+  }>({ tiktok: [], instagram: [], youtube: [], kwai: [] });
   const [importMode, setImportMode] = useState<"links" | "account">("links");
   const [selectedAccount, setSelectedAccount] = useState("");
   const [loadingAccountVideos, setLoadingAccountVideos] = useState(false);
@@ -90,16 +91,18 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
   const fetchUserAccounts = async () => {
     if (!user) return;
 
-    const [tiktokRes, instagramRes, youtubeRes] = await Promise.all([
+    const [tiktokRes, instagramRes, youtubeRes, kwaiRes] = await Promise.all([
       supabase.from("tiktok_accounts").select("id, username, profile_url").eq("user_id", user.id).eq("is_active", true),
       supabase.from("instagram_accounts").select("id, username, profile_url").eq("user_id", user.id).eq("is_active", true),
       supabase.from("youtube_accounts").select("id, username, profile_url").eq("user_id", user.id).eq("is_active", true),
+      supabase.from("kwai_accounts").select("id, username, profile_url").eq("user_id", user.id).eq("is_active", true),
     ]);
 
     setUserAccounts({
       tiktok: tiktokRes.data || [],
       instagram: instagramRes.data || [],
       youtube: youtubeRes.data || [],
+      kwai: kwaiRes.data || [],
     });
   };
 
@@ -145,6 +148,18 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
           likes: v.likes_count || 0,
           comments: v.comments_count || 0,
           shares: 0,
+        }));
+      } else if (selectedPlatform === 'kwai') {
+        const { data } = await supabase
+          .from('kwai_videos')
+          .select('video_url, views_count, likes_count, comments_count, shares_count')
+          .eq('account_id', selectedAccount);
+        videos = (data || []).map(v => ({
+          video_url: v.video_url,
+          views: (v as any).views_count || 0,
+          likes: (v as any).likes_count || 0,
+          comments: (v as any).comments_count || 0,
+          shares: (v as any).shares_count || 0,
         }));
       }
       
@@ -205,6 +220,7 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
       case 'tiktok': return userAccounts.tiktok;
       case 'instagram': return userAccounts.instagram;
       case 'youtube': return userAccounts.youtube;
+      case 'kwai': return userAccounts.kwai;
       default: return [];
     }
   };
@@ -216,6 +232,7 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
     tiktok: Music,
     instagram: Instagram,
     youtube: Youtube,
+    kwai: Video,
   };
 
   const validateLink = (link: string): boolean => {
@@ -223,6 +240,7 @@ export function SubmitVideoModal({ open, onOpenChange, onSuccess }: SubmitVideoM
     if (selectedPlatform === 'tiktok') return normalizedLink.includes('tiktok.com');
     if (selectedPlatform === 'instagram') return normalizedLink.includes('instagram.com');
     if (selectedPlatform === 'youtube') return normalizedLink.includes('youtube.com') || normalizedLink.includes('youtu.be');
+    if (selectedPlatform === 'kwai') return normalizedLink.includes('kwai.com') || normalizedLink.includes('kwd.com');
     return false;
   };
 

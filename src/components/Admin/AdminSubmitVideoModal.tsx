@@ -27,6 +27,7 @@ function detectPlatform(url: string): string | null {
   if (lower.includes("tiktok.com")) return "tiktok";
   if (lower.includes("instagram.com")) return "instagram";
   if (lower.includes("youtube.com") || lower.includes("youtu.be")) return "youtube";
+  if (lower.includes("kwai.com") || lower.includes("kwd.com")) return "kwai";
   return null;
 }
 
@@ -93,7 +94,7 @@ export function AdminSubmitVideoModal({ open, onOpenChange, onSuccess, preselect
       .filter((l) => l && detectPlatform(l));
 
     if (validLinks.length === 0) {
-      toast.error("Adicione pelo menos um link válido (TikTok, Instagram ou YouTube)");
+      toast.error("Adicione pelo menos um link válido (TikTok, Instagram, YouTube ou Kwai)");
       return;
     }
 
@@ -225,7 +226,7 @@ export function AdminSubmitVideoModal({ open, onOpenChange, onSuccess, preselect
                   <div key={index} className="flex gap-2 items-center">
                     <div className="relative flex-1">
                       <Input
-                        placeholder="Cole o link do TikTok, Instagram ou YouTube"
+                        placeholder="Cole o link do TikTok, Instagram, YouTube ou Kwai"
                         value={link}
                         onChange={(e) => updateLink(index, e.target.value)}
                       />
