@@ -355,6 +355,33 @@ function CampaignDetailContent() {
           }
         }
 
+        // Fetch Kwai video usernames and metrics from kwai_videos
+        const kwaiMetricsMap: Record<string, { views: number; likes: number; comments: number; shares: number }> = {};
+        const kwVideos = videosData.filter(v => v.platform?.toLowerCase() === 'kwai');
+        if (kwVideos.length > 0) {
+          const kwLinks = kwVideos.map(v => v.video_link).filter(Boolean);
+          const { data: kwPosts } = await supabase
+            .from('kwai_videos')
+            .select('video_url, views_count, likes_count, comments_count, shares_count, account_id, kwai_accounts!inner(username)')
+            .in('video_url', kwLinks);
+          
+          if (kwPosts) {
+            kwPosts.forEach((post: any) => {
+              if (post.video_url) {
+                if (post.kwai_accounts?.username) {
+                  videoLinksMap[post.video_url] = post.kwai_accounts.username;
+                }
+                kwaiMetricsMap[post.video_url] = {
+                  views: Number(post.views_count || 0),
+                  likes: Number(post.likes_count || 0),
+                  comments: Number(post.comments_count || 0),
+                  shares: Number(post.shares_count || 0),
+                };
+              }
+            });
+          }
+        }
+
         const processedVideos = videosData.map((video) => {
           // Try to get username from database lookup first
           let videoUsername: string | null = videoLinksMap[video.video_link] || null;
@@ -364,15 +391,40 @@ function CampaignDetailContent() {
             const ttMatch = video.video_link?.match(/tiktok\.com\/@([^\/]+)/);
             if (ttMatch) videoUsername = ttMatch[1];
           }
+
+          // For Kwai videos, use kwai_videos metrics if campaign_videos has 0
+          let views = video.views || 0;
+          let likes = video.likes || 0;
+          let comments = video.comments || 0;
+          let shares = video.shares || 0;
+          
+          if (video.platform?.toLowerCase() === 'kwai' && views === 0) {
+            const kwaiData = kwaiMetricsMap[video.video_link];
+            if (kwaiData) {
+              views = kwaiData.views;
+              likes = kwaiData.likes;
+              comments = kwaiData.comments;
+              shares = kwaiData.shares;
+
+              // Also update campaign_videos in background so ranking is correct
+              if (views > 0) {
+                supabase
+                  .from("campaign_videos")
+                  .update({ views, likes, comments, shares })
+                  .eq("id", video.id)
+                  .then(() => {});
+              }
+            }
+          }
           
           return {
             id: video.id,
             video_link: video.video_link,
             platform: video.platform,
-            views: video.views || 0,
-            likes: video.likes || 0,
-            comments: video.comments || 0,
-            shares: video.shares || 0,
+            views,
+            likes,
+            comments,
+            shares,
             submitted_at: video.submitted_at,
             submitted_by: video.submitted_by,
             verified: video.verified,

@@ -836,6 +836,15 @@ async function fetchKwaiVideo(videoId: string, videoUrl?: string): Promise<Video
   
   const pageUrl = videoUrl || `https://www.kwai.com/video/${videoId}`;
   
+  let viewsCount = 0;
+  let likesCount = 0;
+  let commentsCount = 0;
+  let sharesCount = 0;
+  let caption = '';
+  let thumbnailUrl = '';
+  let authorUsername = '';
+  let finalUrl = pageUrl;
+
   try {
     // Try to resolve the URL first (short links like k.kwai.com/p/XXX redirect)
     const res = await fetch(pageUrl, {
@@ -848,14 +857,7 @@ async function fetchKwaiVideo(videoId: string, videoUrl?: string): Promise<Video
       },
     });
 
-    const finalUrl = res.url || pageUrl;
-    let viewsCount = 0;
-    let likesCount = 0;
-    let commentsCount = 0;
-    let sharesCount = 0;
-    let caption = '';
-    let thumbnailUrl = '';
-    let authorUsername = '';
+    finalUrl = res.url || pageUrl;
 
     if (res.ok) {
       const html = await res.text();
@@ -896,37 +898,75 @@ async function fetchKwaiVideo(videoId: string, videoUrl?: string): Promise<Video
       console.log(`[Kwai] HTTP ${res.status} fetching page`);
       await res.text(); // consume body
     }
-
-    console.log(`[Kwai] Result: views=${viewsCount}, likes=${likesCount}, caption=${caption.substring(0, 50)}`);
-
-    return {
-      platform: 'kwai',
-      videoId,
-      videoUrl: finalUrl,
-      source: 'native',
-      caption,
-      title: caption,
-      thumbnailUrl,
-      viewsCount,
-      likesCount,
-      commentsCount,
-      sharesCount,
-      author: { username: authorUsername },
-    };
   } catch (e) {
     console.error('[Kwai] Fetch error:', e);
-    // Return partial result
-    return {
-      platform: 'kwai',
-      videoId,
-      videoUrl: pageUrl,
-      source: 'native',
-      viewsCount: 0,
-      likesCount: 0,
-      commentsCount: 0,
-      sharesCount: 0,
-    };
   }
+
+  // If native scraping returned 0 views, try to find metrics in kwai_videos table
+  if (viewsCount === 0) {
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      // Try matching by video_url (exact or partial)
+      const urlVariants = [pageUrl, finalUrl];
+      // Extract video ID from URL for broader matching
+      const kwaiVideoIdMatch = finalUrl.match(/\/video\/(\d+)/);
+      
+      let dbVideo: any = null;
+
+      for (const urlVar of urlVariants) {
+        const { data } = await supabase
+          .from('kwai_videos')
+          .select('video_url, views_count, likes_count, comments_count, shares_count, caption, thumbnail_url')
+          .eq('video_url', urlVar)
+          .maybeSingle();
+        if (data) { dbVideo = data; break; }
+      }
+
+      // Try by video ID in URL if not found
+      if (!dbVideo && kwaiVideoIdMatch) {
+        const { data } = await supabase
+          .from('kwai_videos')
+          .select('video_url, views_count, likes_count, comments_count, shares_count, caption, thumbnail_url')
+          .like('video_url', `%/video/${kwaiVideoIdMatch[1]}%`)
+          .maybeSingle();
+        if (data) dbVideo = data;
+      }
+
+      if (dbVideo) {
+        console.log(`[Kwai] Found metrics in kwai_videos DB: views=${dbVideo.views_count}, likes=${dbVideo.likes_count}`);
+        viewsCount = Number(dbVideo.views_count || 0);
+        likesCount = Number(dbVideo.likes_count || 0);
+        commentsCount = Number(dbVideo.comments_count || 0);
+        sharesCount = Number(dbVideo.shares_count || 0);
+        if (!caption && dbVideo.caption) caption = dbVideo.caption;
+        if (!thumbnailUrl && dbVideo.thumbnail_url) thumbnailUrl = dbVideo.thumbnail_url;
+      } else {
+        console.log('[Kwai] No matching video found in kwai_videos table');
+      }
+    } catch (dbErr) {
+      console.error('[Kwai] DB lookup error:', dbErr);
+    }
+  }
+
+  console.log(`[Kwai] Result: views=${viewsCount}, likes=${likesCount}, caption=${caption.substring(0, 50)}`);
+
+  return {
+    platform: 'kwai',
+    videoId,
+    videoUrl: finalUrl,
+    source: 'native',
+    caption,
+    title: caption,
+    thumbnailUrl,
+    viewsCount,
+    likesCount,
+    commentsCount,
+    sharesCount,
+    author: { username: authorUsername },
+  };
 }
 
 Deno.serve(async (req) => {
