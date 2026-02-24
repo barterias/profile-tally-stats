@@ -1,0 +1,2 @@
+ALTER TABLE public.campaign_videos DROP CONSTRAINT campaign_videos_platform_check;
+ALTER TABLE public.campaign_videos ADD CONSTRAINT campaign_videos_platform_check CHECK (platform = ANY (ARRAY['instagram'::text, 'tiktok'::text, 'youtube'::text, 'kwai'::text]));
