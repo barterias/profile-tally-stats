@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import MainLayout from "@/components/Layout/MainLayout";
+import ClientLayout from "@/components/Layout/ClientLayout";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { MetricCardGlow } from "@/components/ui/MetricCardGlow";
 import { PayoutsTable } from "@/components/Tables/PayoutsTable";
@@ -133,16 +133,16 @@ function FinanceiroClientContent() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <ClientLayout>
         <div className="flex items-center justify-center h-[60vh]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
         </div>
-      </MainLayout>
+      </ClientLayout>
     );
   }
 
   return (
-    <MainLayout>
+    <ClientLayout>
       <div className="space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -263,7 +263,7 @@ function FinanceiroClientContent() {
           </TabsContent>
         </Tabs>
       </div>
-    </MainLayout>
+    </ClientLayout>
   );
 }
 

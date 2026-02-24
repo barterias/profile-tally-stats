@@ -22,6 +22,7 @@ import { useApproveAccount, useRejectAccount } from '@/hooks/usePendingAccounts'
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useClientFilter } from '@/pages/AccountAnalytics';
 
 export function InstagramTab() {
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -31,7 +32,7 @@ export function InstagramTab() {
   const { user } = useAuth();
   const { role, isClipper, isAdmin, isClient } = useUserRole();
   const { t } = useLanguage();
-
+  const clientFilterUserIds = useClientFilter();
   // Always call both hooks to respect Rules of Hooks
   const userAccountsQuery = useInstagramAccounts();
   const allAccountsQuery = useAllInstagramAccounts();
@@ -41,12 +42,19 @@ export function InstagramTab() {
     ? allAccountsQuery 
     : userAccountsQuery;
 
-  // Deduplicate accounts by username - keep only the first occurrence (most recent)
-  const accounts = (isAdmin || isClient)
+  // Deduplicate and filter accounts
+  let accounts = (isAdmin || isClient)
     ? rawAccounts.filter((account, index, self) => 
         index === self.findIndex(a => a.username === account.username)
       )
     : rawAccounts;
+
+  // For clients, filter by user IDs who submitted videos to their campaigns
+  if (clientFilterUserIds && clientFilterUserIds.length > 0) {
+    accounts = accounts.filter(acc => clientFilterUserIds.includes(acc.user_id));
+  } else if (clientFilterUserIds && clientFilterUserIds.length === 0 && isClient) {
+    accounts = [];
+  }
 
   const { data: posts = [], isLoading: postsLoading } = useInstagramVideos(selectedAccount?.id || '');
   const { data: allPosts = [] } = useAllInstagramVideos();
