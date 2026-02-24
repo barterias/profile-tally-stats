@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
-import MainLayout from "@/components/Layout/MainLayout";
+import ClientLayout from "@/components/Layout/ClientLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -190,16 +190,16 @@ function ClientCampaignsContent() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <ClientLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
-      </MainLayout>
+      </ClientLayout>
     );
   }
 
   return (
-    <MainLayout>
+    <ClientLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -393,7 +393,7 @@ function ClientCampaignsContent() {
           campaignName={selectedCampaignForVideos?.name}
         />
       </div>
-    </MainLayout>
+    </ClientLayout>
   );
 }
 

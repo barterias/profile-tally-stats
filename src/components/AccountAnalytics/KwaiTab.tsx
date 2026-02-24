@@ -20,6 +20,7 @@ import { useKwaiVideos, useAllKwaiVideos } from '@/hooks/useKwaiVideos';
 import { useApproveAccount, useRejectAccount } from '@/hooks/usePendingAccounts';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
+import { useClientFilter } from '@/pages/AccountAnalytics';
 
 export function KwaiTab() {
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -27,6 +28,7 @@ export function KwaiTab() {
   const [selectedAccount, setSelectedAccount] = useState<{ id: string; username: string } | null>(null);
   const { user } = useAuth();
   const { isClipper, isAdmin, isClient } = useUserRole();
+  const clientFilterUserIds = useClientFilter();
 
   const userAccountsQuery = useKwaiAccounts();
   const allAccountsQuery = useAllKwaiAccounts();
@@ -35,11 +37,17 @@ export function KwaiTab() {
     ? allAccountsQuery
     : userAccountsQuery;
 
-  const accounts = (isAdmin || isClient)
+  let accounts = (isAdmin || isClient)
     ? rawAccounts.filter((account, index, self) =>
         index === self.findIndex((a: any) => a.username === account.username)
       )
     : rawAccounts;
+
+  if (clientFilterUserIds && clientFilterUserIds.length > 0) {
+    accounts = accounts.filter((acc: any) => clientFilterUserIds.includes(acc.user_id));
+  } else if (clientFilterUserIds && clientFilterUserIds.length === 0 && isClient) {
+    accounts = [];
+  }
 
   const { data: videos = [], isLoading: videosLoading } = useKwaiVideos(selectedAccount?.id || '');
   const { data: allVideosViews = [] } = useAllKwaiVideos();

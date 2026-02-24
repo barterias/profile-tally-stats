@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
-import MainLayout from "@/components/Layout/MainLayout";
+import ClientLayout from "@/components/Layout/ClientLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -190,11 +190,11 @@ function ClientEditCampaignContent() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <ClientLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
-      </MainLayout>
+      </ClientLayout>
     );
   }
 
@@ -203,7 +203,7 @@ function ClientEditCampaignContent() {
   }
 
   return (
-    <MainLayout>
+    <ClientLayout>
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -459,7 +459,7 @@ function ClientEditCampaignContent() {
           </div>
         </Card>
       </div>
-    </MainLayout>
+    </ClientLayout>
   );
 }
 

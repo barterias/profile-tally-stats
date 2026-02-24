@@ -23,6 +23,7 @@ import { useApproveAccount, useRejectAccount } from '@/hooks/usePendingAccounts'
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useClientFilter } from '@/pages/AccountAnalytics';
 
 export function YouTubeTab() {
   const queryClient = useQueryClient();
@@ -32,6 +33,7 @@ export function YouTubeTab() {
   const { user } = useAuth();
   const { isClipper, isAdmin, isClient } = useUserRole();
   const { t } = useLanguage();
+  const clientFilterUserIds = useClientFilter();
 
   // Realtime: refresh YouTube accounts/videos list when background sync updates rows
   useEffect(() => {
@@ -69,12 +71,17 @@ export function YouTubeTab() {
     ? allAccountsQuery 
     : userAccountsQuery;
 
-  // Deduplicate accounts by username - keep only the first occurrence (most recent)
-  const accounts = (isAdmin || isClient)
+  let accounts = (isAdmin || isClient)
     ? rawAccounts.filter((account, index, self) => 
         index === self.findIndex(a => a.username === account.username)
       )
     : rawAccounts;
+
+  if (clientFilterUserIds && clientFilterUserIds.length > 0) {
+    accounts = accounts.filter(acc => clientFilterUserIds.includes(acc.user_id));
+  } else if (clientFilterUserIds && clientFilterUserIds.length === 0 && isClient) {
+    accounts = [];
+  }
 
   const { data: videos = [], isLoading: videosLoading } = useYouTubeVideos(selectedAccount?.id || '');
   

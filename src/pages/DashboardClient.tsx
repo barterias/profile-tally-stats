@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import MainLayout from "@/components/Layout/MainLayout";
+import ClientLayout from "@/components/Layout/ClientLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Eye, CheckCircle, TrendingUp, Calendar, BarChart3, Activity, PieChart } from "lucide-react";
+import { Eye, CheckCircle, TrendingUp, Calendar, BarChart3, Activity, PieChart, Trophy } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -50,7 +51,6 @@ function DashboardClientContent() {
 
   const fetchClientData = async () => {
     try {
-      // Get user profile
       const { data: profile } = await supabase
         .from("profiles")
         .select("username")
@@ -58,7 +58,6 @@ function DashboardClientContent() {
         .maybeSingle();
       setUsername(profile?.username || "Cliente");
 
-      // Get owned campaigns
       const { data: ownership } = await supabase
         .from("campaign_owners")
         .select("campaign_id")
@@ -71,7 +70,6 @@ function DashboardClientContent() {
         return;
       }
 
-      // Get campaign details
       const { data: campaign } = await supabase
         .from("campaigns")
         .select("*")
@@ -84,7 +82,6 @@ function DashboardClientContent() {
         return;
       }
 
-      // Get campaign videos
       const { data: videos } = await supabase
         .from("campaign_videos")
         .select("platform, views, likes, comments, shares")
@@ -92,7 +89,6 @@ function DashboardClientContent() {
 
       const vids = videos || [];
 
-      // Calculate platform metrics
       const platformMap = new Map<string, { views: number; engagement: number; count: number }>();
       for (const v of vids) {
         const p = v.platform || "Outro";
@@ -157,50 +153,58 @@ function DashboardClientContent() {
     return num.toLocaleString("pt-BR");
   };
 
-  const getCampaignStatus = () => {
-    if (!metrics) return { label: "—", sub: "" };
-    const end = new Date(metrics.endDate);
-    const now = new Date();
-    if (now > end) {
-      return { label: "Campanha finalizada", sub: `Até ${format(end, "dd 'de' MMMM", { locale: ptBR })}` };
-    }
-    const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    return { label: `${diff} dias restantes`, sub: `Até ${format(end, "dd 'de' MMMM", { locale: ptBR })}` };
-  };
-
   if (loading) {
     return (
-      <MainLayout>
+      <ClientLayout>
         <div className="flex items-center justify-center h-[60vh]">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary" />
         </div>
-      </MainLayout>
+      </ClientLayout>
     );
   }
 
   if (!metrics) {
     return (
-      <MainLayout>
+      <ClientLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] text-center">
           <Calendar className="h-16 w-16 text-muted-foreground mb-4" />
           <h2 className="text-2xl font-bold mb-2">Nenhuma campanha encontrada</h2>
           <p className="text-muted-foreground">Aguarde o admin designar uma campanha para você.</p>
         </div>
-      </MainLayout>
+      </ClientLayout>
     );
   }
 
-  const campaignStatus = getCampaignStatus();
   const COLORS = ["hsl(0, 70%, 55%)", "hsl(340, 70%, 55%)", "hsl(220, 70%, 55%)", "hsl(140, 70%, 55%)"];
 
   return (
-    <MainLayout>
+    <ClientLayout>
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold">Olá, {username}!</h1>
             <p className="text-muted-foreground text-sm">{metrics.campaignName}</p>
+          </div>
+
+          {/* Navigation Buttons */}
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => navigate("/client/campaigns")}
+            >
+              <Trophy className="h-4 w-4" />
+              Campanhas
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => navigate("/account-analytics")}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Análise de Contas
+            </Button>
           </div>
         </div>
 
@@ -242,7 +246,6 @@ function DashboardClientContent() {
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Views por Plataforma */}
           <Card className="glass-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
@@ -273,7 +276,6 @@ function DashboardClientContent() {
             </CardContent>
           </Card>
 
-          {/* Engajamento por Plataforma */}
           <Card className="glass-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
@@ -341,7 +343,7 @@ function DashboardClientContent() {
                       }}
                     />
                     <Legend
-                      formatter={(value, entry: any) => {
+                      formatter={(value) => {
                         const item = metrics.platformDistribution.find((d) => d.name === value);
                         return `${value} (${item?.value || 0})`;
                       }}
@@ -353,7 +355,7 @@ function DashboardClientContent() {
           </Card>
         </div>
       </div>
-    </MainLayout>
+    </ClientLayout>
   );
 }
 
