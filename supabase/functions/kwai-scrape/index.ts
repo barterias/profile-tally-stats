@@ -65,7 +65,17 @@ function normalizeKwaiUsername(input: string): string {
     username = urlMatch[1];
   }
 
-  return username.replace(/^@/, "").trim().toLowerCase();
+  // Preserve original case — Kwai URLs are case-sensitive
+  return username.replace(/^@/, "").trim();
+}
+
+function getUsernameVariants(username: string): string[] {
+  const variants = [username];
+  const lower = username.toLowerCase();
+  const upper = username.charAt(0).toUpperCase() + username.slice(1).toLowerCase();
+  if (lower !== username) variants.push(lower);
+  if (upper !== username && upper !== lower) variants.push(upper);
+  return variants;
 }
 
 async function scrapeKwaiProfile(username: string): Promise<{
@@ -411,28 +421,58 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Scrape profile data directly from Kwai page (parallel with Apify)
-    const profilePromise = scrapeKwaiProfile(normalizedUsername);
-
-    // Start Apify run for videos
     const normalizedLimit = Math.min(Math.max(Number(resultsLimit) || 200, 50), 300);
-    const run = await startApifyRun(APIFY_API_TOKEN, normalizedUsername, normalizedLimit);
-    const runId = run?.data?.id;
-    if (!runId) throw new Error("Apify runId missing");
 
-    const datasetId = await waitForRunCompletion(APIFY_API_TOKEN, runId);
-    const items = await getDatasetItems(APIFY_API_TOKEN, datasetId);
+    // Try username variants (original case, lowercase, capitalized) for both profile and Apify
+    const variants = getUsernameVariants(normalizedUsername);
+    let bestUsername = normalizedUsername;
+    let profileScrape = { displayName: undefined as string | undefined, profileImageUrl: undefined as string | undefined, followersCount: 0, followingCount: 0, likesCount: 0 };
+    let items: any[] = [];
+    let videos: KwaiVideo[] = [];
 
-    console.log(`[Apify Kwai] Dataset items count: ${items.length}`);
+    for (const variant of variants) {
+      console.log(`[Kwai] Trying variant: ${variant}`);
 
-    const videos = mapApifyItemsToVideos(items);
+      // Scrape profile + Apify in parallel for this variant
+      const [profileResult, apifyResult] = await Promise.allSettled([
+        scrapeKwaiProfile(variant),
+        (async () => {
+          const run = await startApifyRun(APIFY_API_TOKEN, variant, normalizedLimit);
+          const runId = run?.data?.id;
+          if (!runId) throw new Error("Apify runId missing");
+          const datasetId = await waitForRunCompletion(APIFY_API_TOKEN, runId);
+          return getDatasetItems(APIFY_API_TOKEN, datasetId);
+        })(),
+      ]);
 
-    // Get profile data from direct scrape
-    const profileScrape = await profilePromise;
+      const pResult = profileResult.status === "fulfilled" ? profileResult.value : { followersCount: 0, followingCount: 0, likesCount: 0 };
+      const aItems = apifyResult.status === "fulfilled" ? apifyResult.value : [];
+
+      console.log(`[Kwai] Variant "${variant}": profile followers=${pResult.followersCount}, apify items=${aItems.length}`);
+
+      // If we got real data, use this variant
+      const isValidProfile = pResult.followersCount > 0 || pResult.likesCount > 0;
+      const hasDisplayName = pResult.displayName && !pResult.displayName.toLowerCase().includes("kwai-nuxt");
+
+      if (aItems.length > 0 || isValidProfile || hasDisplayName) {
+        bestUsername = variant;
+        profileScrape = pResult;
+        items = aItems;
+        videos = mapApifyItemsToVideos(items);
+        console.log(`[Kwai] Using variant "${variant}" — found data!`);
+        break;
+      }
+    }
+
+    console.log(`[Apify Kwai] Final dataset items count: ${items.length}`);
+
+    if (videos.length === 0) {
+      videos = mapApifyItemsToVideos(items);
+    }
 
     const firstItem = items?.[0] || {};
     const profileData: KwaiScrapedData = {
-      username: normalizedUsername,
+      username: bestUsername,
       displayName: profileScrape.displayName || safeString(firstItem?.displayName || firstItem?.nickname || firstItem?.authorName || firstItem?.name),
       profileImageUrl: profileScrape.profileImageUrl || safeString(firstItem?.avatarUrl || firstItem?.profileImage || firstItem?.avatar || firstItem?.authorAvatar),
       bio: safeString(firstItem?.bio || firstItem?.description || firstItem?.signature),
@@ -458,6 +498,8 @@ serve(async (req) => {
       await supabase
         .from("kwai_accounts")
         .update({
+          username: bestUsername,
+          profile_url: `https://www.kwai.com/@${bestUsername}`,
           display_name: profileData.displayName ?? null,
           profile_image_url: profileData.profileImageUrl ?? null,
           bio: profileData.bio ?? null,
