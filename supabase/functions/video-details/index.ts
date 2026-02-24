@@ -30,6 +30,7 @@ function detectPlatform(url: string): string | null {
   if (url.includes('tiktok.com')) return 'tiktok';
   if (url.includes('instagram.com')) return 'instagram';
   if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
+  if (url.includes('kwai.com') || url.includes('kwd.com') || url.includes('k.kwai.com')) return 'kwai';
   return null;
 }
 
@@ -80,6 +81,16 @@ function extractVideoId(url: string, platform: string): string | null {
         return match ? match[1] : null;
       }
       return urlObj.searchParams.get('v');
+    }
+
+    if (platform === 'kwai') {
+      // Kwai: https://www.kwai.com/video/123 or https://k.kwai.com/p/ABC123
+      const shortMatch = url.match(/\/p\/([^\/\?\#]+)/);
+      if (shortMatch) return shortMatch[1];
+      const longMatch = url.match(/\/video\/([^\/\?\#]+)/);
+      if (longMatch) return longMatch[1];
+      // Use full URL as fallback ID for short links
+      return url;
     }
 
     return null;
@@ -820,6 +831,104 @@ async function fetchYouTubeVideo(videoId: string, apiKey: string): Promise<Video
   }
 }
 
+async function fetchKwaiVideo(videoId: string, videoUrl?: string): Promise<VideoDetails | null> {
+  console.log(`[Kwai] Fetching video: ${videoId}, url: ${videoUrl}`);
+  
+  const pageUrl = videoUrl || `https://www.kwai.com/video/${videoId}`;
+  
+  try {
+    // Try to resolve the URL first (short links like k.kwai.com/p/XXX redirect)
+    const res = await fetch(pageUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+      },
+    });
+
+    const finalUrl = res.url || pageUrl;
+    let viewsCount = 0;
+    let likesCount = 0;
+    let commentsCount = 0;
+    let sharesCount = 0;
+    let caption = '';
+    let thumbnailUrl = '';
+    let authorUsername = '';
+
+    if (res.ok) {
+      const html = await res.text();
+      console.log(`[Kwai] HTML length: ${html.length}, final URL: ${finalUrl}`);
+
+      // Try to extract OG meta tags
+      const ogTitle = html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/);
+      if (ogTitle) caption = ogTitle[1];
+
+      const ogImage = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/);
+      if (ogImage) thumbnailUrl = ogImage[1];
+
+      const descMeta = html.match(/<meta[^>]*name="description"[^>]*content="([^"]+)"/);
+      if (!caption && descMeta) caption = descMeta[1];
+
+      // Try to find JSON data in the page
+      const jsonMatches = html.matchAll(/<script[^>]*>([^<]*(?:"viewCount"|"playCount"|"likeCount")[^<]*)<\/script>/gi);
+      for (const match of jsonMatches) {
+        try {
+          const jsonStr = match[1];
+          const viewMatch = jsonStr.match(/["'](?:viewCount|playCount)["']\s*:\s*(\d+)/);
+          if (viewMatch) viewsCount = Math.max(viewsCount, Number(viewMatch[1]));
+          const likeMatch = jsonStr.match(/["'](?:likeCount|likesCount)["']\s*:\s*(\d+)/);
+          if (likeMatch) likesCount = Math.max(likesCount, Number(likeMatch[1]));
+          const commentMatch = jsonStr.match(/["'](?:commentCount|commentsCount)["']\s*:\s*(\d+)/);
+          if (commentMatch) commentsCount = Math.max(commentsCount, Number(commentMatch[1]));
+          const shareMatch = jsonStr.match(/["'](?:shareCount|sharesCount)["']\s*:\s*(\d+)/);
+          if (shareMatch) sharesCount = Math.max(sharesCount, Number(shareMatch[1]));
+        } catch { /* ignore */ }
+      }
+
+      // Broader regex fallback
+      if (viewsCount === 0) {
+        const vMatch = html.match(/["'](?:viewCount|playCount|view_count|play_count)["']\s*:\s*(\d+)/);
+        if (vMatch) viewsCount = Number(vMatch[1]);
+      }
+    } else {
+      console.log(`[Kwai] HTTP ${res.status} fetching page`);
+      await res.text(); // consume body
+    }
+
+    console.log(`[Kwai] Result: views=${viewsCount}, likes=${likesCount}, caption=${caption.substring(0, 50)}`);
+
+    return {
+      platform: 'kwai',
+      videoId,
+      videoUrl: finalUrl,
+      source: 'native',
+      caption,
+      title: caption,
+      thumbnailUrl,
+      viewsCount,
+      likesCount,
+      commentsCount,
+      sharesCount,
+      author: { username: authorUsername },
+    };
+  } catch (e) {
+    console.error('[Kwai] Fetch error:', e);
+    // Return partial result
+    return {
+      platform: 'kwai',
+      videoId,
+      videoUrl: pageUrl,
+      source: 'native',
+      viewsCount: 0,
+      likesCount: 0,
+      commentsCount: 0,
+      sharesCount: 0,
+    };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -909,6 +1018,9 @@ Deno.serve(async (req) => {
       case 'youtube':
         videoDetails = await fetchYouTubeVideo(videoId, apiKey);
         break;
+      case 'kwai':
+        videoDetails = await fetchKwaiVideo(videoId, resolvedUrl || videoUrl);
+        break;
       default:
         return new Response(
           JSON.stringify({ success: false, error: `Unsupported platform: ${platform}` }),
@@ -917,12 +1029,12 @@ Deno.serve(async (req) => {
     }
 
     if (!videoDetails) {
-      // Return partial success so frontend can still accept the submission with manual validation
-      // We know the video ID was extracted; we just couldn't fetch metrics.
-      const videoUrl = platform === 'tiktok'
+      const fallbackUrl = platform === 'tiktok'
         ? `https://www.tiktok.com/@_/video/${videoId}`
         : platform === 'instagram'
         ? `https://www.instagram.com/p/${videoId}/`
+        : platform === 'kwai'
+        ? (resolvedUrl || videoUrl || `https://www.kwai.com/video/${videoId}`)
         : `https://www.youtube.com/watch?v=${videoId}`;
 
       return new Response(
@@ -933,7 +1045,7 @@ Deno.serve(async (req) => {
           data: {
             platform,
             videoId,
-            videoUrl,
+            videoUrl: fallbackUrl,
             viewsCount: 0,
             likesCount: 0,
             commentsCount: 0,
