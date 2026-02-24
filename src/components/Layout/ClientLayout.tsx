@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { User, LogOut } from "lucide-react";
-import logoTransparent from "@/assets/logo-transparent.png";
+import logo from "@/assets/logo.png";
 
 interface ClientLayoutProps {
   children: ReactNode;
@@ -40,7 +40,7 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => navigate("/dashboard/client")}
           >
-            <img src={logoTransparent} alt="Logo" className="h-8 w-8" />
+            <img src={logo} alt="Logo" className="h-8 w-8 rounded-lg" />
             <span className="text-lg font-bold hidden sm:inline">Dashboard</span>
           </div>
 
