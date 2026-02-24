@@ -56,17 +56,16 @@ function safeString(value: any): string | undefined {
 async function startApifyRun(apifyToken: string, username: string, resultsLimit: number): Promise<ApifyRunResponse> {
   console.log(`[Apify Kwai] Starting run for: ${username} (limit=${resultsLimit})`);
 
-  // Try the curious_coder/kwai-scraper actor
-  const actorId = "curious_coder~kwai-scraper";
+  // Use natanielsantos/kwai-scraper actor
+  const actorId = "natanielsantos~kwai-scraper";
   const profileUrl = `https://www.kwai.com/@${username}`;
 
   const res = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs?token=${apifyToken}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      profileUrls: [profileUrl],
+      urls: [profileUrl],
       maxItems: resultsLimit,
-      username: username,
     }),
   });
 
