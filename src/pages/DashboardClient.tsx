@@ -47,7 +47,7 @@ function DashboardClientContent() {
 
   const generateViewsChartData = () => {
     if (!clientMetrics?.platformBreakdown) {
-      return [{ date: 'Instagram', views: 0 }, { date: 'TikTok', views: 0 }, { date: 'YouTube', views: 0 }];
+      return [{ date: 'Instagram', views: 0 }, { date: 'TikTok', views: 0 }, { date: 'YouTube', views: 0 }, { date: 'Kwai', views: 0 }];
     }
     
     return clientMetrics.platformBreakdown.map(p => ({
@@ -271,6 +271,25 @@ function DashboardClientContent() {
                 </div>
                 <div className="text-right">
                   <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.views || 0)}</p>
+                  <p className="text-xs text-muted-foreground">{t('views')}</p>
+                </div>
+              </div>
+            </GlowCard>
+
+            {/* Kwai */}
+            <GlowCard className="p-4" glowColor="green">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-orange-500/20">
+                  <Video className="h-5 w-5 text-orange-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold">Kwai</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {clientMetrics?.platformBreakdown.find(p => p.platform === 'Kwai')?.accounts || 0} {t('dashboard.accounts')}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold">{formatNumber(clientMetrics?.platformBreakdown.find(p => p.platform === 'Kwai')?.views || 0)}</p>
                   <p className="text-xs text-muted-foreground">{t('views')}</p>
                 </div>
               </div>
