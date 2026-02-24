@@ -68,20 +68,23 @@ export function useClientMetrics() {
       const profileMap = new Map((profiles || []).map(p => [p.id, p]));
 
       // 4. Get social media accounts from these clippers
-      const [instagramAccs, tiktokAccs, youtubeAccs] = await Promise.all([
+      const [instagramAccs, tiktokAccs, youtubeAccs, kwaiAccs] = await Promise.all([
         supabase.from('instagram_accounts').select('id, user_id, followers_count').in('user_id', clipperIds).eq('is_active', true).eq('approval_status', 'approved'),
         supabase.from('tiktok_accounts').select('id, user_id, followers_count, likes_count').in('user_id', clipperIds).eq('is_active', true).eq('approval_status', 'approved'),
         supabase.from('youtube_accounts').select('id, user_id, subscribers_count, total_views').in('user_id', clipperIds).eq('is_active', true).eq('approval_status', 'approved'),
+        supabase.from('kwai_accounts').select('id, user_id, followers_count, likes_count, total_views').in('user_id', clipperIds).eq('is_active', true).eq('approval_status', 'approved'),
       ]);
 
       const instagramAccountIds = (instagramAccs.data || []).map(a => a.id);
       const tiktokAccountIds = (tiktokAccs.data || []).map(a => a.id);
       const youtubeAccountIds = (youtubeAccs.data || []).map(a => a.id);
+      const kwaiAccountIds = (kwaiAccs.data || []).map(a => a.id);
 
       // 5. Get posts/videos metrics
       let instagramPosts: any[] = [];
       let tiktokVideos: any[] = [];
       let youtubeVideos: any[] = [];
+      let kwaiVideos: any[] = [];
 
       if (instagramAccountIds.length > 0) {
         const { data } = await supabase
@@ -107,6 +110,14 @@ export function useClientMetrics() {
         youtubeVideos = data || [];
       }
 
+      if (kwaiAccountIds.length > 0) {
+        const { data } = await supabase
+          .from('kwai_videos')
+          .select('account_id, views_count, likes_count')
+          .in('account_id', kwaiAccountIds);
+        kwaiVideos = (data as any[]) || [];
+      }
+
       // Calculate Instagram metrics
       const instagramFollowers = (instagramAccs.data || []).reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
       const instagramViews = instagramPosts.reduce((sum, p) => sum + (p.views_count || 0), 0);
@@ -123,6 +134,12 @@ export function useClientMetrics() {
       const youtubeViews = (youtubeAccs.data || []).reduce((sum, acc) => sum + Number(acc.total_views || 0), 0) +
                            youtubeVideos.reduce((sum, p) => sum + Number(p.views_count || 0), 0);
       const youtubeLikes = youtubeVideos.reduce((sum, p) => sum + (p.likes_count || 0), 0);
+
+      // Calculate Kwai metrics
+      const kwaiFollowers = (kwaiAccs.data || []).reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
+      const kwaiViews = kwaiVideos.reduce((sum, p) => sum + Number(p.views_count || 0), 0);
+      const kwaiLikes = (kwaiAccs.data || []).reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0) +
+                        kwaiVideos.reduce((sum, p) => sum + Number(p.likes_count || 0), 0);
 
       // Build top clippers list
       const clipperViewsMap = new Map<string, { views: number; platform: string }>();
@@ -160,6 +177,17 @@ export function useClientMetrics() {
         }
       });
 
+      // Aggregate views by user from Kwai
+      (kwaiAccs.data || []).forEach(acc => {
+        const userViews = kwaiVideos
+          .filter(p => p.account_id === acc.id)
+          .reduce((sum, p) => sum + Number(p.views_count || 0), 0);
+        const existing = clipperViewsMap.get(acc.user_id);
+        if (!existing || userViews > existing.views) {
+          clipperViewsMap.set(acc.user_id, { views: userViews, platform: 'Kwai' });
+        }
+      });
+
       const topClippers = Array.from(clipperViewsMap.entries())
         .map(([userId, data]) => {
           const profile = profileMap.get(userId);
@@ -174,12 +202,12 @@ export function useClientMetrics() {
         .sort((a, b) => b.totalViews - a.totalViews)
         .slice(0, 5);
 
-      const totalAccounts = (instagramAccs.data?.length || 0) + (tiktokAccs.data?.length || 0) + (youtubeAccs.data?.length || 0);
+      const totalAccounts = (instagramAccs.data?.length || 0) + (tiktokAccs.data?.length || 0) + (youtubeAccs.data?.length || 0) + (kwaiAccs.data?.length || 0);
 
       return {
-        totalFollowers: instagramFollowers + tiktokFollowers + youtubeFollowers,
-        totalViews: instagramViews + tiktokViews + youtubeViews,
-        totalLikes: instagramLikes + tiktokLikes + youtubeLikes,
+        totalFollowers: instagramFollowers + tiktokFollowers + youtubeFollowers + kwaiFollowers,
+        totalViews: instagramViews + tiktokViews + youtubeViews + kwaiViews,
+        totalLikes: instagramLikes + tiktokLikes + youtubeLikes + kwaiLikes,
         totalClippers: clipperIds.length,
         totalCampaigns: campaignIds.length,
         platformBreakdown: [
@@ -204,6 +232,13 @@ export function useClientMetrics() {
             likes: youtubeLikes,
             accounts: youtubeAccs.data?.length || 0,
           },
+          {
+            platform: 'Kwai',
+            followers: kwaiFollowers,
+            views: kwaiViews,
+            likes: kwaiLikes,
+            accounts: kwaiAccs.data?.length || 0,
+          },
         ],
         topClippers,
       };
@@ -223,6 +258,7 @@ function getEmptyMetrics(): ClientMetricsSummary {
       { platform: 'Instagram', followers: 0, views: 0, likes: 0, accounts: 0 },
       { platform: 'TikTok', followers: 0, views: 0, likes: 0, accounts: 0 },
       { platform: 'YouTube', followers: 0, views: 0, likes: 0, accounts: 0 },
+      { platform: 'Kwai', followers: 0, views: 0, likes: 0, accounts: 0 },
     ],
     topClippers: [],
   };

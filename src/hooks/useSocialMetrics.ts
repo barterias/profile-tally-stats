@@ -25,6 +25,7 @@ export interface SocialMetricsSummary {
     instagram: number;
     tiktok: number;
     youtube: number;
+    kwai: number;
     total: number;
   };
   platformBreakdown: {
@@ -65,22 +66,30 @@ export function useSocialMetrics() {
         .select('id, subscribers_count, total_views, videos_count, approval_status')
         .eq('is_active', true);
 
+      const kwaiQuery = supabase
+        .from('kwai_accounts')
+        .select('id, followers_count, likes_count, videos_count, total_views, approval_status')
+        .eq('is_active', true);
+
       // Apply user filter if not admin
       if (!isAdmin && user?.id) {
         instagramQuery.eq('user_id', user.id);
         tiktokQuery.eq('user_id', user.id);
         youtubeQuery.eq('user_id', user.id);
+        kwaiQuery.eq('user_id', user.id);
       }
 
-      const [instagramRes, tiktokRes, youtubeRes] = await Promise.all([
+      const [instagramRes, tiktokRes, youtubeRes, kwaiRes] = await Promise.all([
         instagramQuery,
         tiktokQuery,
         youtubeQuery,
+        kwaiQuery,
       ]);
 
       const instagramAccounts = instagramRes.data || [];
       const tiktokAccounts = tiktokRes.data || [];
       const youtubeAccounts = youtubeRes.data || [];
+      const kwaiAccounts = kwaiRes.data || [];
 
       // Calculate Instagram totals
       const instagramFollowers = instagramAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
@@ -88,22 +97,25 @@ export function useSocialMetrics() {
       // Calculate TikTok totals
       const tiktokFollowers = tiktokAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
       const tiktokLikes = tiktokAccounts.reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0);
-      const tiktokVideos = tiktokAccounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
 
       // Calculate YouTube totals
       const youtubeSubscribers = youtubeAccounts.reduce((sum, acc) => sum + (acc.subscribers_count || 0), 0);
-      const youtubeViews = youtubeAccounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
-      const youtubeVideos = youtubeAccounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
+
+      // Calculate Kwai totals
+      const kwaiFollowers = kwaiAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
+      const kwaiLikesFromAccounts = kwaiAccounts.reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0);
 
       // Get active account IDs for filtering videos/posts
       const instagramAccountIds = instagramAccounts.map(a => a.id);
       const tiktokAccountIds = tiktokAccounts.map(a => a.id);
       const youtubeAccountIds = youtubeAccounts.map(a => a.id);
+      const kwaiAccountIds = kwaiAccounts.map(a => a.id);
 
       // Fetch video/post metrics for views - only from active accounts
       let instagramPosts: { data: any[] | null } = { data: [] };
       let tiktokVids: { data: any[] | null } = { data: [] };
       let youtubeVids: { data: any[] | null } = { data: [] };
+      let kwaiVids: { data: any[] | null } = { data: [] };
 
       if (instagramAccountIds.length > 0) {
         instagramPosts = await supabase
@@ -126,6 +138,13 @@ export function useSocialMetrics() {
           .in('account_id', youtubeAccountIds);
       }
 
+      if (kwaiAccountIds.length > 0) {
+        kwaiVids = await supabase
+          .from('kwai_videos')
+          .select('views_count, likes_count, comments_count, account_id')
+          .in('account_id', kwaiAccountIds);
+      }
+
       const igViews = (instagramPosts.data || []).reduce((sum, p) => sum + (p.views_count || 0), 0);
       const igLikes = (instagramPosts.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
       const igComments = (instagramPosts.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
@@ -138,14 +157,16 @@ export function useSocialMetrics() {
       const ytLikes = (youtubeVids.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
       const ytComments = (youtubeVids.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
 
-      const totalFollowers = instagramFollowers + tiktokFollowers + youtubeSubscribers;
-      // Use only content views (from videos/posts) to avoid double-counting YouTube channel views
-      const totalViews = igViews + ttViews + ytViews;
-      const totalLikes = igLikes + ttLikes + tiktokLikes + ytLikes;
-      const totalComments = igComments + ttComments + ytComments;
-      const totalVideos = (instagramPosts.data?.length || 0) + (tiktokVids.data?.length || 0) + (youtubeVids.data?.length || 0);
+      const kwViews = (kwaiVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
+      const kwLikes = (kwaiVids.data || []).reduce((sum, p) => sum + Number(p.likes_count || 0), 0);
+      const kwComments = (kwaiVids.data || []).reduce((sum, p) => sum + Number(p.comments_count || 0), 0);
+
+      const totalFollowers = instagramFollowers + tiktokFollowers + youtubeSubscribers + kwaiFollowers;
+      const totalViews = igViews + ttViews + ytViews + kwViews;
+      const totalLikes = igLikes + ttLikes + tiktokLikes + ytLikes + kwLikes + kwaiLikesFromAccounts;
+      const totalComments = igComments + ttComments + ytComments + kwComments;
+      const totalVideos = (instagramPosts.data?.length || 0) + (tiktokVids.data?.length || 0) + (youtubeVids.data?.length || 0) + (kwaiVids.data?.length || 0);
       
-      // Calculate engagement rate: (likes + comments) / views * 100
       const totalEngagement = totalLikes + totalComments;
       const engagementRate = totalViews > 0 ? (totalEngagement / totalViews) * 100 : 0;
 
@@ -167,14 +188,19 @@ export function useSocialMetrics() {
         {
           platform: 'YouTube',
           followers: youtubeSubscribers,
-          views: ytViews, // Only content views, not channel total_views
+          views: ytViews,
           likes: ytLikes,
           accounts: youtubeAccounts.length,
         },
+        {
+          platform: 'Kwai',
+          followers: kwaiFollowers,
+          views: kwViews,
+          likes: kwLikes + kwaiLikesFromAccounts,
+          accounts: kwaiAccounts.length,
+        },
       ];
 
-      // Calculate engagement per platform
-      // Uses traditional engagement (likes + comments) / views, with fallback to reach rate (views / followers)
       const platformEngagement: PlatformEngagement[] = [
         {
           platform: 'Instagram',
@@ -203,6 +229,15 @@ export function useSocialMetrics() {
           followers: youtubeSubscribers,
           reachRate: youtubeSubscribers > 0 ? (ytViews / youtubeSubscribers) * 100 : 0,
         },
+        {
+          platform: 'Kwai',
+          engagement: kwViews > 0 ? ((kwLikes + kwComments) / kwViews) * 100 : 0,
+          likes: kwLikes,
+          comments: kwComments,
+          views: kwViews,
+          followers: kwaiFollowers,
+          reachRate: kwaiFollowers > 0 ? (kwViews / kwaiFollowers) * 100 : 0,
+        },
       ];
 
       return {
@@ -217,7 +252,8 @@ export function useSocialMetrics() {
           instagram: instagramAccounts.length,
           tiktok: tiktokAccounts.length,
           youtube: youtubeAccounts.length,
-          total: instagramAccounts.length + tiktokAccounts.length + youtubeAccounts.length,
+          kwai: kwaiAccounts.length,
+          total: instagramAccounts.length + tiktokAccounts.length + youtubeAccounts.length + kwaiAccounts.length,
         },
         platformBreakdown,
         recentGrowth: [],

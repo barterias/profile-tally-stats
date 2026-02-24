@@ -13,6 +13,7 @@ import { useSocialMetrics } from "@/hooks/useSocialMetrics";
 import { useInstagramAccounts } from "@/hooks/useInstagramAccounts";
 import { useTikTokAccounts } from "@/hooks/useTikTokAccounts";
 import { useYouTubeAccounts } from "@/hooks/useYouTubeAccounts";
+import { useKwaiAccounts } from "@/hooks/useKwaiAccounts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { PendingAccountsCard } from "@/components/Admin/PendingAccountsCard";
 import { 
@@ -51,6 +52,7 @@ function DashboardAdminContent() {
   const { data: instagramAccounts = [] } = useInstagramAccounts();
   const { data: tiktokAccounts = [] } = useTikTokAccounts();
   const { data: youtubeAccounts = [] } = useYouTubeAccounts();
+  const { data: kwaiAccounts = [] } = useKwaiAccounts();
 
   useEffect(() => {
     fetchData();
@@ -71,6 +73,11 @@ function DashboardAdminContent() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'youtube_accounts' },
+        () => refetchMetrics()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'kwai_accounts' },
         () => refetchMetrics()
       )
       .subscribe();
@@ -214,13 +221,15 @@ function DashboardAdminContent() {
           {socialMetrics?.platformBreakdown.map((platform) => (
             <GlowCard key={platform.platform} className="p-5" glowColor={
               platform.platform === 'Instagram' ? 'purple' :
-              platform.platform === 'TikTok' ? 'blue' : 'orange'
+              platform.platform === 'TikTok' ? 'blue' :
+              platform.platform === 'Kwai' ? 'green' : 'orange'
             }>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   {platform.platform === 'Instagram' && <Instagram className="h-6 w-6 text-pink-500" />}
                   {platform.platform === 'TikTok' && <Video className="h-6 w-6 text-purple-500" />}
                   {platform.platform === 'YouTube' && <Youtube className="h-6 w-6 text-red-500" />}
+                  {platform.platform === 'Kwai' && <Video className="h-6 w-6 text-orange-500" />}
                   <h3 className="font-semibold">{platform.platform}</h3>
                 </div>
                 <span className="text-sm text-muted-foreground">{platform.accounts} {t('accounts')}</span>
@@ -305,7 +314,25 @@ function DashboardAdminContent() {
                   </div>
                 </div>
               )}
-              {instagramAccounts.length === 0 && tiktokAccounts.length === 0 && youtubeAccounts.length === 0 && (
+              {kwaiAccounts.length > 0 && (
+                <div className="p-3 rounded-lg bg-gradient-to-r from-orange-500/10 to-orange-500/5 border border-orange-500/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <Video className="h-5 w-5 text-orange-500" />
+                      <span>Kwai</span>
+                    </div>
+                    <span className="font-semibold">{kwaiAccounts.length} {t('accounts')}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {kwaiAccounts.slice(0, 3).map((acc: any) => (
+                      <div key={acc.id} className="text-muted-foreground">
+                        @{acc.username} - {formatNumber(acc.followers_count || 0)} {t('followers')}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {instagramAccounts.length === 0 && tiktokAccounts.length === 0 && youtubeAccounts.length === 0 && kwaiAccounts.length === 0 && (
                 <p className="text-center text-muted-foreground py-4">
                   {t('noAccountsAdded')}
                 </p>
