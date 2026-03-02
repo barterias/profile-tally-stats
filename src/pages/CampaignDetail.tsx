@@ -281,6 +281,7 @@ function CampaignDetailContent() {
 
       // Match campaign videos against the normalized map and update
       const updatedMap = new Map<string, { views: number; likes: number; comments: number; shares: number }>();
+      const unmatchedKwaiVideos: typeof videos = [];
 
       const updateResults = await Promise.all(
         videos.map(async (video) => {
@@ -295,7 +296,13 @@ function CampaignDetailContent() {
             }
             return { video, metrics: localMetrics, success: true };
           }
-          console.log(`[Sync] No local match for: ${video.video_link} (key: ${key})`);
+          
+          // Track unmatched Kwai short links for fallback
+          if (video.video_link && (video.video_link.includes('k.kwai.com') || video.video_link.includes('kw.ai'))) {
+            unmatchedKwaiVideos.push(video);
+          } else {
+            console.log(`[Sync] No local match for: ${video.video_link} (key: ${key})`);
+          }
           return { video, metrics: null, success: false };
         })
       );
@@ -304,7 +311,29 @@ function CampaignDetailContent() {
         if (r.success && r.metrics) {
           successCount++;
           updatedMap.set(r.video.id, r.metrics);
-        } else {
+        } else if (!unmatchedKwaiVideos.includes(r.video)) {
+          errorCount++;
+        }
+      }
+
+      // Fallback for Kwai short links: try to resolve via video-details edge function
+      if (unmatchedKwaiVideos.length > 0) {
+        console.log(`[Sync] Trying fallback for ${unmatchedKwaiVideos.length} Kwai short links...`);
+        for (const video of unmatchedKwaiVideos) {
+          try {
+            const { data, error } = await supabase.functions.invoke('video-details', {
+              body: { videoUrl: video.video_link },
+            });
+            if (!error && data?.success && data?.data) {
+              const m = { views: data.data.viewsCount || 0, likes: data.data.likesCount || 0, comments: data.data.commentsCount || 0, shares: data.data.sharesCount || 0 };
+              if (m.views > 0) {
+                const { error: ue } = await supabase.from("campaign_videos").update(m).eq("id", video.id);
+                if (!ue) { successCount++; updatedMap.set(video.id, m); continue; }
+              }
+            }
+          } catch (e) {
+            console.error(`[Sync] Kwai fallback error for ${video.video_link}:`, e);
+          }
           errorCount++;
         }
       }
