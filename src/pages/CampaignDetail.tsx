@@ -216,6 +216,36 @@ function CampaignDetailContent() {
     }
   };
 
+  // Normalize a video link for cross-table matching
+  const normalizeVideoLink = (link: string | null | undefined): string => {
+    if (!link) return "";
+    let n = link.trim().toLowerCase().replace(/\/+$/, "").split("?")[0].split("#")[0];
+    
+    if (n.includes("instagram.com")) {
+      const m = n.match(/\/(?:p|reel|reels)\/([A-Za-z0-9_-]+)/i);
+      if (m) return `instagram:${m[1]}`;
+    }
+    if (n.includes("tiktok.com")) {
+      const m = n.match(/\/video\/(\d+)/i);
+      if (m) return `tiktok:${m[1]}`;
+      const vm = n.match(/vm\.tiktok\.com\/([A-Za-z0-9]+)/i);
+      if (vm) return `tiktok:${vm[1]}`;
+    }
+    if (n.includes("youtube.com") || n.includes("youtu.be")) {
+      const wm = link.match(/[?&]v=([A-Za-z0-9_-]{11})/i);
+      if (wm) return `youtube:${wm[1]}`;
+      const sm = n.match(/\/shorts\/([A-Za-z0-9_-]{11})/i);
+      if (sm) return `youtube:${sm[1]}`;
+      const ym = n.match(/youtu\.be\/([A-Za-z0-9_-]{11})/i);
+      if (ym) return `youtube:${ym[1]}`;
+    }
+    if (n.includes("kwai.com") || n.includes("kw.ai")) {
+      const m = n.match(/\/(?:photo|video)\/([A-Za-z0-9_-]+)/i);
+      if (m) return `kwai:${m[1]}`;
+    }
+    return n;
+  };
+
   const handleSyncAllMetrics = async () => {
     setSyncingMetrics(true);
     let successCount = 0;
@@ -223,96 +253,91 @@ function CampaignDetailContent() {
     let invalidUrlCount = 0;
 
     try {
-      // Build maps of metrics from Account Analytics tables
-      const videoLinks = videos.map(v => v.video_link).filter(Boolean);
-      
-      // Fetch all local analytics data in parallel
+      // Fetch ALL local analytics data (not filtered by URL, to allow normalized matching)
       const [igRes, ttRes, ytRes, kwRes] = await Promise.all([
-        supabase.from('instagram_posts').select('post_url, views_count, likes_count, comments_count, shares_count').in('post_url', videoLinks),
-        supabase.from('tiktok_videos').select('video_url, views_count, likes_count, comments_count, shares_count').in('video_url', videoLinks),
-        supabase.from('youtube_videos').select('video_url, views_count, likes_count, comments_count').in('video_url', videoLinks),
-        supabase.from('kwai_videos').select('video_url, views_count, likes_count, comments_count, shares_count').in('video_url', videoLinks),
+        supabase.from('instagram_posts').select('post_url, views_count, likes_count, comments_count, shares_count'),
+        supabase.from('tiktok_videos').select('video_url, views_count, likes_count, comments_count, shares_count'),
+        supabase.from('youtube_videos').select('video_url, views_count, likes_count, comments_count'),
+        supabase.from('kwai_videos' as any).select('video_url, views_count, likes_count, comments_count, shares_count'),
       ]);
 
-      // Build a unified metrics map by video URL
+      // Build a unified metrics map by NORMALIZED key
       const metricsMap = new Map<string, { views: number; likes: number; comments: number; shares: number }>();
 
-      igRes.data?.forEach((p: any) => {
-        if (p.post_url) metricsMap.set(p.post_url, { views: p.views_count || 0, likes: p.likes_count || 0, comments: p.comments_count || 0, shares: p.shares_count || 0 });
-      });
-      ttRes.data?.forEach((p: any) => {
-        if (p.video_url) metricsMap.set(p.video_url, { views: p.views_count || 0, likes: p.likes_count || 0, comments: p.comments_count || 0, shares: p.shares_count || 0 });
-      });
-      ytRes.data?.forEach((p: any) => {
-        if (p.video_url) metricsMap.set(p.video_url, { views: p.views_count || 0, likes: p.likes_count || 0, comments: p.comments_count || 0, shares: 0 });
-      });
-      kwRes.data?.forEach((p: any) => {
-        if (p.video_url) metricsMap.set(p.video_url, { views: p.views_count || 0, likes: p.likes_count || 0, comments: p.comments_count || 0, shares: p.shares_count || 0 });
-      });
+      const addToMap = (url: string | null, views: number, likes: number, comments: number, shares: number) => {
+        const key = normalizeVideoLink(url);
+        if (!key) return;
+        const existing = metricsMap.get(key);
+        // Keep the highest views value
+        if (!existing || views > existing.views) {
+          metricsMap.set(key, { views, likes, comments, shares });
+        }
+      };
+
+      igRes.data?.forEach((p: any) => addToMap(p.post_url, p.views_count || 0, p.likes_count || 0, p.comments_count || 0, p.shares_count || 0));
+      ttRes.data?.forEach((p: any) => addToMap(p.video_url, p.views_count || 0, p.likes_count || 0, p.comments_count || 0, p.shares_count || 0));
+      ytRes.data?.forEach((p: any) => addToMap(p.video_url, p.views_count || 0, p.likes_count || 0, p.comments_count || 0, 0));
+      (kwRes.data as any[])?.forEach((p: any) => addToMap(p.video_url, p.views_count || 0, p.likes_count || 0, p.comments_count || 0, p.shares_count || 0));
+
+      // Separate videos into local-match vs needs-fallback
+      const localUpdates: { video: CampaignVideo; metrics: { views: number; likes: number; comments: number; shares: number } }[] = [];
+      const fallbackVideos: CampaignVideo[] = [];
 
       for (const video of videos) {
-        const localMetrics = metricsMap.get(video.video_link);
+        const key = normalizeVideoLink(video.video_link);
+        const localMetrics = metricsMap.get(key);
         
         if (localMetrics && localMetrics.views > 0) {
-          // Use local Account Analytics data
-          const updatedMetrics = {
-            views: localMetrics.views,
-            likes: localMetrics.likes,
-            comments: localMetrics.comments,
-            shares: localMetrics.shares,
-          };
-
-          const { error: updateError } = await supabase
-            .from("campaign_videos")
-            .update(updatedMetrics)
-            .eq("id", video.id);
-
-          if (updateError) {
-            errorCount++;
-          } else {
-            setVideos(prev => prev.map(v =>
-              v.id === video.id ? { ...v, ...updatedMetrics } : v
-            ));
-            successCount++;
-          }
+          localUpdates.push({ video, metrics: localMetrics });
         } else {
-          // Fallback to edge function for videos not found locally
-          try {
-            const { data, error } = await supabase.functions.invoke('video-details', {
-              body: { videoUrl: video.video_link },
-            });
-
-            if (!error && data?.success && data?.data) {
-              const updatedMetrics = {
-                views: data.data.viewsCount || 0,
-                likes: data.data.likesCount || 0,
-                comments: data.data.commentsCount || 0,
-                shares: data.data.sharesCount || 0,
-              };
-
-              const { error: updateError } = await supabase
-                .from("campaign_videos")
-                .update(updatedMetrics)
-                .eq("id", video.id);
-
-              if (updateError) {
-                errorCount++;
-              } else {
-                setVideos(prev => prev.map(v =>
-                  v.id === video.id ? { ...v, ...updatedMetrics } : v
-                ));
-                successCount++;
-              }
-            } else if (data?.invalidUrl) {
-              invalidUrlCount++;
-            } else {
-              errorCount++;
-            }
-          } catch {
-            errorCount++;
-          }
+          fallbackVideos.push(video);
         }
       }
+
+      // Process local updates in parallel batch
+      const localResults = await Promise.all(
+        localUpdates.map(({ video, metrics }) =>
+          supabase.from("campaign_videos").update(metrics).eq("id", video.id).then(({ error }) => ({ video, metrics, error }))
+        )
+      );
+
+      const updatedMap = new Map<string, { views: number; likes: number; comments: number; shares: number }>();
+      for (const { video, metrics, error } of localResults) {
+        if (error) { errorCount++; } else { successCount++; updatedMap.set(video.id, metrics); }
+      }
+
+      // Process fallback videos in parallel (max 5 concurrent)
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < fallbackVideos.length; i += BATCH_SIZE) {
+        const batch = fallbackVideos.slice(i, i + BATCH_SIZE);
+        const results = await Promise.all(
+          batch.map(async (video) => {
+            try {
+              const { data, error } = await supabase.functions.invoke('video-details', {
+                body: { videoUrl: video.video_link },
+              });
+              if (!error && data?.success && data?.data) {
+                const m = { views: data.data.viewsCount || 0, likes: data.data.likesCount || 0, comments: data.data.commentsCount || 0, shares: data.data.sharesCount || 0 };
+                const { error: ue } = await supabase.from("campaign_videos").update(m).eq("id", video.id);
+                return { video, metrics: m, error: ue, invalidUrl: false };
+              }
+              return { video, metrics: null, error: true, invalidUrl: !!data?.invalidUrl };
+            } catch { return { video, metrics: null, error: true, invalidUrl: false }; }
+          })
+        );
+        for (const r of results) {
+          if (r.invalidUrl) { invalidUrlCount++; }
+          else if (r.error || !r.metrics) { errorCount++; }
+          else { successCount++; updatedMap.set(r.video.id, r.metrics); }
+        }
+      }
+
+      // Update state once with all changes
+      setVideos(prev => prev.map(v => {
+        const m = updatedMap.get(v.id);
+        return m ? { ...v, ...m } : v;
+      }).sort((a, b) => (b.views || 0) - (a.views || 0)));
+
     } catch (err) {
       console.error("Error syncing metrics:", err);
       errorCount = videos.length;
