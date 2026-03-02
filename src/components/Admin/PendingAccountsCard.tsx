@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Instagram, Youtube, Music2, Check, X, User } from 'lucide-react';
+import { Instagram, Youtube, Music2, Check, X, User, Video } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
