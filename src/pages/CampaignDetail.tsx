@@ -311,7 +311,29 @@ function CampaignDetailContent() {
         if (r.success && r.metrics) {
           successCount++;
           updatedMap.set(r.video.id, r.metrics);
-        } else {
+        } else if (!unmatchedKwaiVideos.includes(r.video)) {
+          errorCount++;
+        }
+      }
+
+      // Fallback for Kwai short links: try to resolve via video-details edge function
+      if (unmatchedKwaiVideos.length > 0) {
+        console.log(`[Sync] Trying fallback for ${unmatchedKwaiVideos.length} Kwai short links...`);
+        for (const video of unmatchedKwaiVideos) {
+          try {
+            const { data, error } = await supabase.functions.invoke('video-details', {
+              body: { videoUrl: video.video_link },
+            });
+            if (!error && data?.success && data?.data) {
+              const m = { views: data.data.viewsCount || 0, likes: data.data.likesCount || 0, comments: data.data.commentsCount || 0, shares: data.data.sharesCount || 0 };
+              if (m.views > 0) {
+                const { error: ue } = await supabase.from("campaign_videos").update(m).eq("id", video.id);
+                if (!ue) { successCount++; updatedMap.set(video.id, m); continue; }
+              }
+            }
+          } catch (e) {
+            console.error(`[Sync] Kwai fallback error for ${video.video_link}:`, e);
+          }
           errorCount++;
         }
       }
