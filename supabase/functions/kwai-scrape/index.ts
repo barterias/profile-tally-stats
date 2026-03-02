@@ -43,7 +43,66 @@ type KwaiScrapedData = {
 };
 
 function toInt(value: any): number {
-  const n = Number(value);
+  if (value === null || value === undefined) return 0;
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? Math.trunc(value) : 0;
+  }
+
+  const raw = String(value).trim().toLowerCase().replace(/\s+/g, "");
+  if (!raw) return 0;
+
+  const match = raw.match(/^([-+]?\d[\d.,]*)(k|m|b|mil|mi|bi|w)?$/i);
+  if (match) {
+    let [, numPart, suffix] = match;
+
+    const separators = (numPart.match(/[.,]/g) || []).length;
+    if (separators === 1) {
+      const sep = numPart.includes(",") ? "," : ".";
+      const decimals = numPart.split(sep)[1] || "";
+
+      if (decimals.length === 3) {
+        // likely thousands separator: 1,234 or 1.234
+        numPart = numPart.replace(/[.,]/g, "");
+      } else {
+        // likely decimal separator: 1,2 or 1.2
+        numPart = numPart.replace(",", ".");
+      }
+    } else if (separators > 1) {
+      // keep only the last separator as decimal, remove the others
+      const lastDot = numPart.lastIndexOf(".");
+      const lastComma = numPart.lastIndexOf(",");
+      const lastSep = Math.max(lastDot, lastComma);
+      const intPart = numPart.slice(0, lastSep).replace(/[.,]/g, "");
+      const decPart = numPart.slice(lastSep + 1).replace(/[.,]/g, "");
+      numPart = `${intPart}.${decPart}`;
+    }
+
+    const base = Number(numPart);
+    if (Number.isFinite(base)) {
+      const multiplier = (() => {
+        switch ((suffix || "").toLowerCase()) {
+          case "k":
+          case "mil":
+            return 1_000;
+          case "m":
+          case "mi":
+            return 1_000_000;
+          case "b":
+          case "bi":
+            return 1_000_000_000;
+          case "w":
+            return 10_000;
+          default:
+            return 1;
+        }
+      })();
+
+      return Math.trunc(base * multiplier);
+    }
+  }
+
+  const n = Number(raw);
   return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 
@@ -429,6 +488,8 @@ serve(async (req) => {
     let profileScrape = { displayName: undefined as string | undefined, profileImageUrl: undefined as string | undefined, followersCount: 0, followingCount: 0, likesCount: 0 };
     let items: any[] = [];
     let videos: KwaiVideo[] = [];
+    let foundUsefulData = false;
+    let apifyFailureMessage: string | null = null;
 
     for (const variant of variants) {
       console.log(`[Kwai] Trying variant: ${variant}`);
@@ -446,19 +507,29 @@ serve(async (req) => {
       ]);
 
       const pResult = profileResult.status === "fulfilled" ? profileResult.value : { followersCount: 0, followingCount: 0, likesCount: 0 };
+      const apifyFailedForVariant = apifyResult.status === "rejected";
       const aItems = apifyResult.status === "fulfilled" ? apifyResult.value : [];
 
-      console.log(`[Kwai] Variant "${variant}": profile followers=${pResult.followersCount}, apify items=${aItems.length}`);
+      if (apifyFailedForVariant) {
+        apifyFailureMessage = apifyResult.reason instanceof Error
+          ? apifyResult.reason.message
+          : String(apifyResult.reason || "Erro ao coletar dados no Apify");
+        console.warn(`[Kwai] Apify failed for variant "${variant}": ${apifyFailureMessage}`);
+      }
 
-      // If we got real data, use this variant
-      const isValidProfile = pResult.followersCount > 0 || pResult.likesCount > 0;
-      const hasDisplayName = pResult.displayName && !pResult.displayName.toLowerCase().includes("kwai-nuxt");
+      console.log(`[Kwai] Variant "${variant}": profile followers=${pResult.followersCount}, profile likes=${pResult.likesCount}, apify items=${aItems.length}`);
 
-      if (aItems.length > 0 || isValidProfile || hasDisplayName) {
+      // Consider profile-only data valid only when it has numeric signal.
+      // If Apify failed and we only got a displayName, don't overwrite metrics with zeros.
+      const isValidProfile = pResult.followersCount > 0 || pResult.likesCount > 0 || pResult.followingCount > 0;
+      const hasDisplayName = !!(pResult.displayName && !pResult.displayName.toLowerCase().includes("kwai-nuxt"));
+
+      if (aItems.length > 0 || isValidProfile || (hasDisplayName && !apifyFailedForVariant)) {
         bestUsername = variant;
         profileScrape = pResult;
         items = aItems;
         videos = mapApifyItemsToVideos(items);
+        foundUsefulData = true;
         console.log(`[Kwai] Using variant "${variant}" — found data!`);
         break;
       }
@@ -485,28 +556,61 @@ serve(async (req) => {
       videos,
     };
 
+    const hasNumericProfileData =
+      profileData.followersCount > 0 ||
+      profileData.followingCount > 0 ||
+      profileData.likesCount > 0 ||
+      profileData.videosCount > 0 ||
+      profileData.scrapedVideosCount > 0;
+
+    if (!foundUsefulData && apifyFailureMessage && !hasNumericProfileData) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Não foi possível atualizar métricas agora: limite mensal do provedor de coleta atingido. Tente novamente após liberar limite.",
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (accountId) {
       if (videos.length > 0) {
         await saveVideosToDB(supabase, accountId, videos);
       }
 
-      // Recalculate totals from DB
-      const { data: allVideos } = await supabase.from("kwai_videos").select("views_count").eq("account_id", accountId);
+      // Recalculate totals from DB and keep previous profile metrics when scrape returned empty values
+      const [{ data: allVideos }, { data: existingAccount }] = await Promise.all([
+        supabase.from("kwai_videos").select("views_count").eq("account_id", accountId),
+        supabase
+          .from("kwai_accounts")
+          .select("display_name, profile_image_url, bio, followers_count, following_count, videos_count, likes_count")
+          .eq("id", accountId)
+          .maybeSingle(),
+      ]);
+
       const totalViewsFromDb = (allVideos || []).reduce((sum: number, v: any) => sum + (v.views_count || 0), 0);
       const totalCountFromDb = (allVideos || []).length;
+
+      const mergedDisplayName = profileData.displayName ?? safeString(existingAccount?.display_name) ?? null;
+      const mergedProfileImageUrl = profileData.profileImageUrl ?? safeString(existingAccount?.profile_image_url) ?? null;
+      const mergedBio = profileData.bio ?? safeString(existingAccount?.bio) ?? null;
+      const mergedFollowersCount = profileData.followersCount > 0 ? profileData.followersCount : toInt(existingAccount?.followers_count ?? 0);
+      const mergedFollowingCount = profileData.followingCount > 0 ? profileData.followingCount : toInt(existingAccount?.following_count ?? 0);
+      const mergedLikesCount = profileData.likesCount > 0 ? profileData.likesCount : toInt(existingAccount?.likes_count ?? 0);
+      const mergedVideosCount = Math.max(profileData.videosCount, totalCountFromDb, toInt(existingAccount?.videos_count ?? 0));
 
       await supabase
         .from("kwai_accounts")
         .update({
           username: bestUsername,
           profile_url: `https://www.kwai.com/@${bestUsername}`,
-          display_name: profileData.displayName ?? null,
-          profile_image_url: profileData.profileImageUrl ?? null,
-          bio: profileData.bio ?? null,
-          followers_count: profileData.followersCount,
-          following_count: profileData.followingCount,
-          videos_count: profileData.videosCount,
-          likes_count: profileData.likesCount,
+          display_name: mergedDisplayName,
+          profile_image_url: mergedProfileImageUrl,
+          bio: mergedBio,
+          followers_count: mergedFollowersCount,
+          following_count: mergedFollowingCount,
+          videos_count: mergedVideosCount,
+          likes_count: mergedLikesCount,
           total_views: totalViewsFromDb,
           scraped_videos_count: totalCountFromDb,
           last_synced_at: new Date().toISOString(),
@@ -516,8 +620,8 @@ serve(async (req) => {
 
       await supabase.from("kwai_metrics_history").insert({
         account_id: accountId,
-        followers_count: profileData.followersCount,
-        likes_count: profileData.likesCount,
+        followers_count: mergedFollowersCount,
+        likes_count: mergedLikesCount,
         comments_count: videos.reduce((sum, v) => sum + (v.commentsCount || 0), 0),
         shares_count: videos.reduce((sum, v) => sum + (v.sharesCount || 0), 0),
         views_count: totalViewsFromDb,
