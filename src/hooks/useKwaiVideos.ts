@@ -47,14 +47,14 @@ export function useAllKwaiVideos() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('kwai_videos' as any)
-        .select('account_id, views_count');
+        .select('account_id, views_count, likes_count');
 
       if (error) {
         console.error('Error fetching all Kwai videos:', error);
         return [];
       }
 
-      return (data as unknown) as { account_id: string; views_count: number | null }[];
+      return (data as unknown) as { account_id: string; views_count: number | null; likes_count: number | null }[];
     },
   });
 }
