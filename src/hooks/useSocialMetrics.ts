@@ -68,7 +68,7 @@ export function useSocialMetrics() {
 
       const kwaiQuery = supabase
         .from('kwai_accounts')
-        .select('id, followers_count, likes_count, videos_count, total_views, approval_status')
+        .select('id, username, followers_count, likes_count, videos_count, total_views, approval_status')
         .eq('is_active', true);
 
       // Apply user filter if not admin
