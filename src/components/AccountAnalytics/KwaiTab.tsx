@@ -242,7 +242,7 @@ export function KwaiTab() {
                 profileImageUrl: acc.profile_image_url,
                 followersCount: acc.followers_count,
                 postsCount: videoCountByAccount[acc.id] || 0,
-                likesCount: acc.likes_count,
+                likesCount: getAccountLikes(acc),
                 totalViews: Number(acc.total_views || 0) > 0 ? acc.total_views : (derivedViewsByAccount[acc.id] || 0),
                 scrapedCount: acc.scraped_videos_count || 0,
                 lastSyncedAt: acc.last_synced_at,
