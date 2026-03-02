@@ -488,6 +488,8 @@ serve(async (req) => {
     let profileScrape = { displayName: undefined as string | undefined, profileImageUrl: undefined as string | undefined, followersCount: 0, followingCount: 0, likesCount: 0 };
     let items: any[] = [];
     let videos: KwaiVideo[] = [];
+    let foundUsefulData = false;
+    let apifyFailureMessage: string | null = null;
 
     for (const variant of variants) {
       console.log(`[Kwai] Trying variant: ${variant}`);
@@ -505,19 +507,29 @@ serve(async (req) => {
       ]);
 
       const pResult = profileResult.status === "fulfilled" ? profileResult.value : { followersCount: 0, followingCount: 0, likesCount: 0 };
+      const apifyFailedForVariant = apifyResult.status === "rejected";
       const aItems = apifyResult.status === "fulfilled" ? apifyResult.value : [];
 
-      console.log(`[Kwai] Variant "${variant}": profile followers=${pResult.followersCount}, apify items=${aItems.length}`);
+      if (apifyFailedForVariant) {
+        apifyFailureMessage = apifyResult.reason instanceof Error
+          ? apifyResult.reason.message
+          : String(apifyResult.reason || "Erro ao coletar dados no Apify");
+        console.warn(`[Kwai] Apify failed for variant "${variant}": ${apifyFailureMessage}`);
+      }
 
-      // If we got real data, use this variant
-      const isValidProfile = pResult.followersCount > 0 || pResult.likesCount > 0;
-      const hasDisplayName = pResult.displayName && !pResult.displayName.toLowerCase().includes("kwai-nuxt");
+      console.log(`[Kwai] Variant "${variant}": profile followers=${pResult.followersCount}, profile likes=${pResult.likesCount}, apify items=${aItems.length}`);
 
-      if (aItems.length > 0 || isValidProfile || hasDisplayName) {
+      // Consider profile-only data valid only when it has numeric signal.
+      // If Apify failed and we only got a displayName, don't overwrite metrics with zeros.
+      const isValidProfile = pResult.followersCount > 0 || pResult.likesCount > 0 || pResult.followingCount > 0;
+      const hasDisplayName = !!(pResult.displayName && !pResult.displayName.toLowerCase().includes("kwai-nuxt"));
+
+      if (aItems.length > 0 || isValidProfile || (hasDisplayName && !apifyFailedForVariant)) {
         bestUsername = variant;
         profileScrape = pResult;
         items = aItems;
         videos = mapApifyItemsToVideos(items);
+        foundUsefulData = true;
         console.log(`[Kwai] Using variant "${variant}" — found data!`);
         break;
       }
