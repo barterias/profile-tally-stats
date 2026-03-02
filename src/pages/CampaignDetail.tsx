@@ -350,6 +350,10 @@ function CampaignDetailContent() {
     }
 
     await Promise.all([fetchCampaignData(), fetchParticipants()]);
+    setTimeout(() => {
+      fetchCampaignData();
+      fetchParticipants();
+    }, 1200);
     setSyncingMetrics(false);
     
     if (successCount > 0) toast.success(`${successCount} ${t('campaign.videos_updated')}`);
