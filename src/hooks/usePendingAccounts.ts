@@ -21,7 +21,7 @@ export function usePendingAccounts() {
     queryKey: ['pending-social-accounts'],
     queryFn: async () => {
       // Fetch pending accounts from all platforms
-      const [instagram, tiktok, youtube] = await Promise.all([
+      const [instagram, tiktok, youtube, kwai] = await Promise.all([
         supabase
           .from('instagram_accounts')
           .select('*, profiles!instagram_accounts_user_id_fkey(username)')
@@ -33,6 +33,10 @@ export function usePendingAccounts() {
         supabase
           .from('youtube_accounts')
           .select('*, profiles!youtube_accounts_user_id_fkey(username)')
+          .eq('approval_status', 'pending'),
+        supabase
+          .from('kwai_accounts')
+          .select('*, profiles!kwai_accounts_user_id_fkey(username)')
           .eq('approval_status', 'pending'),
       ]);
 
