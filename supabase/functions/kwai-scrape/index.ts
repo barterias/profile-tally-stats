@@ -578,23 +578,39 @@ serve(async (req) => {
         await saveVideosToDB(supabase, accountId, videos);
       }
 
-      // Recalculate totals from DB
-      const { data: allVideos } = await supabase.from("kwai_videos").select("views_count").eq("account_id", accountId);
+      // Recalculate totals from DB and keep previous profile metrics when scrape returned empty values
+      const [{ data: allVideos }, { data: existingAccount }] = await Promise.all([
+        supabase.from("kwai_videos").select("views_count").eq("account_id", accountId),
+        supabase
+          .from("kwai_accounts")
+          .select("display_name, profile_image_url, bio, followers_count, following_count, videos_count, likes_count")
+          .eq("id", accountId)
+          .maybeSingle(),
+      ]);
+
       const totalViewsFromDb = (allVideos || []).reduce((sum: number, v: any) => sum + (v.views_count || 0), 0);
       const totalCountFromDb = (allVideos || []).length;
+
+      const mergedDisplayName = profileData.displayName ?? safeString(existingAccount?.display_name) ?? null;
+      const mergedProfileImageUrl = profileData.profileImageUrl ?? safeString(existingAccount?.profile_image_url) ?? null;
+      const mergedBio = profileData.bio ?? safeString(existingAccount?.bio) ?? null;
+      const mergedFollowersCount = profileData.followersCount > 0 ? profileData.followersCount : toInt(existingAccount?.followers_count ?? 0);
+      const mergedFollowingCount = profileData.followingCount > 0 ? profileData.followingCount : toInt(existingAccount?.following_count ?? 0);
+      const mergedLikesCount = profileData.likesCount > 0 ? profileData.likesCount : toInt(existingAccount?.likes_count ?? 0);
+      const mergedVideosCount = Math.max(profileData.videosCount, totalCountFromDb, toInt(existingAccount?.videos_count ?? 0));
 
       await supabase
         .from("kwai_accounts")
         .update({
           username: bestUsername,
           profile_url: `https://www.kwai.com/@${bestUsername}`,
-          display_name: profileData.displayName ?? null,
-          profile_image_url: profileData.profileImageUrl ?? null,
-          bio: profileData.bio ?? null,
-          followers_count: profileData.followersCount,
-          following_count: profileData.followingCount,
-          videos_count: profileData.videosCount,
-          likes_count: profileData.likesCount,
+          display_name: mergedDisplayName,
+          profile_image_url: mergedProfileImageUrl,
+          bio: mergedBio,
+          followers_count: mergedFollowersCount,
+          following_count: mergedFollowingCount,
+          videos_count: mergedVideosCount,
+          likes_count: mergedLikesCount,
           total_views: totalViewsFromDb,
           scraped_videos_count: totalCountFromDb,
           last_synced_at: new Date().toISOString(),
@@ -604,8 +620,8 @@ serve(async (req) => {
 
       await supabase.from("kwai_metrics_history").insert({
         account_id: accountId,
-        followers_count: profileData.followersCount,
-        likes_count: profileData.likesCount,
+        followers_count: mergedFollowersCount,
+        likes_count: mergedLikesCount,
         comments_count: videos.reduce((sum, v) => sum + (v.commentsCount || 0), 0),
         shares_count: videos.reduce((sum, v) => sum + (v.sharesCount || 0), 0),
         views_count: totalViewsFromDb,
