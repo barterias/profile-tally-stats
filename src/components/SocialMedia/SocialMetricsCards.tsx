@@ -28,13 +28,6 @@ const formatNumber = (num: number): string => {
 export function SocialMetricsCards({ summary, isLoading }: SocialMetricsCardsProps) {
   const cards = [
     {
-      title: 'Seguidores Totais',
-      value: summary?.total_followers || 0,
-      icon: Users,
-      gradient: 'from-primary to-accent',
-      change: summary?.growth_percentage || 0,
-    },
-    {
       title: 'Views (7 dias)',
       value: summary?.total_views_7d || 0,
       icon: Eye,
@@ -91,10 +84,10 @@ export function SocialMetricsCards({ summary, isLoading }: SocialMetricsCardsPro
               )}>
                 <card.icon className="h-4 w-4 text-background" />
               </div>
-              {card.change !== undefined && card.change > 0 && (
+              {'change' in card && (card as any).change !== undefined && (card as any).change > 0 && (
                 <span className="text-xs text-success flex items-center gap-1">
                   <TrendingUp className="h-3 w-3" />
-                  +{card.change}%
+                  +{(card as any).change}%
                 </span>
               )}
             </div>

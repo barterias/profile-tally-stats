@@ -143,9 +143,8 @@ export function InstagramTab() {
   // Admins and Clients see ALL accounts (including pending ones they need to approve)
   const visibleAccounts = accounts;
 
-  // Calculate totals and sort by followers
-  const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.followers_count || 0) - Number(a.followers_count || 0));
-  const totalFollowers = visibleAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
+  // Calculate totals and sort by views
+  const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.total_views || 0) - Number(a.total_views || 0));
   // Use account's total_views (from profile) - fallback to derived views from posts
   const totalViews = visibleAccounts.reduce((sum, acc) => {
     const accountViews = Number(acc.total_views || 0);
@@ -200,9 +199,8 @@ export function InstagramTab() {
           {[...Array(4)].map((_, i) => (<Skeleton key={i} className="h-32" />))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <MetricCardGlow title={t('analytics.accounts')} value={visibleAccounts.length.toString()} icon={Users} trend={{ value: 0, isPositive: true }} />
-          <MetricCardGlow title={t('analytics.followers')} value={formatNumber(totalFollowers)} icon={Users} trend={{ value: 0, isPositive: true }} />
           <MetricCardGlow title={t('analytics.posts')} value={formatNumber(totalPosts)} icon={Video} trend={{ value: 0, isPositive: true }} />
           <MetricCardGlow title="Curtidas" value={formatNumber(totalLikes)} icon={Heart} trend={{ value: 0, isPositive: true }} />
           <MetricCardGlow title="Comentários" value={formatNumber(totalComments)} icon={MessageCircle} trend={{ value: 0, isPositive: true }} />
@@ -220,7 +218,7 @@ export function InstagramTab() {
         <CardHeader>
           <CardTitle>{t('analytics.monitored_accounts')}</CardTitle>
           <CardDescription>
-            {isClipper ? t('analytics.your_instagram') : t('analytics.sorted_by_followers')}
+            {isClipper ? t('analytics.your_instagram') : t('analytics.sorted_by_views')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -255,10 +253,6 @@ export function InstagramTab() {
                     </div>
                     <div className="flex items-center gap-6">
                       <div className="text-center">
-                        <p className="text-lg font-bold">{formatNumber(acc.followers_count || 0)}</p>
-                        <p className="text-xs text-muted-foreground">Seguidores</p>
-                      </div>
-                      <div className="text-center">
                         <p className="text-lg font-bold">{formatNumber(acc.posts_count || 0)}</p>
                         <p className="text-xs text-muted-foreground">Posts</p>
                       </div>
@@ -276,7 +270,6 @@ export function InstagramTab() {
                 username: acc.username, 
                 displayName: acc.display_name, 
                 profileImageUrl: acc.profile_image_url,
-                followersCount: acc.followers_count, 
                 postsCount: acc.posts_count || 0, // Total posts from profile
                 scrapedCount: acc.scraped_posts_count || 0,
                 totalViews: acc.total_views || viewsByAccount[acc.id] || 0,

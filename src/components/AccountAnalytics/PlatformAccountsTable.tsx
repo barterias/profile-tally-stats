@@ -31,7 +31,7 @@ interface AccountData {
   username: string;
   displayName?: string | null;
   profileImageUrl?: string | null;
-  followersCount?: number | null;
+  
   postsCount?: number | null;
   scrapedCount?: number | null;
   totalViews?: number | bigint | null;
@@ -63,10 +63,10 @@ const platformUrls = {
 };
 
 const platformLabels = {
-  instagram: { followers: 'Seguidores', posts: 'Posts', videos: 'Ver Posts', contentLabel: 'Posts' },
-  youtube: { followers: 'Inscritos', posts: 'Vídeos', videos: 'Ver Vídeos', contentLabel: 'Vídeos' },
-  tiktok: { followers: 'Seguidores', posts: 'Vídeos', videos: 'Ver Vídeos', contentLabel: 'Vídeos' },
-  kwai: { followers: 'Seguidores', posts: 'Vídeos', videos: 'Ver Vídeos', contentLabel: 'Vídeos' },
+  instagram: { posts: 'Posts', videos: 'Ver Posts', contentLabel: 'Posts' },
+  youtube: { posts: 'Vídeos', videos: 'Ver Vídeos', contentLabel: 'Vídeos' },
+  tiktok: { posts: 'Vídeos', videos: 'Ver Vídeos', contentLabel: 'Vídeos' },
+  kwai: { posts: 'Vídeos', videos: 'Ver Vídeos', contentLabel: 'Vídeos' },
 };
 
 export function PlatformAccountsTable({
@@ -138,7 +138,6 @@ export function PlatformAccountsTable({
       <TableHeader>
         <TableRow>
           <TableHead>Conta</TableHead>
-          <TableHead className="text-right">{labels.followers}</TableHead>
           <TableHead className="text-right">{labels.posts}</TableHead>
           <TableHead className="text-right">Views Totais</TableHead>
           {platform === 'tiktok' && <TableHead className="text-right">Curtidas</TableHead>}
@@ -167,9 +166,6 @@ export function PlatformAccountsTable({
                   <div className="text-sm text-muted-foreground">@{account.username}</div>
                 </div>
               </div>
-            </TableCell>
-            <TableCell className="text-right font-medium">
-              {formatNumber(account.followersCount)}
             </TableCell>
             <TableCell className="text-right">
               {renderContentCount(account)}

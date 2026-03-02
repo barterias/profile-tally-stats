@@ -172,13 +172,7 @@ function DashboardClipperContent() {
         </div>
 
         {/* Stats Grid - Removed total earned */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          <MetricCardGlow
-            title={t('followers')}
-            value={formatNumber(socialMetrics?.totalFollowers || 0)}
-            icon={Users}
-            glowColor="blue"
-          />
+        <div className="grid grid-cols-2 lg:grid-cols-2 gap-4">
           <MetricCardGlow
             title={t('views')}
             value={formatNumber(socialMetrics?.totalViews || 0)}
@@ -316,12 +310,6 @@ function DashboardClipperContent() {
             </div>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('followers')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.followers || 0)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">{t('views')}</span>
                 <span className="font-semibold">
                   {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.views || 0)}
@@ -351,12 +339,6 @@ function DashboardClipperContent() {
             </div>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('followers')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.followers || 0)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">{t('views')}</span>
                 <span className="font-semibold">
                   {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.views || 0)}
@@ -385,12 +367,6 @@ function DashboardClipperContent() {
               </div>
             </div>
             <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('followers')}</span>
-                <span className="font-semibold">
-                  {formatNumber(socialMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.followers || 0)}
-                </span>
-              </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">{t('views')}</span>
                 <span className="font-semibold">

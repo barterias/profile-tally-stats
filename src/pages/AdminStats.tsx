@@ -178,11 +178,6 @@ function AdminStatsContent() {
             icon={Eye}
           />
           <StatCard
-            title="Seguidores"
-            value={(socialMetrics?.totalFollowers || 0).toLocaleString()}
-            icon={Users}
-          />
-          <StatCard
             title="Curtidas"
             value={(socialMetrics?.totalLikes || 0).toLocaleString()}
             icon={TrendingUp}
@@ -206,16 +201,10 @@ function AdminStatsContent() {
               <Instagram className="h-6 w-6 text-pink-500" />
               <h3 className="font-semibold">Instagram</h3>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="grid grid-cols-2 gap-2 text-center">
               <div>
                 <p className="text-xl font-bold">{instagramAccounts.length}</p>
                 <p className="text-xs text-muted-foreground">Contas</p>
-              </div>
-              <div>
-                <p className="text-xl font-bold">
-                  {socialMetrics?.platformBreakdown.find(p => p.platform === 'Instagram')?.followers.toLocaleString() || 0}
-                </p>
-                <p className="text-xs text-muted-foreground">Seguidores</p>
               </div>
               <div>
                 <p className="text-xl font-bold">
@@ -231,16 +220,10 @@ function AdminStatsContent() {
               <TikTokIcon className="h-6 w-6 text-[#25F4EE]" />
               <h3 className="font-semibold">TikTok</h3>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="grid grid-cols-2 gap-2 text-center">
               <div>
                 <p className="text-xl font-bold">{tiktokAccounts.length}</p>
                 <p className="text-xs text-muted-foreground">Contas</p>
-              </div>
-              <div>
-                <p className="text-xl font-bold">
-                  {socialMetrics?.platformBreakdown.find(p => p.platform === 'TikTok')?.followers.toLocaleString() || 0}
-                </p>
-                <p className="text-xs text-muted-foreground">Seguidores</p>
               </div>
               <div>
                 <p className="text-xl font-bold">
@@ -256,16 +239,10 @@ function AdminStatsContent() {
               <Youtube className="h-6 w-6 text-red-500" />
               <h3 className="font-semibold">YouTube</h3>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="grid grid-cols-2 gap-2 text-center">
               <div>
                 <p className="text-xl font-bold">{youtubeAccounts.length}</p>
                 <p className="text-xs text-muted-foreground">Canais</p>
-              </div>
-              <div>
-                <p className="text-xl font-bold">
-                  {socialMetrics?.platformBreakdown.find(p => p.platform === 'YouTube')?.followers.toLocaleString() || 0}
-                </p>
-                <p className="text-xs text-muted-foreground">Inscritos</p>
               </div>
               <div>
                 <p className="text-xl font-bold">
