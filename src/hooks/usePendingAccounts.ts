@@ -36,7 +36,7 @@ export function usePendingAccounts() {
           .eq('approval_status', 'pending'),
         supabase
           .from('kwai_accounts')
-          .select('*, profiles!kwai_accounts_user_id_fkey(username)')
+          .select('*')
           .eq('approval_status', 'pending'),
       ]);
 
