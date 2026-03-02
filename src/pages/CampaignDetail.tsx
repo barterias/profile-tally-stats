@@ -401,87 +401,105 @@ function CampaignDetailContent() {
 
         // Build a map of video URLs to social account usernames
         const videoLinksMap: Record<string, string> = {};
+        const kwaiMetricsMap: Record<string, { views: number; likes: number; comments: number; shares: number }> = {};
         
-        // Fetch Instagram post usernames
+        // Fetch platform usernames in parallel, each with its own try/catch
+        const platformLookups = [];
+
+        // Instagram
         const igVideos = videosData.filter(v => v.platform?.toLowerCase() === 'instagram');
         if (igVideos.length > 0) {
-          const igLinks = igVideos.map(v => v.video_link).filter(Boolean);
-          const { data: igPosts } = await supabase
-            .from('instagram_posts')
-            .select('post_url, account_id, instagram_accounts!inner(username)')
-            .in('post_url', igLinks);
-          
-          if (igPosts) {
-            igPosts.forEach((post: any) => {
-              if (post.post_url && post.instagram_accounts?.username) {
-                videoLinksMap[post.post_url] = post.instagram_accounts.username;
-              }
-            });
-          }
+          platformLookups.push(
+            (async () => {
+              try {
+                const igLinks = igVideos.map(v => v.video_link).filter(Boolean);
+                const { data: igPosts } = await supabase
+                  .from('instagram_posts')
+                  .select('post_url, account_id, instagram_accounts!inner(username)')
+                  .in('post_url', igLinks);
+                igPosts?.forEach((post: any) => {
+                  if (post.post_url && post.instagram_accounts?.username) {
+                    videoLinksMap[post.post_url] = post.instagram_accounts.username;
+                  }
+                });
+              } catch (e) { console.warn('Instagram lookup failed:', e); }
+            })()
+          );
         }
 
-        // Fetch TikTok video usernames
+        // TikTok
         const ttVideos = videosData.filter(v => v.platform?.toLowerCase() === 'tiktok');
         if (ttVideos.length > 0) {
-          const ttLinks = ttVideos.map(v => v.video_link).filter(Boolean);
-          const { data: ttPosts } = await supabase
-            .from('tiktok_videos')
-            .select('video_url, account_id, tiktok_accounts!inner(username)')
-            .in('video_url', ttLinks);
-          
-          if (ttPosts) {
-            ttPosts.forEach((post: any) => {
-              if (post.video_url && post.tiktok_accounts?.username) {
-                videoLinksMap[post.video_url] = post.tiktok_accounts.username;
-              }
-            });
-          }
+          platformLookups.push(
+            (async () => {
+              try {
+                const ttLinks = ttVideos.map(v => v.video_link).filter(Boolean);
+                const { data: ttPosts } = await supabase
+                  .from('tiktok_videos')
+                  .select('video_url, account_id, tiktok_accounts!inner(username)')
+                  .in('video_url', ttLinks);
+                ttPosts?.forEach((post: any) => {
+                  if (post.video_url && post.tiktok_accounts?.username) {
+                    videoLinksMap[post.video_url] = post.tiktok_accounts.username;
+                  }
+                });
+              } catch (e) { console.warn('TikTok lookup failed:', e); }
+            })()
+          );
         }
 
-        // Fetch YouTube video usernames
+        // YouTube
         const ytVideos = videosData.filter(v => v.platform?.toLowerCase() === 'youtube');
         if (ytVideos.length > 0) {
-          const ytLinks = ytVideos.map(v => v.video_link).filter(Boolean);
-          const { data: ytPosts } = await supabase
-            .from('youtube_videos')
-            .select('video_url, account_id, youtube_accounts!inner(username)')
-            .in('video_url', ytLinks);
-          
-          if (ytPosts) {
-            ytPosts.forEach((post: any) => {
-              if (post.video_url && post.youtube_accounts?.username) {
-                videoLinksMap[post.video_url] = post.youtube_accounts.username;
-              }
-            });
-          }
+          platformLookups.push(
+            (async () => {
+              try {
+                const ytLinks = ytVideos.map(v => v.video_link).filter(Boolean);
+                const { data: ytPosts } = await supabase
+                  .from('youtube_videos')
+                  .select('video_url, account_id, youtube_accounts!inner(username)')
+                  .in('video_url', ytLinks);
+                ytPosts?.forEach((post: any) => {
+                  if (post.video_url && post.youtube_accounts?.username) {
+                    videoLinksMap[post.video_url] = post.youtube_accounts.username;
+                  }
+                });
+              } catch (e) { console.warn('YouTube lookup failed:', e); }
+            })()
+          );
         }
 
-        // Fetch Kwai video usernames and metrics from kwai_videos
-        const kwaiMetricsMap: Record<string, { views: number; likes: number; comments: number; shares: number }> = {};
+        // Kwai
         const kwVideos = videosData.filter(v => v.platform?.toLowerCase() === 'kwai');
         if (kwVideos.length > 0) {
-          const kwLinks = kwVideos.map(v => v.video_link).filter(Boolean);
-          const { data: kwPosts } = await supabase
-            .from('kwai_videos')
-            .select('video_url, views_count, likes_count, comments_count, shares_count, account_id, kwai_accounts!inner(username)')
-            .in('video_url', kwLinks);
-          
-          if (kwPosts) {
-            kwPosts.forEach((post: any) => {
-              if (post.video_url) {
-                if (post.kwai_accounts?.username) {
-                  videoLinksMap[post.video_url] = post.kwai_accounts.username;
-                }
-                kwaiMetricsMap[post.video_url] = {
-                  views: Number(post.views_count || 0),
-                  likes: Number(post.likes_count || 0),
-                  comments: Number(post.comments_count || 0),
-                  shares: Number(post.shares_count || 0),
-                };
-              }
-            });
-          }
+          platformLookups.push(
+            (async () => {
+              try {
+                const kwLinks = kwVideos.map(v => v.video_link).filter(Boolean);
+                const { data: kwPosts } = await supabase
+                  .from('kwai_videos')
+                  .select('video_url, views_count, likes_count, comments_count, shares_count, account_id, kwai_accounts!inner(username)')
+                  .in('video_url', kwLinks);
+                kwPosts?.forEach((post: any) => {
+                  if (post.video_url) {
+                    if (post.kwai_accounts?.username) {
+                      videoLinksMap[post.video_url] = post.kwai_accounts.username;
+                    }
+                    kwaiMetricsMap[post.video_url] = {
+                      views: Number(post.views_count || 0),
+                      likes: Number(post.likes_count || 0),
+                      comments: Number(post.comments_count || 0),
+                      shares: Number(post.shares_count || 0),
+                    };
+                  }
+                });
+              } catch (e) { console.warn('Kwai lookup failed:', e); }
+            })()
+          );
         }
+
+        // Run all platform lookups in parallel
+        await Promise.all(platformLookups);
 
         const processedVideos = videosData.map((video) => {
           // Try to get username from database lookup first
