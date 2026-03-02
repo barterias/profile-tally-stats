@@ -21,7 +21,7 @@ export function usePendingAccounts() {
     queryKey: ['pending-social-accounts'],
     queryFn: async () => {
       // Fetch pending accounts from all platforms
-      const [instagram, tiktok, youtube] = await Promise.all([
+      const [instagram, tiktok, youtube, kwai] = await Promise.all([
         supabase
           .from('instagram_accounts')
           .select('*, profiles!instagram_accounts_user_id_fkey(username)')
@@ -33,6 +33,10 @@ export function usePendingAccounts() {
         supabase
           .from('youtube_accounts')
           .select('*, profiles!youtube_accounts_user_id_fkey(username)')
+          .eq('approval_status', 'pending'),
+        supabase
+          .from('kwai_accounts')
+          .select('*')
           .eq('approval_status', 'pending'),
       ]);
 
@@ -92,6 +96,32 @@ export function usePendingAccounts() {
         });
       }
 
+      if (kwai.data && kwai.data.length > 0) {
+        // Fetch owner usernames for kwai accounts
+        const kwaiUserIds = [...new Set(kwai.data.map((acc: any) => acc.user_id))];
+        const { data: kwaiProfiles } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', kwaiUserIds);
+        const kwaiProfileMap = new Map((kwaiProfiles || []).map((p: any) => [p.id, p.username]));
+
+        kwai.data.forEach((acc: any) => {
+          accounts.push({
+            platform: 'kwai',
+            id: acc.id,
+            username: acc.username,
+            display_name: acc.display_name,
+            profile_image_url: acc.profile_image_url,
+            followers_count: acc.followers_count,
+            content_count: acc.videos_count,
+            user_id: acc.user_id,
+            approval_status: acc.approval_status,
+            created_at: acc.created_at,
+            owner_username: kwaiProfileMap.get(acc.user_id) || null,
+          });
+        });
+      }
+
       return accounts;
     },
   });
@@ -117,6 +147,8 @@ export function useApproveAccount() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['kwai-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['kwai-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: Error) => {
@@ -145,6 +177,8 @@ export function useRejectAccount() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['kwai-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['kwai-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: Error) => {
