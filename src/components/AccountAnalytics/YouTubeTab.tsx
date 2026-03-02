@@ -127,7 +127,11 @@ export function YouTubeTab() {
   };
 
   const handleApprove = (accountId: string) => {
-    approveAccount.mutate({ accountId, platform: 'youtube' });
+    approveAccount.mutate({ accountId, platform: 'youtube' }, {
+      onSuccess: () => {
+        syncAccount.mutate(accountId);
+      },
+    });
   };
 
   const handleReject = (accountId: string) => {

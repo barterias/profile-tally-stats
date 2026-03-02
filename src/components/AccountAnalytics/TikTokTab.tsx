@@ -102,7 +102,11 @@ export function TikTokTab() {
   };
 
   const handleApprove = (accountId: string) => {
-    approveAccount.mutate({ accountId, platform: 'tiktok' });
+    approveAccount.mutate({ accountId, platform: 'tiktok' }, {
+      onSuccess: () => {
+        syncAccount.mutate({ accountId });
+      },
+    });
   };
 
   const handleReject = (accountId: string) => {

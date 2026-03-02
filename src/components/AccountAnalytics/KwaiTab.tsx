@@ -100,7 +100,12 @@ export function KwaiTab() {
   };
 
   const handleApprove = (accountId: string) => {
-    approveAccount.mutate({ accountId, platform: 'kwai' });
+    approveAccount.mutate({ accountId, platform: 'kwai' }, {
+      onSuccess: () => {
+        // Auto-sync after approval to fetch metrics
+        syncAccount.mutate({ accountId });
+      },
+    });
   };
 
   const handleReject = (accountId: string) => {
