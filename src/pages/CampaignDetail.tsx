@@ -349,7 +349,7 @@ function CampaignDetailContent() {
       errorCount = videos.length;
     }
 
-    await fetchCampaignData();
+    await Promise.all([fetchCampaignData(), fetchParticipants()]);
     setSyncingMetrics(false);
     
     if (successCount > 0) toast.success(`${successCount} ${t('campaign.videos_updated')}`);
@@ -509,10 +509,10 @@ function CampaignDetailContent() {
           }
 
           // For Kwai videos, use kwai_videos metrics if campaign_videos has 0
-          let views = video.views || 0;
-          let likes = video.likes || 0;
-          let comments = video.comments || 0;
-          let shares = video.shares || 0;
+          let views = Number(video.views || 0);
+          let likes = Number(video.likes || 0);
+          let comments = Number(video.comments || 0);
+          let shares = Number(video.shares || 0);
           
           if (video.platform?.toLowerCase() === 'kwai' && views === 0) {
             const kwaiData = kwaiMetricsMap[video.video_link];
@@ -599,7 +599,7 @@ function CampaignDetailContent() {
           const current = userStats.get(v.submitted_by) || { videos: 0, views: 0 };
           userStats.set(v.submitted_by, {
             videos: current.videos + 1,
-            views: current.views + (v.views || 0),
+            views: current.views + Number(v.views || 0),
           });
         });
 
@@ -724,9 +724,9 @@ function CampaignDetailContent() {
     return "text-muted-foreground";
   };
 
-  const totalViews = videos.reduce((sum, v) => sum + (v.views || 0), 0);
-  const totalLikes = videos.reduce((sum, v) => sum + (v.likes || 0), 0);
-  const totalComments = videos.reduce((sum, v) => sum + (v.comments || 0), 0);
+  const totalViews = videos.reduce((sum, v) => sum + Number(v.views || 0), 0);
+  const totalLikes = videos.reduce((sum, v) => sum + Number(v.likes || 0), 0);
+  const totalComments = videos.reduce((sum, v) => sum + Number(v.comments || 0), 0);
   const totalParticipants = new Set(videos.map(v => v.username)).size;
   
   const daysRemaining = differenceInDays(new Date(campaign.end_date), new Date());
