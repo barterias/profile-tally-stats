@@ -169,6 +169,8 @@ export function useRejectAccount() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['youtube-accounts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['kwai-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['kwai-accounts-all'] });
       queryClient.invalidateQueries({ queryKey: ['social-metrics-unified'] });
     },
     onError: (error: Error) => {
