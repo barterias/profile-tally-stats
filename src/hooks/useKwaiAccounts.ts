@@ -140,6 +140,25 @@ export function useAddKwaiAccount() {
         return { success: false, error: 'Conta já existe' } satisfies FunctionInvokeFailure;
       }
 
+      // Check if another user (admin/client) already has this username — auto-approve & copy metrics
+      let shouldAutoApprove = autoApprove;
+      let metricsSource: any = null;
+      if (!shouldAutoApprove) {
+        const { data: otherAccount } = await supabase
+          .from('kwai_accounts' as any)
+          .select('*')
+          .eq('username', normalizedUsername)
+          .eq('approval_status', 'approved')
+          .neq('user_id', user?.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (otherAccount) {
+          shouldAutoApprove = true;
+          metricsSource = otherAccount;
+        }
+      }
+
       const { data: newAccount, error: insertError } = await supabase
         .from('kwai_accounts' as any)
         .insert({
@@ -147,7 +166,17 @@ export function useAddKwaiAccount() {
           username: normalizedUsername,
           profile_url: `https://www.kwai.com/@${normalizedUsername}`,
           is_active: true,
-          ...(autoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
+          ...(shouldAutoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
+          ...(metricsSource ? {
+            display_name: (metricsSource as any).display_name,
+            profile_image_url: (metricsSource as any).profile_image_url,
+            followers_count: (metricsSource as any).followers_count,
+            following_count: (metricsSource as any).following_count,
+            likes_count: (metricsSource as any).likes_count,
+            videos_count: (metricsSource as any).videos_count,
+            total_views: (metricsSource as any).total_views,
+            bio: (metricsSource as any).bio,
+          } : {}),
         })
         .select()
         .single();
