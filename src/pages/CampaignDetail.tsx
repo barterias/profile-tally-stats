@@ -253,12 +253,29 @@ function CampaignDetailContent() {
     let invalidUrlCount = 0;
 
     try {
-      // Fetch ALL local analytics data (not filtered by URL, to allow normalized matching)
+      // Build candidate URL variants from campaign videos (fast + normalized matching)
+      const candidateLinks = Array.from(
+        new Set(
+          videos
+            .map((v) => v.video_link)
+            .filter(Boolean)
+            .flatMap((link) => {
+              const raw = String(link).trim();
+              const lower = raw.toLowerCase();
+              const noHash = lower.split('#')[0];
+              const noQuery = noHash.split('?')[0];
+              const noSlash = noQuery.replace(/\/+$/, '');
+              return [raw, lower, noHash, noQuery, noSlash].filter(Boolean);
+            })
+        )
+      );
+
+      // Fetch local analytics data in parallel only for campaign-related links
       const [igRes, ttRes, ytRes, kwRes] = await Promise.all([
-        supabase.from('instagram_posts').select('post_url, views_count, likes_count, comments_count, shares_count'),
-        supabase.from('tiktok_videos').select('video_url, views_count, likes_count, comments_count, shares_count'),
-        supabase.from('youtube_videos').select('video_url, views_count, likes_count, comments_count'),
-        supabase.from('kwai_videos' as any).select('video_url, views_count, likes_count, comments_count, shares_count'),
+        supabase.from('instagram_posts').select('post_url, views_count, likes_count, comments_count, shares_count').in('post_url', candidateLinks),
+        supabase.from('tiktok_videos').select('video_url, views_count, likes_count, comments_count, shares_count').in('video_url', candidateLinks),
+        supabase.from('youtube_videos').select('video_url, views_count, likes_count, comments_count').in('video_url', candidateLinks),
+        supabase.from('kwai_videos' as any).select('video_url, views_count, likes_count, comments_count, shares_count').in('video_url', candidateLinks),
       ]);
 
       // Build a unified metrics map by NORMALIZED key
