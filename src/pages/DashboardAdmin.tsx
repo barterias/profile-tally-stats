@@ -179,12 +179,6 @@ function DashboardAdminContent() {
         {/* Social Media Stats Grid - Real data from useSocialMetrics hook */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
           <MetricCardGlow
-            title={t('followers')}
-            value={formatNumber(socialMetrics?.totalFollowers || 0)}
-            icon={Users}
-            glowColor="blue"
-          />
-          <MetricCardGlow
             title={t('dashboard.total_views')}
             value={formatNumber(socialMetrics?.totalViews || 0)}
             icon={Eye}
@@ -234,11 +228,7 @@ function DashboardAdminContent() {
                 </div>
                 <span className="text-sm text-muted-foreground">{platform.accounts} {t('accounts')}</span>
               </div>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-2xl font-bold">{formatNumber(platform.followers)}</p>
-                  <p className="text-xs text-muted-foreground">{t('followers')}</p>
-                </div>
+              <div className="grid grid-cols-2 gap-4 text-center">
                 <div>
                   <p className="text-2xl font-bold">{formatNumber(platform.views)}</p>
                   <p className="text-xs text-muted-foreground">{t('views')}</p>
@@ -272,7 +262,7 @@ function DashboardAdminContent() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {instagramAccounts.slice(0, 3).map((acc) => (
                       <div key={acc.id} className="text-muted-foreground">
-                        @{acc.username} - {formatNumber(acc.followers_count || 0)} {t('followers')}
+                        @{acc.username}
                       </div>
                     ))}
                   </div>
@@ -290,7 +280,7 @@ function DashboardAdminContent() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {tiktokAccounts.slice(0, 3).map((acc) => (
                       <div key={acc.id} className="text-muted-foreground">
-                        @{acc.username} - {formatNumber(acc.followers_count || 0)} {t('followers')}
+                        @{acc.username}
                       </div>
                     ))}
                   </div>
@@ -308,7 +298,7 @@ function DashboardAdminContent() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {youtubeAccounts.slice(0, 3).map((acc) => (
                       <div key={acc.id} className="text-muted-foreground">
-                        @{acc.username} - {formatNumber(acc.subscribers_count || 0)} subs
+                        @{acc.username}
                       </div>
                     ))}
                   </div>
@@ -326,7 +316,7 @@ function DashboardAdminContent() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {kwaiAccounts.slice(0, 3).map((acc: any) => (
                       <div key={acc.id} className="text-muted-foreground">
-                        @{acc.username} - {formatNumber(acc.followers_count || 0)} {t('followers')}
+                        @{acc.username}
                       </div>
                     ))}
                   </div>

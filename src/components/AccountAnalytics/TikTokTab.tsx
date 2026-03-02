@@ -119,7 +119,6 @@ export function TikTokTab() {
   const visibleAccounts = accounts;
 
   const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.likes_count || 0) - Number(a.likes_count || 0));
-  const totalFollowers = visibleAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
   const totalLikes = visibleAccounts.reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0);
   const totalVideos = visibleAccounts.reduce((sum, acc) => sum + (videoCountByAccount[acc.id] || 0), 0);
   const totalViews = visibleAccounts.reduce((sum, acc: any) => {
@@ -174,8 +173,7 @@ export function TikTokTab() {
           {[...Array(4)].map((_, i) => (<Skeleton key={i} className="h-32" />))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <MetricCardGlow title={t('analytics.followers')} value={formatNumber(totalFollowers)} icon={Users} trend={{ value: 0, isPositive: true }} />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <MetricCardGlow title={t('analytics.total_likes')} value={formatNumber(totalLikes)} icon={Heart} trend={{ value: 0, isPositive: true }} />
           <MetricCardGlow title="Views Totais" value={formatNumber(totalViews)} icon={Eye} trend={{ value: 0, isPositive: true }} />
           <MetricCardGlow title={t('analytics.videos')} value={formatNumber(totalVideos)} icon={Video} trend={{ value: 0, isPositive: true }} />
@@ -213,7 +211,7 @@ export function TikTokTab() {
                       <div>
                         <p className="font-medium">@{acc.username}</p>
                         <p className="text-xs text-muted-foreground">
-                          {acc.followers_count?.toLocaleString() || 0} seguidores
+                          {Number(acc.likes_count || 0).toLocaleString()} curtidas
                         </p>
                       </div>
                     </div>
@@ -227,7 +225,7 @@ export function TikTokTab() {
                platform="tiktok"
                accounts={sortedAccounts.map((acc: any) => ({
                  id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
-                 followersCount: acc.followers_count, postsCount: videoCountByAccount[acc.id] || 0, likesCount: acc.likes_count,
+                 postsCount: videoCountByAccount[acc.id] || 0, likesCount: acc.likes_count,
                  totalViews: Number(acc.total_views || 0) > 0 ? acc.total_views : (derivedViewsByAccount[acc.id] || 0),
                  scrapedCount: acc.scraped_videos_count || 0,
                  lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,

@@ -28,13 +28,6 @@ const formatNumber = (num: number): string => {
 export function SocialMetricsCards({ summary, isLoading }: SocialMetricsCardsProps) {
   const cards = [
     {
-      title: 'Seguidores Totais',
-      value: summary?.total_followers || 0,
-      icon: Users,
-      gradient: 'from-primary to-accent',
-      change: summary?.growth_percentage || 0,
-    },
-    {
       title: 'Views (7 dias)',
       value: summary?.total_views_7d || 0,
       icon: Eye,

@@ -42,12 +42,6 @@ export function RealtimeMetricsCards({ showSyncButton = true, showPlatformBreakd
 
   const mainMetrics = [
     {
-      title: 'Seguidores',
-      value: aggregated.totalFollowers,
-      icon: Users,
-      color: 'text-blue-500',
-    },
-    {
       title: 'Visualizações',
       value: aggregated.totalViews,
       icon: Eye,
@@ -139,10 +133,6 @@ export function RealtimeMetricsCards({ showSyncButton = true, showPlatformBreakd
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Seguidores:</span>
-                      <span className="ml-1 font-semibold">{formatNumber(data.followers)}</span>
-                    </div>
                     <div>
                       <span className="text-muted-foreground">Views:</span>
                       <span className="ml-1 font-semibold">{formatNumber(data.views)}</span>

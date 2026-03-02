@@ -135,7 +135,7 @@ export function KwaiTab() {
   };
 
   const sortedAccounts = [...accounts].sort((a: any, b: any) => getAccountLikes(b) - getAccountLikes(a));
-  const totalFollowers = accounts.reduce((sum: number, acc: any) => sum + (acc.followers_count || 0), 0);
+  
   const totalLikes = accounts.reduce((sum: number, acc: any) => sum + getAccountLikes(acc), 0);
   const totalVideos = accounts.reduce((sum: number, acc: any) => sum + (videoCountByAccount[acc.id] || 0), 0);
   const totalViews = accounts.reduce((sum: number, acc: any) => {
@@ -222,7 +222,7 @@ export function KwaiTab() {
                       <div>
                         <p className="font-medium">@{acc.username}</p>
                         <p className="text-xs text-muted-foreground">
-                          {acc.followers_count?.toLocaleString() || 0} seguidores
+                          {getAccountLikes(acc).toLocaleString()} curtidas
                         </p>
                       </div>
                     </div>
@@ -239,7 +239,7 @@ export function KwaiTab() {
                 username: acc.username,
                 displayName: acc.display_name,
                 profileImageUrl: acc.profile_image_url,
-                followersCount: acc.followers_count,
+                
                 postsCount: videoCountByAccount[acc.id] || 0,
                 likesCount: getAccountLikes(acc),
                 totalViews: Number(acc.total_views || 0) > 0 ? acc.total_views : (derivedViewsByAccount[acc.id] || 0),

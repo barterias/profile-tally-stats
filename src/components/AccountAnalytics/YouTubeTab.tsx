@@ -144,7 +144,6 @@ export function YouTubeTab() {
   const visibleAccounts = accounts;
 
   const sortedAccounts = [...visibleAccounts].sort((a, b) => Number(b.total_views || 0) - Number(a.total_views || 0));
-  const totalSubscribers = visibleAccounts.reduce((sum, acc) => sum + (acc.subscribers_count || 0), 0);
   // Use account's total_views (from profile) as it's more accurate than sum of scraped videos
   const totalViews = visibleAccounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
   const totalVideos = visibleAccounts.reduce((sum, acc) => sum + (acc.videos_count || 0), 0);
@@ -195,8 +194,7 @@ export function YouTubeTab() {
           {[...Array(4)].map((_, i) => (<Skeleton key={i} className="h-32" />))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <MetricCardGlow title={t('analytics.subscribers')} value={formatNumber(totalSubscribers)} icon={Users} trend={{ value: 0, isPositive: true }} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MetricCardGlow title={t('analytics.total_views')} value={formatNumber(totalViews)} icon={Eye} trend={{ value: 0, isPositive: true }} />
           <MetricCardGlow title={t('analytics.videos')} value={formatNumber(totalVideos)} icon={Video} trend={{ value: 0, isPositive: true }} />
           <MetricCardGlow title={t('analytics.channels')} value={visibleAccounts.length.toString()} icon={ThumbsUp} trend={{ value: 0, isPositive: true }} />
@@ -244,7 +242,7 @@ export function YouTubeTab() {
                       <div>
                         <p className="font-medium">{acc.display_name || acc.username}</p>
                         <p className="text-xs text-muted-foreground">
-                          {acc.subscribers_count?.toLocaleString() || 0} inscritos
+                          {Number(acc.total_views || 0).toLocaleString()} views
                         </p>
                       </div>
                     </div>
@@ -258,7 +256,7 @@ export function YouTubeTab() {
               platform="youtube"
               accounts={sortedAccounts.map((acc: any) => ({
                 id: acc.id, username: acc.username, displayName: acc.display_name, profileImageUrl: acc.profile_image_url,
-                followersCount: acc.subscribers_count, postsCount: acc.videos_count, scrapedCount: acc.scraped_videos_count || 0,
+                postsCount: acc.videos_count, scrapedCount: acc.scraped_videos_count || 0,
                 totalViews: acc.total_views,
                 lastSyncedAt: acc.last_synced_at, isActive: acc.is_active, approvalStatus: acc.approval_status,
               }))}
