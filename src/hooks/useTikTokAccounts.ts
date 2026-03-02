@@ -74,7 +74,7 @@ export function useAddTikTokAccount() {
     mutationFn: async ({ username, isClientOrAdmin }: { username: string; isClientOrAdmin?: boolean }) => {
       const autoApprove = isClientOrAdmin || isAdmin;
 
-      // Check if account already exists (even if inactive)
+      // Check if account already exists for THIS user (even if inactive)
       const { data: existing } = await supabase
         .from('tiktok_accounts')
         .select('id, is_active')
@@ -118,7 +118,26 @@ export function useAddTikTokAccount() {
         return { success: false, error: 'Conta já existe' } satisfies FunctionInvokeFailure;
       }
 
-      // Insert new account - auto-approve for clients/admins
+      // Check if another user (admin/client) already has this username — auto-approve & copy metrics
+      let shouldAutoApprove = autoApprove;
+      let metricsSource: any = null;
+      if (!shouldAutoApprove) {
+        const { data: otherAccount } = await supabase
+          .from('tiktok_accounts')
+          .select('*')
+          .eq('username', username)
+          .eq('approval_status', 'approved')
+          .neq('user_id', user?.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (otherAccount) {
+          shouldAutoApprove = true;
+          metricsSource = otherAccount;
+        }
+      }
+
+      // Insert new account
       const { data: newAccount, error: insertError } = await supabase
         .from('tiktok_accounts')
         .insert({
@@ -126,7 +145,17 @@ export function useAddTikTokAccount() {
           username,
           profile_url: `https://tiktok.com/@${username}`,
           is_active: true,
-          ...(autoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
+          ...(shouldAutoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
+          ...(metricsSource ? {
+            display_name: metricsSource.display_name,
+            profile_image_url: metricsSource.profile_image_url,
+            followers_count: metricsSource.followers_count,
+            following_count: metricsSource.following_count,
+            likes_count: metricsSource.likes_count,
+            videos_count: metricsSource.videos_count,
+            total_views: metricsSource.total_views,
+            bio: metricsSource.bio,
+          } : {}),
         })
         .select()
         .single();

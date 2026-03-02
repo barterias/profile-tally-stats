@@ -47,7 +47,7 @@ export function useAddYouTubeAccount() {
     mutationFn: async ({ username, isClientOrAdmin }: { username: string; isClientOrAdmin?: boolean }) => {
       const autoApprove = isClientOrAdmin || isAdmin;
       
-      // Check if account already exists (even if inactive)
+      // Check if account already exists for THIS user (even if inactive)
       const { data: existing } = await supabase
         .from('youtube_accounts')
         .select('id, is_active')
@@ -69,7 +69,6 @@ export function useAddYouTubeAccount() {
           
           if (updateError) throw updateError;
           
-          // Sync the account
           const { error: syncError } = await supabase.functions.invoke('youtube-scrape', {
             body: { accountId: existing.id, username },
           });
@@ -79,8 +78,27 @@ export function useAddYouTubeAccount() {
         }
         return { success: false, error: 'Conta já existe' };
       }
+
+      // Check if another user (admin/client) already has this username — auto-approve & copy metrics
+      let shouldAutoApprove = autoApprove;
+      let metricsSource: any = null;
+      if (!shouldAutoApprove) {
+        const { data: otherAccount } = await supabase
+          .from('youtube_accounts')
+          .select('*')
+          .eq('username', username)
+          .eq('approval_status', 'approved')
+          .neq('user_id', user?.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (otherAccount) {
+          shouldAutoApprove = true;
+          metricsSource = otherAccount;
+        }
+      }
       
-      // Insert new account - auto-approve for clients/admins
+      // Insert new account
       const { data: newAccount, error: insertError } = await supabase
         .from('youtube_accounts')
         .insert({
@@ -88,7 +106,14 @@ export function useAddYouTubeAccount() {
           username,
           profile_url: `https://youtube.com/@${username}`,
           is_active: true,
-          ...(autoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
+          ...(shouldAutoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id } : {}),
+          ...(metricsSource ? {
+            display_name: metricsSource.display_name,
+            profile_image_url: metricsSource.profile_image_url,
+            subscribers_count: metricsSource.subscribers_count,
+            total_views: metricsSource.total_views,
+            videos_count: metricsSource.videos_count,
+          } : {}),
         })
         .select()
         .single();

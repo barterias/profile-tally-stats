@@ -79,7 +79,7 @@ export const instagramApi = {
     const cleanUsername = username.replace('@', '');
     const profileUrl = `https://www.instagram.com/${cleanUsername}/`;
     
-    // First, check if there's an existing account (even if inactive)
+    // First, check if there's an existing account for THIS user (even if inactive)
     const { data: existingAccount } = await supabase
       .from('instagram_accounts')
       .select('*')
@@ -104,7 +104,6 @@ export const instagramApi = {
           bio: scrapeResult.data?.bio || existingAccount.bio,
           last_synced_at: scrapeResult.success ? new Date().toISOString() : existingAccount.last_synced_at,
           updated_at: new Date().toISOString(),
-          // Auto-approve for clients/admins
           ...(isClientOrAdmin ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: userId } : {}),
         })
         .eq('id', existingAccount.id)
@@ -118,7 +117,26 @@ export const instagramApi = {
       return { success: true, account: data as InstagramAccount };
     }
 
-    // Insert new account - auto-approve for clients/admins
+    // Check if another user (admin/client) already has this username — auto-approve & copy metrics
+    let shouldAutoApprove = isClientOrAdmin;
+    let metricsSource: any = null;
+    if (!shouldAutoApprove) {
+      const { data: otherAccount } = await supabase
+        .from('instagram_accounts')
+        .select('*')
+        .eq('username', cleanUsername)
+        .eq('approval_status', 'approved')
+        .neq('user_id', userId)
+        .limit(1)
+        .maybeSingle();
+
+      if (otherAccount) {
+        shouldAutoApprove = true;
+        metricsSource = otherAccount;
+      }
+    }
+
+    // Insert new account
     const { data, error } = await supabase
       .from('instagram_accounts')
       .insert({
@@ -126,14 +144,14 @@ export const instagramApi = {
         username: cleanUsername,
         profile_url: profileUrl,
         is_active: true,
-        display_name: scrapeResult.data?.displayName || null,
-        profile_image_url: scrapeResult.data?.profileImageUrl || null,
-        followers_count: scrapeResult.data?.followersCount || 0,
-        following_count: scrapeResult.data?.followingCount || 0,
-        posts_count: scrapeResult.data?.postsCount || 0,
-        bio: scrapeResult.data?.bio || null,
+        display_name: scrapeResult.data?.displayName || metricsSource?.display_name || null,
+        profile_image_url: scrapeResult.data?.profileImageUrl || metricsSource?.profile_image_url || null,
+        followers_count: scrapeResult.data?.followersCount || metricsSource?.followers_count || 0,
+        following_count: scrapeResult.data?.followingCount || metricsSource?.following_count || 0,
+        posts_count: scrapeResult.data?.postsCount || metricsSource?.posts_count || 0,
+        bio: scrapeResult.data?.bio || metricsSource?.bio || null,
         last_synced_at: scrapeResult.success ? new Date().toISOString() : null,
-        ...(isClientOrAdmin ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: userId } : {}),
+        ...(shouldAutoApprove ? { approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: userId } : {}),
       })
       .select()
       .single();
