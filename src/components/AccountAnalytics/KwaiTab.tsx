@@ -190,8 +190,7 @@ export function KwaiTab() {
           {[...Array(4)].map((_, i) => (<Skeleton key={i} className="h-32" />))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <MetricCardGlow title="Seguidores" value={formatNumber(totalFollowers)} icon={Users} trend={{ value: 0, isPositive: true }} />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <MetricCardGlow title="Curtidas Totais" value={formatNumber(totalLikes)} icon={Heart} trend={{ value: 0, isPositive: true }} />
           <MetricCardGlow title="Views Totais" value={formatNumber(totalViews)} icon={Eye} trend={{ value: 0, isPositive: true }} />
           <MetricCardGlow title="Vídeos" value={formatNumber(totalVideos)} icon={Video} trend={{ value: 0, isPositive: true }} />
