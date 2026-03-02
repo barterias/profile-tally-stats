@@ -281,6 +281,7 @@ function CampaignDetailContent() {
 
       // Match campaign videos against the normalized map and update
       const updatedMap = new Map<string, { views: number; likes: number; comments: number; shares: number }>();
+      const unmatchedKwaiVideos: typeof videos = [];
 
       const updateResults = await Promise.all(
         videos.map(async (video) => {
@@ -295,7 +296,13 @@ function CampaignDetailContent() {
             }
             return { video, metrics: localMetrics, success: true };
           }
-          console.log(`[Sync] No local match for: ${video.video_link} (key: ${key})`);
+          
+          // Track unmatched Kwai short links for fallback
+          if (video.video_link && (video.video_link.includes('k.kwai.com') || video.video_link.includes('kw.ai'))) {
+            unmatchedKwaiVideos.push(video);
+          } else {
+            console.log(`[Sync] No local match for: ${video.video_link} (key: ${key})`);
+          }
           return { video, metrics: null, success: false };
         })
       );
