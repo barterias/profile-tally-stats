@@ -96,7 +96,15 @@ export function usePendingAccounts() {
         });
       }
 
-      if (kwai.data) {
+      if (kwai.data && kwai.data.length > 0) {
+        // Fetch owner usernames for kwai accounts
+        const kwaiUserIds = [...new Set(kwai.data.map((acc: any) => acc.user_id))];
+        const { data: kwaiProfiles } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', kwaiUserIds);
+        const kwaiProfileMap = new Map((kwaiProfiles || []).map((p: any) => [p.id, p.username]));
+
         kwai.data.forEach((acc: any) => {
           accounts.push({
             platform: 'kwai',
@@ -109,7 +117,7 @@ export function usePendingAccounts() {
             user_id: acc.user_id,
             approval_status: acc.approval_status,
             created_at: acc.created_at,
-            owner_username: acc.profiles?.username || null,
+            owner_username: kwaiProfileMap.get(acc.user_id) || null,
           });
         });
       }
