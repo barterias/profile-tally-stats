@@ -84,10 +84,10 @@ export function SocialMetricsCards({ summary, isLoading }: SocialMetricsCardsPro
               )}>
                 <card.icon className="h-4 w-4 text-background" />
               </div>
-              {card.change !== undefined && card.change > 0 && (
+              {'change' in card && (card as any).change !== undefined && (card as any).change > 0 && (
                 <span className="text-xs text-success flex items-center gap-1">
                   <TrendingUp className="h-3 w-3" />
-                  +{card.change}%
+                  +{(card as any).change}%
                 </span>
               )}
             </div>
