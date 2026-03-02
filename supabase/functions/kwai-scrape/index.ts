@@ -556,6 +556,23 @@ serve(async (req) => {
       videos,
     };
 
+    const hasNumericProfileData =
+      profileData.followersCount > 0 ||
+      profileData.followingCount > 0 ||
+      profileData.likesCount > 0 ||
+      profileData.videosCount > 0 ||
+      profileData.scrapedVideosCount > 0;
+
+    if (!foundUsefulData && apifyFailureMessage && !hasNumericProfileData) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Não foi possível atualizar métricas agora: limite mensal do provedor de coleta atingido. Tente novamente após liberar limite.",
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (accountId) {
       if (videos.length > 0) {
         await saveVideosToDB(supabase, accountId, videos);
