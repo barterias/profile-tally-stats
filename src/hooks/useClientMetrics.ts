@@ -68,12 +68,22 @@ export function useClientMetrics() {
       const profileMap = new Map((profiles || []).map(p => [p.id, p]));
 
       // 4. Get social media accounts from these clippers
-      const [instagramAccs, tiktokAccs, youtubeAccs, kwaiAccs] = await Promise.all([
+      const [instagramAccs, tiktokAccs, youtubeAccs, rawKwaiAccs] = await Promise.all([
         supabase.from('instagram_accounts').select('id, user_id, followers_count').in('user_id', clipperIds).eq('is_active', true).eq('approval_status', 'approved'),
         supabase.from('tiktok_accounts').select('id, user_id, followers_count, likes_count').in('user_id', clipperIds).eq('is_active', true).eq('approval_status', 'approved'),
         supabase.from('youtube_accounts').select('id, user_id, subscribers_count, total_views').in('user_id', clipperIds).eq('is_active', true).eq('approval_status', 'approved'),
-        supabase.from('kwai_accounts').select('id, user_id, followers_count, likes_count, total_views').in('user_id', clipperIds).eq('is_active', true).eq('approval_status', 'approved'),
+        supabase.from('kwai_accounts').select('id, user_id, username, followers_count, likes_count, total_views').in('user_id', clipperIds).eq('is_active', true).eq('approval_status', 'approved'),
       ]);
+
+      // Deduplicate kwai accounts by username to avoid double-counting
+      const seenKwaiUsernames = new Set<string>();
+      const kwaiAccsData = (rawKwaiAccs.data || []).filter((acc: any) => {
+        const username = acc.username?.toLowerCase();
+        if (!username || seenKwaiUsernames.has(username)) return false;
+        seenKwaiUsernames.add(username);
+        return true;
+      });
+      const kwaiAccs = { data: kwaiAccsData, error: rawKwaiAccs.error };
 
       const instagramAccountIds = (instagramAccs.data || []).map(a => a.id);
       const tiktokAccountIds = (tiktokAccs.data || []).map(a => a.id);
