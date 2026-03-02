@@ -68,7 +68,7 @@ export function useSocialMetrics() {
 
       const kwaiQuery = supabase
         .from('kwai_accounts')
-        .select('id, followers_count, likes_count, videos_count, total_views, approval_status')
+        .select('id, username, followers_count, likes_count, videos_count, total_views, approval_status')
         .eq('is_active', true);
 
       // Apply user filter if not admin
@@ -89,7 +89,16 @@ export function useSocialMetrics() {
       const instagramAccounts = instagramRes.data || [];
       const tiktokAccounts = tiktokRes.data || [];
       const youtubeAccounts = youtubeRes.data || [];
-      const kwaiAccounts = kwaiRes.data || [];
+      
+      // Deduplicate kwai accounts by username to avoid double-counting
+      const rawKwaiAccounts = kwaiRes.data || [];
+      const seenKwaiUsernames = new Set<string>();
+      const kwaiAccounts = rawKwaiAccounts.filter((acc: any) => {
+        const username = (acc as any).username?.toLowerCase();
+        if (!username || seenKwaiUsernames.has(username)) return false;
+        seenKwaiUsernames.add(username);
+        return true;
+      });
 
       // Calculate Instagram totals
       const instagramFollowers = instagramAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
@@ -102,14 +111,14 @@ export function useSocialMetrics() {
       const youtubeSubscribers = youtubeAccounts.reduce((sum, acc) => sum + (acc.subscribers_count || 0), 0);
 
       // Calculate Kwai totals
-      const kwaiFollowers = kwaiAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
-      const kwaiLikesFromAccounts = kwaiAccounts.reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0);
+      const kwaiFollowers = kwaiAccounts.reduce((sum, acc: any) => sum + ((acc as any).followers_count || 0), 0);
+      const kwaiLikesFromAccounts = kwaiAccounts.reduce((sum, acc: any) => sum + Number((acc as any).likes_count || 0), 0);
 
       // Get active account IDs for filtering videos/posts
       const instagramAccountIds = instagramAccounts.map(a => a.id);
       const tiktokAccountIds = tiktokAccounts.map(a => a.id);
       const youtubeAccountIds = youtubeAccounts.map(a => a.id);
-      const kwaiAccountIds = kwaiAccounts.map(a => a.id);
+      const kwaiAccountIds = kwaiAccounts.map((a: any) => (a as any).id);
 
       // Fetch video/post metrics for views - only from active accounts
       let instagramPosts: { data: any[] | null } = { data: [] };
