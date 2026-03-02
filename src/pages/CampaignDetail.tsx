@@ -444,13 +444,13 @@ function CampaignDetailContent() {
           const ytLinks = ytVideos.map(v => v.video_link).filter(Boolean);
           const { data: ytPosts } = await supabase
             .from('youtube_videos')
-            .select('video_url, account_id, youtube_accounts!inner(channel_name)')
+            .select('video_url, account_id, youtube_accounts!inner(username)')
             .in('video_url', ytLinks);
           
           if (ytPosts) {
             ytPosts.forEach((post: any) => {
-              if (post.video_url && post.youtube_accounts?.channel_name) {
-                videoLinksMap[post.video_url] = post.youtube_accounts.channel_name;
+              if (post.video_url && post.youtube_accounts?.username) {
+                videoLinksMap[post.video_url] = post.youtube_accounts.username;
               }
             });
           }
