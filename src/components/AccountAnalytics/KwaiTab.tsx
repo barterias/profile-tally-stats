@@ -114,9 +114,29 @@ export function KwaiTab() {
     }
   };
 
-  const sortedAccounts = [...accounts].sort((a: any, b: any) => Number(b.likes_count || 0) - Number(a.likes_count || 0));
+  // Derive likes per account from videos when account-level likes_count is 0
+  const { derivedLikesByAccount } = allVideosViews.reduce<{
+    derivedLikesByAccount: Record<string, number>;
+  }>(
+    (acc, row: any) => {
+      const accountId = row?.account_id;
+      const likes = Number(row?.likes_count || 0);
+      if (accountId) {
+        acc.derivedLikesByAccount[accountId] = (acc.derivedLikesByAccount[accountId] || 0) + likes;
+      }
+      return acc;
+    },
+    { derivedLikesByAccount: {} }
+  );
+
+  const getAccountLikes = (acc: any) => {
+    const stored = Number(acc.likes_count || 0);
+    return stored > 0 ? stored : (derivedLikesByAccount[acc.id] || 0);
+  };
+
+  const sortedAccounts = [...accounts].sort((a: any, b: any) => getAccountLikes(b) - getAccountLikes(a));
   const totalFollowers = accounts.reduce((sum: number, acc: any) => sum + (acc.followers_count || 0), 0);
-  const totalLikes = accounts.reduce((sum: number, acc: any) => sum + Number(acc.likes_count || 0), 0);
+  const totalLikes = accounts.reduce((sum: number, acc: any) => sum + getAccountLikes(acc), 0);
   const totalVideos = accounts.reduce((sum: number, acc: any) => sum + (videoCountByAccount[acc.id] || 0), 0);
   const totalViews = accounts.reduce((sum: number, acc: any) => {
     const derived = derivedViewsByAccount[acc.id] || 0;
@@ -222,7 +242,7 @@ export function KwaiTab() {
                 profileImageUrl: acc.profile_image_url,
                 followersCount: acc.followers_count,
                 postsCount: videoCountByAccount[acc.id] || 0,
-                likesCount: acc.likes_count,
+                likesCount: getAccountLikes(acc),
                 totalViews: Number(acc.total_views || 0) > 0 ? acc.total_views : (derivedViewsByAccount[acc.id] || 0),
                 scrapedCount: acc.scraped_videos_count || 0,
                 lastSyncedAt: acc.last_synced_at,
