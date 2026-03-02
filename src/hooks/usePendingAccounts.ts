@@ -96,6 +96,24 @@ export function usePendingAccounts() {
         });
       }
 
+      if (kwai.data) {
+        kwai.data.forEach((acc: any) => {
+          accounts.push({
+            platform: 'kwai',
+            id: acc.id,
+            username: acc.username,
+            display_name: acc.display_name,
+            profile_image_url: acc.profile_image_url,
+            followers_count: acc.followers_count,
+            content_count: acc.videos_count,
+            user_id: acc.user_id,
+            approval_status: acc.approval_status,
+            created_at: acc.created_at,
+            owner_username: acc.profiles?.username || null,
+          });
+        });
+      }
+
       return accounts;
     },
   });
