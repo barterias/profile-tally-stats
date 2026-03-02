@@ -126,7 +126,11 @@ export function InstagramTab() {
   };
 
   const handleApprove = (accountId: string) => {
-    approveAccount.mutate({ accountId, platform: 'instagram' });
+    approveAccount.mutate({ accountId, platform: 'instagram' }, {
+      onSuccess: () => {
+        syncAccount.mutate({ accountId });
+      },
+    });
   };
 
   const handleReject = (accountId: string) => {
