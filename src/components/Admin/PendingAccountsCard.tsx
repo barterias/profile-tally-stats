@@ -11,12 +11,14 @@ const platformIcons = {
   instagram: Instagram,
   youtube: Youtube,
   tiktok: Music2,
+  kwai: Video,
 };
 
 const platformColors = {
   instagram: 'text-pink-500',
   youtube: 'text-red-500',
   tiktok: 'text-foreground',
+  kwai: 'text-orange-500',
 };
 
 export function PendingAccountsCard() {
