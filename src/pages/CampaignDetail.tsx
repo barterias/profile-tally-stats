@@ -498,8 +498,16 @@ function CampaignDetailContent() {
           );
         }
 
-        // Run all platform lookups in parallel
-        await Promise.all(platformLookups);
+        // Run all platform lookups in parallel (with timeout guard to avoid infinite loading)
+        await Promise.race([
+          Promise.all(platformLookups),
+          new Promise((resolve) =>
+            setTimeout(() => {
+              console.warn("Platform lookups timeout, continuing page render.");
+              resolve(null);
+            }, 2500)
+          ),
+        ]);
 
         const processedVideos = videosData.map((video) => {
           // Try to get username from database lookup first
