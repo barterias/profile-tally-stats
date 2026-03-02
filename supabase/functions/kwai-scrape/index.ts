@@ -43,7 +43,66 @@ type KwaiScrapedData = {
 };
 
 function toInt(value: any): number {
-  const n = Number(value);
+  if (value === null || value === undefined) return 0;
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? Math.trunc(value) : 0;
+  }
+
+  const raw = String(value).trim().toLowerCase().replace(/\s+/g, "");
+  if (!raw) return 0;
+
+  const match = raw.match(/^([-+]?\d[\d.,]*)(k|m|b|mil|mi|bi|w)?$/i);
+  if (match) {
+    let [, numPart, suffix] = match;
+
+    const separators = (numPart.match(/[.,]/g) || []).length;
+    if (separators === 1) {
+      const sep = numPart.includes(",") ? "," : ".";
+      const decimals = numPart.split(sep)[1] || "";
+
+      if (decimals.length === 3) {
+        // likely thousands separator: 1,234 or 1.234
+        numPart = numPart.replace(/[.,]/g, "");
+      } else {
+        // likely decimal separator: 1,2 or 1.2
+        numPart = numPart.replace(",", ".");
+      }
+    } else if (separators > 1) {
+      // keep only the last separator as decimal, remove the others
+      const lastDot = numPart.lastIndexOf(".");
+      const lastComma = numPart.lastIndexOf(",");
+      const lastSep = Math.max(lastDot, lastComma);
+      const intPart = numPart.slice(0, lastSep).replace(/[.,]/g, "");
+      const decPart = numPart.slice(lastSep + 1).replace(/[.,]/g, "");
+      numPart = `${intPart}.${decPart}`;
+    }
+
+    const base = Number(numPart);
+    if (Number.isFinite(base)) {
+      const multiplier = (() => {
+        switch ((suffix || "").toLowerCase()) {
+          case "k":
+          case "mil":
+            return 1_000;
+          case "m":
+          case "mi":
+            return 1_000_000;
+          case "b":
+          case "bi":
+            return 1_000_000_000;
+          case "w":
+            return 10_000;
+          default:
+            return 1;
+        }
+      })();
+
+      return Math.trunc(base * multiplier);
+    }
+  }
+
+  const n = Number(raw);
   return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 
