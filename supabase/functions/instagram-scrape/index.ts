@@ -171,7 +171,7 @@ function mapPostsFromUserPosts(postsData: any): { posts: any[]; nextCursor: stri
     items = postsData;
   }
 
-  // Get pagination cursor - check all possible locations (ScrapeCreators uses profile_grid_items_cursor)
+  // Get pagination cursor - check all possible locations
   nextCursor =
     postsData?.profile_grid_items_cursor ||
     postsData?.data?.profile_grid_items_cursor ||
@@ -181,12 +181,25 @@ function mapPostsFromUserPosts(postsData: any): { posts: any[]; nextCursor: stri
     postsData?.next_max_id ||
     postsData?.data?.next_max_id ||
     postsData?.paging_info?.next_max_id ||
+    postsData?.paging_info?.end_cursor ||
+    postsData?.end_cursor ||
+    postsData?.data?.end_cursor ||
+    postsData?.next_cursor ||
+    postsData?.data?.next_cursor ||
     null;
 
-  console.log(`[ScrapeCreators] Posts from user/posts endpoint: ${items.length}, nextCursor: ${nextCursor || 'none'}`);
+  // Also check if more_available flag exists
+  const moreAvailable = postsData?.more_available ?? postsData?.data?.more_available ?? postsData?.paging_info?.more_available;
+
+  console.log(`[ScrapeCreators] Posts from user/posts endpoint: ${items.length}, nextCursor: ${nextCursor || 'none'}, moreAvailable: ${moreAvailable}`);
   
-  // Log first post code to detect duplicates
+  // Log top-level keys for debugging pagination
   if (items.length > 0) {
+    const topKeys = Object.keys(postsData || {}).filter(k => k !== 'items' && k !== 'data');
+    console.log(`[ScrapeCreators] Response top-level keys: ${topKeys.join(', ')}`);
+    if (postsData?.paging_info) {
+      console.log(`[ScrapeCreators] paging_info:`, JSON.stringify(postsData.paging_info));
+    }
     console.log(`[ScrapeCreators] First post code: ${items[0]?.code || items[0]?.shortcode || 'unknown'}`);
   }
 
@@ -396,8 +409,21 @@ serve(async (req) => {
     // Fetch posts AND reels with pagination
     let allPosts: any[] = [];
     let currentCursor: string | null = existingCursor;
-    const MAX_PAGES = 3; // Limit pages per endpoint
+    const MAX_PAGES = 10;
     const MAX_POSTS = 10; // Maximum 10 posts per account (display)
+    // Use DB posts_count as fallback if profile API returns low number
+    let profilePostsCount = data.postsCount || 0;
+    if (accountId) {
+      const { data: dbAccount } = await supabase
+        .from('instagram_accounts')
+        .select('posts_count')
+        .eq('id', accountId)
+        .single();
+      if (dbAccount?.posts_count && dbAccount.posts_count > profilePostsCount) {
+        profilePostsCount = dbAccount.posts_count;
+        console.log(`[ScrapeCreators] Using DB posts_count: ${profilePostsCount} (API returned: ${data.postsCount || 0})`);
+      }
+    }
 
     if (fetchVideos) {
       // === 1. Fetch from /v2/instagram/user/posts (timeline posts) ===
@@ -407,12 +433,13 @@ serve(async (req) => {
 
       while (hasMore && pageCount < MAX_PAGES) {
         pageCount++;
-        const params: Record<string, string> = { handle: username };
+        const params: Record<string, string> = { handle: username, count: '50' };
         if (currentCursor) {
           params.cursor = currentCursor;
           params.max_id = currentCursor;
           params.next_max_id = currentCursor;
           params.profile_grid_items_cursor = currentCursor;
+          params.end_cursor = currentCursor;
         }
 
         try {
@@ -442,9 +469,10 @@ serve(async (req) => {
 
       while (reelsHasMore && reelsPageCount < MAX_PAGES) {
         reelsPageCount++;
-        const reelsParams: Record<string, string> = { handle: username };
+        const reelsParams: Record<string, string> = { handle: username, count: '50' };
         if (reelsCursor) {
           reelsParams.max_id = reelsCursor;
+          reelsParams.end_cursor = reelsCursor;
         }
 
         try {
@@ -465,6 +493,131 @@ serve(async (req) => {
         }
       }
       console.log(`[ScrapeCreators] Reels complete: fetched in ${reelsPageCount} pages, combined total: ${allPosts.length}`);
+
+      // === 3. Apify fallback: if ScrapeCreators returned far fewer posts than profile indicates ===
+      // Deduplicate first to count unique posts so far
+      const tempUniqueMap = new Map<string, boolean>();
+      for (const post of allPosts) {
+        if (!post.postUrl) continue;
+        const codeMatch = post.postUrl.match(/instagram\.com\/(?:p|reel)\/([^\/\?]+)/);
+        const key = codeMatch ? codeMatch[1] : post.postUrl;
+        tempUniqueMap.set(key, true);
+      }
+      const uniqueCountSoFar = tempUniqueMap.size;
+      const missingPercentage = profilePostsCount > 0 ? (profilePostsCount - uniqueCountSoFar) / profilePostsCount : 0;
+
+      console.log(`[ScrapeCreators] Unique posts: ${uniqueCountSoFar}, profile API says: ${data.postsCount || 0}, DB says: ${profilePostsCount}, missing: ${Math.round(missingPercentage * 100)}%`);
+
+      // Only trigger Apify fallback if ScrapeCreators returned ZERO posts (complete failure)
+      if (uniqueCountSoFar === 0 && apiPostsCount > 0) {
+        // ScrapeCreators returned less than 50% of posts — try Apify
+        const APIFY_API_TOKEN = Deno.env.get('APIFY_API_TOKEN');
+        if (APIFY_API_TOKEN) {
+          console.log(`[Apify Fallback] ScrapeCreators got ${uniqueCountSoFar}/${profilePostsCount} posts, trying Apify...`);
+          try {
+            const profileUrl = `https://www.instagram.com/${username}/`;
+            const resultsLimit = Math.min(profilePostsCount, 200);
+
+            // Start Apify run
+            const startRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/runs?token=${APIFY_API_TOKEN}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                directUrls: [profileUrl],
+                resultsType: 'posts',
+                resultsLimit,
+                searchType: 'user',
+                searchLimit: 1,
+              }),
+            });
+
+            if (startRes.ok) {
+              const runData = await startRes.json();
+              const runId = runData?.data?.id;
+              
+              if (runId) {
+                // Wait for completion (max 90 seconds)
+                const maxWait = 90_000;
+                const startTime = Date.now();
+                let datasetId: string | null = null;
+
+                while (Date.now() - startTime < maxWait) {
+                  await new Promise(r => setTimeout(r, 4000));
+                  const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_API_TOKEN}`);
+                  const statusData = await statusRes.json();
+                  const status = statusData?.data?.status;
+                  console.log(`[Apify Fallback] Status: ${status}`);
+
+                  if (status === 'SUCCEEDED') {
+                    datasetId = statusData?.data?.defaultDatasetId;
+                    break;
+                  }
+                  if (status === 'FAILED' || status === 'ABORTED' || status === 'TIMED-OUT') {
+                    console.error(`[Apify Fallback] Run ${status}`);
+                    break;
+                  }
+                }
+
+                if (datasetId) {
+                  const itemsRes = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_TOKEN}&clean=true`);
+                  if (itemsRes.ok) {
+                    const items = await itemsRes.json();
+                    console.log(`[Apify Fallback] Got ${items?.length || 0} items from dataset`);
+
+                    // Map Apify items to our format
+                    for (const it of (items || [])) {
+                      const url = it?.url || it?.postUrl || it?.permalink || it?.link || it?.shortCodeUrl;
+                      if (!url) continue;
+                      
+                      const typeRaw = it?.type || it?.mediaType || it?.productType;
+                      const typeStr = String(typeRaw || 'post').toLowerCase();
+                      const isVideo = typeStr.includes('video') || typeStr.includes('reel') || it?.isVideo === true;
+
+                      const views = Math.max(
+                        toIntOrNull(it?.videoViewCount) || 0,
+                        toIntOrNull(it?.videoPlayCount) || 0,
+                        toIntOrNull(it?.viewsCount) || 0,
+                        toIntOrNull(it?.viewCount) || 0,
+                      );
+
+                      const ts = it?.timestamp || it?.takenAtTimestamp || it?.takenAt;
+                      let postedAt: string | null = null;
+                      if (ts) {
+                        try {
+                          const dateValue = typeof ts === 'number' ? ts * 1000 : new Date(ts).getTime();
+                          if (Number.isFinite(dateValue) && dateValue > 0) {
+                            postedAt = new Date(dateValue).toISOString();
+                          }
+                        } catch { /* ignore */ }
+                      }
+
+                      allPosts.push({
+                        postUrl: url,
+                        type: isVideo ? 'video' : 'post',
+                        thumbnailUrl: it?.displayUrl || it?.thumbnailUrl,
+                        caption: (it?.caption || it?.text || '').substring(0, 200),
+                        likesCount: toIntOrNull(it?.likesCount ?? it?.likes) || 0,
+                        commentsCount: toIntOrNull(it?.commentsCount ?? it?.comments) || 0,
+                        viewsCount: views,
+                        sharesCount: 0,
+                        postedAt,
+                      });
+                    }
+                    console.log(`[Apify Fallback] Total posts after merge: ${allPosts.length}`);
+                  }
+                }
+              }
+            } else {
+              const errText = await startRes.text();
+              console.error(`[Apify Fallback] Start error: ${startRes.status} ${errText}`);
+            }
+          } catch (apifyError) {
+            console.error(`[Apify Fallback] Error:`, apifyError);
+          }
+        } else {
+          console.log('[Apify Fallback] APIFY_API_TOKEN not configured, skipping');
+        }
+      }
     }
 
     // Deduplicate posts by URL - normalize /p/ and /reel/ URLs to use shortcode
