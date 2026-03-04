@@ -396,7 +396,7 @@ serve(async (req) => {
     // Fetch posts AND reels with pagination
     let allPosts: any[] = [];
     let currentCursor: string | null = existingCursor;
-    const MAX_PAGES = 3; // Limit pages per endpoint
+    const MAX_PAGES = 10; // Increased to fetch all posts
     const MAX_POSTS = 10; // Maximum 10 posts per account (display)
 
     if (fetchVideos) {
