@@ -182,12 +182,38 @@ function mapPostsFromUserPosts(postsData: any): { posts: any[]; nextCursor: stri
     console.log(`[ScrapeCreators] First post code: ${items[0]?.code || items[0]?.shortcode || 'unknown'}`);
   }
 
-  const posts = items.map((item: any) => {
+  const posts = items.map((item: any, idx: number) => {
     const isVideo = item?.media_type === 2 || item?.product_type === 'clips' || item?.is_video;
 
     const likes = toIntOrNull(item?.like_count);
     const comments = toIntOrNull(item?.comment_count);
-    const views = toIntOrNull(item?.play_count ?? item?.video_play_count ?? item?.view_count);
+    
+    // Instagram has multiple view/play count fields - check ALL of them and take the highest
+    const viewCandidates = [
+      toIntOrNull(item?.play_count),
+      toIntOrNull(item?.video_play_count),
+      toIntOrNull(item?.view_count),
+      toIntOrNull(item?.ig_play_count),
+      toIntOrNull(item?.fb_play_count),
+      toIntOrNull(item?.ig_reels_aggregated_all_plays_count),
+      toIntOrNull(item?.video_view_count),
+      toIntOrNull(item?.media_preview_like_count),
+      toIntOrNull(item?.clip_music_attribution_info?.ig_reels_aggregated_all_plays_count),
+    ].filter((v): v is number => v !== null && v > 0);
+    
+    const views = viewCandidates.length > 0 ? Math.max(...viewCandidates) : 0;
+
+    // Debug: log all view-related fields for first 2 posts
+    if (idx < 2) {
+      const viewFields: Record<string, any> = {};
+      for (const key of Object.keys(item || {})) {
+        if (key.toLowerCase().includes('view') || key.toLowerCase().includes('play') || key.toLowerCase().includes('count')) {
+          viewFields[key] = item[key];
+        }
+      }
+      console.log(`[ScrapeCreators] Post ${idx} (${item?.code}) view fields:`, JSON.stringify(viewFields));
+      console.log(`[ScrapeCreators] Post ${idx} resolved views: ${views} from candidates: [${viewCandidates.join(', ')}]`);
+    }
 
     return {
       postUrl: item?.code ? `https://www.instagram.com/p/${item.code}/` : (item?.permalink || ''),
@@ -196,7 +222,7 @@ function mapPostsFromUserPosts(postsData: any): { posts: any[]; nextCursor: stri
       caption: (item?.caption?.text || '')?.substring(0, 200),
       likesCount: likes ?? 0,
       commentsCount: comments ?? 0,
-      viewsCount: views ?? 0,
+      viewsCount: views,
       sharesCount: 0,
       postedAt: item?.taken_at ? new Date(item.taken_at * 1000).toISOString() : null,
     };
