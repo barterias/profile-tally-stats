@@ -393,101 +393,113 @@ serve(async (req) => {
       }
     }
 
-    // Fetch posts with pagination
+    // Fetch posts AND reels with pagination
     let allPosts: any[] = [];
     let currentCursor: string | null = existingCursor;
-    const MAX_PAGES = 2; // Limit pages
-    const MAX_POSTS = 10; // Maximum 10 posts per account
+    const MAX_PAGES = 3; // Limit pages per endpoint
+    const MAX_POSTS = 10; // Maximum 10 posts per account (display)
 
     if (fetchVideos) {
-      console.log('[ScrapeCreators] Fetching ALL posts with pagination...');
-      
+      // === 1. Fetch from /v2/instagram/user/posts (timeline posts) ===
+      console.log('[ScrapeCreators] Fetching timeline posts...');
       let pageCount = 0;
       let hasMore = true;
 
-      while (hasMore && pageCount < MAX_PAGES && allPosts.length < MAX_POSTS) {
+      while (hasMore && pageCount < MAX_PAGES) {
         pageCount++;
         const params: Record<string, string> = { handle: username };
-
         if (currentCursor) {
-          // Pagination cursor: ScrapeCreators returns `next_max_id` (and sometimes other cursor fields). Try common param names.
           params.cursor = currentCursor;
           params.max_id = currentCursor;
           params.next_max_id = currentCursor;
           params.profile_grid_items_cursor = currentCursor;
-          console.log(`[ScrapeCreators] Page ${pageCount}: Using cursor: ${currentCursor.substring(0, 20)}...`);
-        } else {
-          console.log(`[ScrapeCreators] Page ${pageCount}: Starting from beginning`);
         }
 
         try {
           const postsResult = await fetchScrapeCreators('/v2/instagram/user/posts', params);
           const mapped = mapPostsFromUserPosts(postsResult);
-          
-          if (mapped.posts.length === 0) {
-            console.log(`[ScrapeCreators] Page ${pageCount}: No more posts, stopping`);
-            hasMore = false;
-            break;
-          }
-
+          if (mapped.posts.length === 0) { hasMore = false; break; }
           allPosts = [...allPosts, ...mapped.posts];
-
-          // Stop if cursor is missing or not advancing (prevents infinite loops / duplicate pages)
-          if (!mapped.nextCursor) {
-            currentCursor = null;
-            hasMore = false;
-          } else if (mapped.nextCursor === currentCursor) {
-            console.warn(`[ScrapeCreators] Page ${pageCount}: Cursor did not advance; stopping to avoid duplicates`);
-            hasMore = false;
+          if (!mapped.nextCursor || mapped.nextCursor === currentCursor) {
+            currentCursor = null; hasMore = false;
           } else {
             currentCursor = mapped.nextCursor;
           }
-          
-          console.log(`[ScrapeCreators] Page ${pageCount}: Fetched ${mapped.posts.length} posts (total: ${allPosts.length}), next cursor: ${currentCursor ? 'yes' : 'no'}`);
-
-          // Small delay to avoid rate limiting
-          if (hasMore) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
+          console.log(`[ScrapeCreators] Posts page ${pageCount}: ${mapped.posts.length} posts (total: ${allPosts.length})`);
+          if (hasMore) await new Promise(resolve => setTimeout(resolve, 500));
         } catch (postsError) {
-          console.error(`[ScrapeCreators] Page ${pageCount}: Error fetching posts:`, postsError);
+          console.error(`[ScrapeCreators] Posts page ${pageCount} error:`, postsError);
           hasMore = false;
-          
-          // Fallback: if first page failed and not continuing, use profile embedded posts
-          if (pageCount === 1 && !continueFrom) {
-            try {
-              const profileResult = await fetchScrapeCreators('/v1/instagram/profile', { handle: username });
-              const user = profileResult?.data?.user || profileResult?.user;
-              if (user?.edge_owner_to_timeline_media?.edges) {
-                data = mapPosts(user.edge_owner_to_timeline_media.edges, data);
-                allPosts = data.posts || [];
-              }
-            } catch (fallbackError) {
-              console.error('[ScrapeCreators] Fallback also failed:', fallbackError);
-            }
-          }
         }
       }
+      console.log(`[ScrapeCreators] Timeline posts complete: ${allPosts.length} posts in ${pageCount} pages`);
 
-      console.log(`[ScrapeCreators] Pagination complete: ${allPosts.length} total posts fetched in ${pageCount} pages`);
+      // === 2. Fetch from /v1/instagram/user/reels (Reels tab) ===
+      console.log('[ScrapeCreators] Fetching Reels...');
+      let reelsPageCount = 0;
+      let reelsHasMore = true;
+      let reelsCursor: string | null = null;
+
+      while (reelsHasMore && reelsPageCount < MAX_PAGES) {
+        reelsPageCount++;
+        const reelsParams: Record<string, string> = { handle: username };
+        if (reelsCursor) {
+          reelsParams.max_id = reelsCursor;
+        }
+
+        try {
+          const reelsResult = await fetchScrapeCreators('/v1/instagram/user/reels', reelsParams);
+          const mapped = mapReelsFromEndpoint(reelsResult);
+          if (mapped.posts.length === 0) { reelsHasMore = false; break; }
+          allPosts = [...allPosts, ...mapped.posts];
+          if (!mapped.nextCursor || mapped.nextCursor === reelsCursor) {
+            reelsHasMore = false;
+          } else {
+            reelsCursor = mapped.nextCursor;
+          }
+          console.log(`[ScrapeCreators] Reels page ${reelsPageCount}: ${mapped.posts.length} reels (total posts+reels: ${allPosts.length})`);
+          if (reelsHasMore) await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (reelsError) {
+          console.error(`[ScrapeCreators] Reels page ${reelsPageCount} error:`, reelsError);
+          reelsHasMore = false;
+        }
+      }
+      console.log(`[ScrapeCreators] Reels complete: fetched in ${reelsPageCount} pages, combined total: ${allPosts.length}`);
     }
 
-    // Deduplicate posts by URL
+    // Deduplicate posts by URL - normalize /p/ and /reel/ URLs to use shortcode
     const uniquePostsMap = new Map<string, any>();
     for (const post of allPosts) {
-      if (post.postUrl && !uniquePostsMap.has(post.postUrl)) {
-        uniquePostsMap.set(post.postUrl, post);
+      if (!post.postUrl) continue;
+      // Extract shortcode from both /p/CODE/ and /reel/CODE/ URLs
+      const codeMatch = post.postUrl.match(/instagram\.com\/(?:p|reel)\/([^\/\?]+)/);
+      const key = codeMatch ? codeMatch[1] : post.postUrl;
+      
+      const existing = uniquePostsMap.get(key);
+      if (!existing) {
+        uniquePostsMap.set(key, post);
+      } else {
+        // Keep the one with higher views
+        if ((post.viewsCount || 0) > (existing.viewsCount || 0)) {
+          uniquePostsMap.set(key, post);
+        }
       }
     }
-    // Limit to MAX_POSTS after deduplication
-    const newPosts = Array.from(uniquePostsMap.values()).slice(0, MAX_POSTS);
+    
+    // Sort by views descending, then take top MAX_POSTS
+    const allUniquePosts = Array.from(uniquePostsMap.values())
+      .sort((a, b) => (b.viewsCount || 0) - (a.viewsCount || 0));
+    const newPosts = allUniquePosts.slice(0, MAX_POSTS);
     const newCursor = currentCursor;
+    
+    // Calculate total views from ALL unique posts (not just top 10)
+    const totalViewsAllPosts = allUniquePosts.reduce((sum, p) => sum + (p.viewsCount || 0), 0);
 
-    console.log(`[ScrapeCreators] After deduplication and limit: ${newPosts.length} unique posts (was ${allPosts.length}, max ${MAX_POSTS})`);
+    console.log(`[ScrapeCreators] After deduplication: ${allUniquePosts.length} unique (showing top ${newPosts.length}), total views across all: ${totalViewsAllPosts}`);
 
     data.posts = newPosts;
-    data.scrapedPostsCount = newPosts.length;
-    data.totalViews = newPosts.reduce((sum, p) => sum + (p.viewsCount || 0), 0);
+    data.scrapedPostsCount = allUniquePosts.length; // Track ALL scraped, not just displayed
+    data.totalViews = totalViewsAllPosts; // Sum from ALL posts
     data.nextCursor = newCursor;
 
     console.log('[ScrapeCreators] Parsed data:', {
