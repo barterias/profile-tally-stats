@@ -407,12 +407,13 @@ serve(async (req) => {
 
       while (hasMore && pageCount < MAX_PAGES) {
         pageCount++;
-        const params: Record<string, string> = { handle: username };
+        const params: Record<string, string> = { handle: username, count: '50' };
         if (currentCursor) {
           params.cursor = currentCursor;
           params.max_id = currentCursor;
           params.next_max_id = currentCursor;
           params.profile_grid_items_cursor = currentCursor;
+          params.end_cursor = currentCursor;
         }
 
         try {
