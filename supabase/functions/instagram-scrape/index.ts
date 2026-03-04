@@ -457,26 +457,41 @@ serve(async (req) => {
           
           const { data: existingPost } = await supabase
             .from('instagram_posts')
-            .select('id')
+            .select('id, likes_count, comments_count, views_count, shares_count')
             .eq('account_id', accountId)
             .eq('post_url', post.postUrl)
             .maybeSingle();
 
           if (existingPost) {
+            // Protect metrics: keep existing higher values if new values are 0/null
+            const safeViews = (post.viewsCount && post.viewsCount > 0) 
+              ? Math.max(post.viewsCount, existingPost.views_count || 0) 
+              : (existingPost.views_count || 0);
+            const safeLikes = (post.likesCount && post.likesCount > 0) 
+              ? Math.max(post.likesCount, existingPost.likes_count || 0) 
+              : (existingPost.likes_count || 0);
+            const safeComments = (post.commentsCount && post.commentsCount > 0) 
+              ? Math.max(post.commentsCount, existingPost.comments_count || 0) 
+              : (existingPost.comments_count || 0);
+            const safeShares = (post.sharesCount && post.sharesCount > 0) 
+              ? Math.max(post.sharesCount, existingPost.shares_count || 0) 
+              : (existingPost.shares_count || 0);
+
             await supabase
               .from('instagram_posts')
               .update({
                 post_type: post.type,
-                thumbnail_url: post.thumbnailUrl,
-                caption: post.caption,
-                likes_count: post.likesCount ?? null,
-                comments_count: post.commentsCount ?? null,
-                views_count: post.viewsCount ?? null,
-                shares_count: post.sharesCount,
+                thumbnail_url: post.thumbnailUrl || undefined,
+                caption: post.caption || undefined,
+                likes_count: safeLikes,
+                comments_count: safeComments,
+                views_count: safeViews,
+                shares_count: safeShares,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', existingPost.id);
             updatedCount++;
+            console.log(`[ScrapeCreators] Protected update post: views=${safeViews}(new=${post.viewsCount},old=${existingPost.views_count}), likes=${safeLikes}(new=${post.likesCount},old=${existingPost.likes_count})`);
           } else {
             await supabase
               .from('instagram_posts')
@@ -486,10 +501,10 @@ serve(async (req) => {
                 post_type: post.type,
                 thumbnail_url: post.thumbnailUrl,
                 caption: post.caption,
-                likes_count: post.likesCount ?? null,
-                comments_count: post.commentsCount ?? null,
-                views_count: post.viewsCount ?? null,
-                shares_count: post.sharesCount,
+                likes_count: post.likesCount ?? 0,
+                comments_count: post.commentsCount ?? 0,
+                views_count: post.viewsCount ?? 0,
+                shares_count: post.sharesCount ?? 0,
               });
             savedCount++;
           }
