@@ -443,9 +443,10 @@ serve(async (req) => {
 
       while (reelsHasMore && reelsPageCount < MAX_PAGES) {
         reelsPageCount++;
-        const reelsParams: Record<string, string> = { handle: username };
+        const reelsParams: Record<string, string> = { handle: username, count: '50' };
         if (reelsCursor) {
           reelsParams.max_id = reelsCursor;
+          reelsParams.end_cursor = reelsCursor;
         }
 
         try {
