@@ -239,6 +239,61 @@ function mapPostsFromUserPosts(postsData: any): { posts: any[]; nextCursor: stri
   return { posts, nextCursor };
 }
 
+// Map reels from /v1/instagram/user/reels endpoint
+function mapReelsFromEndpoint(reelsData: any): { posts: any[]; nextCursor: string | null } {
+  let items: any[] = [];
+  let nextCursor: string | null = null;
+
+  if (Array.isArray(reelsData?.items)) {
+    items = reelsData.items;
+  } else if (Array.isArray(reelsData?.data?.items)) {
+    items = reelsData.data.items;
+  } else if (Array.isArray(reelsData)) {
+    items = reelsData;
+  }
+
+  nextCursor =
+    reelsData?.paging_info?.max_id ||
+    reelsData?.max_id ||
+    reelsData?.data?.paging_info?.max_id ||
+    null;
+
+  console.log(`[ScrapeCreators] Reels from endpoint: ${items.length}, nextCursor: ${nextCursor || 'none'}`);
+
+  const posts = items.map((item: any) => {
+    const media = item?.media || item;
+    const code = media?.code || media?.shortcode;
+    const likes = toIntOrNull(media?.like_count);
+    const comments = toIntOrNull(media?.comment_count);
+
+    const viewCandidates = [
+      toIntOrNull(media?.play_count),
+      toIntOrNull(media?.ig_play_count),
+      toIntOrNull(media?.video_play_count),
+      toIntOrNull(media?.video_view_count),
+      toIntOrNull(media?.view_count),
+    ].filter((v): v is number => v !== null && v > 0);
+    const views = viewCandidates.length > 0 ? Math.max(...viewCandidates) : 0;
+
+    const thumbnailUrl = media?.image_versions2?.candidates?.[0]?.url || media?.display_uri || media?.thumbnail_url;
+    const captionText = media?.caption?.text || (typeof media?.caption === 'string' ? media?.caption : '') || '';
+
+    return {
+      postUrl: code ? `https://www.instagram.com/reel/${code}/` : '',
+      type: 'video' as const,
+      thumbnailUrl,
+      caption: (typeof captionText === 'string' ? captionText : '').substring(0, 200),
+      likesCount: likes ?? 0,
+      commentsCount: comments ?? 0,
+      viewsCount: views,
+      sharesCount: 0,
+      postedAt: media?.taken_at ? new Date(media.taken_at * 1000).toISOString() : null,
+    };
+  }).filter((p: any) => p.postUrl);
+
+  return { posts, nextCursor };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
