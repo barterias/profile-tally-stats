@@ -125,9 +125,17 @@ function mapPosts(postsData: any, profileData: InstagramScrapedData): InstagramS
     const likes = toIntOrNull(node?.edge_liked_by?.count ?? node?.likesCount ?? node?.like_count);
     const comments = toIntOrNull(node?.edge_media_to_comment?.count ?? node?.commentsCount ?? node?.comment_count);
 
-    // Views: only when the API actually provides a view field
-    const rawViews = node?.video_view_count ?? node?.video_play_count ?? node?.viewCount;
-    const views = toIntOrNull(rawViews);
+    // Views: check ALL possible view/play count fields and take the highest
+    const viewCandidates = [
+      toIntOrNull(node?.video_view_count),
+      toIntOrNull(node?.video_play_count),
+      toIntOrNull(node?.viewCount),
+      toIntOrNull(node?.play_count),
+      toIntOrNull(node?.ig_reels_aggregated_all_plays_count),
+      toIntOrNull(node?.clip_music_attribution_info?.ig_reels_aggregated_all_plays_count),
+    ].filter((v): v is number => v !== null && v > 0);
+    
+    const views = viewCandidates.length > 0 ? Math.max(...viewCandidates) : 0;
 
     return {
       postUrl: node?.shortcode ? `https://www.instagram.com/p/${node.shortcode}/` : '',
@@ -136,7 +144,7 @@ function mapPosts(postsData: any, profileData: InstagramScrapedData): InstagramS
       caption: (node?.edge_media_to_caption?.edges?.[0]?.node?.text || node?.caption || '')?.substring(0, 200),
       likesCount: likes ?? 0,
       commentsCount: comments ?? 0,
-      viewsCount: (views ?? 0),
+      viewsCount: views,
       sharesCount: 0,
     };
   });
