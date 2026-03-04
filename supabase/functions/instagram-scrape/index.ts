@@ -532,14 +532,31 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       };
 
-      // Only update profile data on initial sync
+      // Only update profile data on initial sync — protect against zeroed values
       if (!continueFrom) {
-        updateData.display_name = data.displayName;
-        updateData.profile_image_url = storedProfileImageUrl;
-        updateData.bio = data.bio;
-        updateData.followers_count = data.followersCount;
-        updateData.following_count = data.followingCount;
-        updateData.posts_count = data.postsCount;
+        // Get existing account data for protection
+        const { data: existingAccountData } = await supabase
+          .from('instagram_accounts')
+          .select('followers_count, following_count, posts_count')
+          .eq('id', accountId)
+          .single();
+
+        if (data.displayName) updateData.display_name = data.displayName;
+        if (storedProfileImageUrl) updateData.profile_image_url = storedProfileImageUrl;
+        if (data.bio) updateData.bio = data.bio;
+        
+        // Protect follower/following/posts counts from being zeroed
+        updateData.followers_count = (data.followersCount && data.followersCount > 0) 
+          ? data.followersCount 
+          : (existingAccountData?.followers_count || 0);
+        updateData.following_count = (data.followingCount && data.followingCount > 0) 
+          ? data.followingCount 
+          : (existingAccountData?.following_count || 0);
+        updateData.posts_count = (data.postsCount && data.postsCount > 0) 
+          ? data.postsCount 
+          : (existingAccountData?.posts_count || 0);
+        
+        console.log(`[ScrapeCreators] Protected account update: followers=${updateData.followers_count}(new=${data.followersCount},old=${existingAccountData?.followers_count})`);
       }
 
       const { error: updateError } = await supabase
