@@ -506,9 +506,11 @@ serve(async (req) => {
       const uniqueCountSoFar = tempUniqueMap.size;
       const missingPercentage = profilePostsCount > 0 ? (profilePostsCount - uniqueCountSoFar) / profilePostsCount : 0;
 
-      console.log(`[ScrapeCreators] Unique posts: ${uniqueCountSoFar}, profile says: ${profilePostsCount}, missing: ${Math.round(missingPercentage * 100)}%`);
+      console.log(`[ScrapeCreators] Unique posts: ${uniqueCountSoFar}, profile API says: ${data.postsCount || 0}, DB says: ${profilePostsCount}, missing: ${Math.round(missingPercentage * 100)}%`);
 
-      if (profilePostsCount > 10 && uniqueCountSoFar < profilePostsCount * 0.5) {
+      // Only trigger Apify if the PROFILE API itself reports more posts (not just stale DB data)
+      const apiPostsCount = data.postsCount || 0;
+      if (apiPostsCount > 10 && uniqueCountSoFar < apiPostsCount * 0.5) {
         // ScrapeCreators returned less than 50% of posts — try Apify
         const APIFY_API_TOKEN = Deno.env.get('APIFY_API_TOKEN');
         if (APIFY_API_TOKEN) {
