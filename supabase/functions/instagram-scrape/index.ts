@@ -411,7 +411,19 @@ serve(async (req) => {
     let currentCursor: string | null = existingCursor;
     const MAX_PAGES = 10;
     const MAX_POSTS = 10; // Maximum 10 posts per account (display)
-    const profilePostsCount = data.postsCount || 0;
+    // Use DB posts_count as fallback if profile API returns low number
+    let profilePostsCount = data.postsCount || 0;
+    if (accountId) {
+      const { data: dbAccount } = await supabase
+        .from('instagram_accounts')
+        .select('posts_count')
+        .eq('id', accountId)
+        .single();
+      if (dbAccount?.posts_count && dbAccount.posts_count > profilePostsCount) {
+        profilePostsCount = dbAccount.posts_count;
+        console.log(`[ScrapeCreators] Using DB posts_count: ${profilePostsCount} (API returned: ${data.postsCount || 0})`);
+      }
+    }
 
     if (fetchVideos) {
       // === 1. Fetch from /v2/instagram/user/posts (timeline posts) ===
