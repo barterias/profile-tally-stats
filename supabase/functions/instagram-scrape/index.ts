@@ -171,7 +171,7 @@ function mapPostsFromUserPosts(postsData: any): { posts: any[]; nextCursor: stri
     items = postsData;
   }
 
-  // Get pagination cursor - check all possible locations (ScrapeCreators uses profile_grid_items_cursor)
+  // Get pagination cursor - check all possible locations
   nextCursor =
     postsData?.profile_grid_items_cursor ||
     postsData?.data?.profile_grid_items_cursor ||
@@ -181,12 +181,25 @@ function mapPostsFromUserPosts(postsData: any): { posts: any[]; nextCursor: stri
     postsData?.next_max_id ||
     postsData?.data?.next_max_id ||
     postsData?.paging_info?.next_max_id ||
+    postsData?.paging_info?.end_cursor ||
+    postsData?.end_cursor ||
+    postsData?.data?.end_cursor ||
+    postsData?.next_cursor ||
+    postsData?.data?.next_cursor ||
     null;
 
-  console.log(`[ScrapeCreators] Posts from user/posts endpoint: ${items.length}, nextCursor: ${nextCursor || 'none'}`);
+  // Also check if more_available flag exists
+  const moreAvailable = postsData?.more_available ?? postsData?.data?.more_available ?? postsData?.paging_info?.more_available;
+
+  console.log(`[ScrapeCreators] Posts from user/posts endpoint: ${items.length}, nextCursor: ${nextCursor || 'none'}, moreAvailable: ${moreAvailable}`);
   
-  // Log first post code to detect duplicates
+  // Log top-level keys for debugging pagination
   if (items.length > 0) {
+    const topKeys = Object.keys(postsData || {}).filter(k => k !== 'items' && k !== 'data');
+    console.log(`[ScrapeCreators] Response top-level keys: ${topKeys.join(', ')}`);
+    if (postsData?.paging_info) {
+      console.log(`[ScrapeCreators] paging_info:`, JSON.stringify(postsData.paging_info));
+    }
     console.log(`[ScrapeCreators] First post code: ${items[0]?.code || items[0]?.shortcode || 'unknown'}`);
   }
 
