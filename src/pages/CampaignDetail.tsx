@@ -392,148 +392,156 @@ function CampaignDetailContent() {
           }
         }
 
-        // Build a map of video URLs to social account usernames
-        const videoLinksMap: Record<string, string> = {};
-        const kwaiMetricsMap: Record<string, { views: number; likes: number; comments: number; shares: number }> = {};
+        // Build normalized maps for username and metrics resolution
+        const usernameByNormalized = new Map<string, string>();
+        const metricsByNormalized = new Map<string, { views: number; likes: number; comments: number; shares: number }>();
         
-        // Fetch platform usernames in parallel, each with its own try/catch
+        // Fetch ALL platform data in parallel for normalized matching
         const platformLookups = [];
 
         // Instagram
-        const igVideos = videosData.filter(v => v.platform?.toLowerCase() === 'instagram');
-        if (igVideos.length > 0) {
-          platformLookups.push(
-            (async () => {
-              try {
-                const igLinks = igVideos.map(v => v.video_link).filter(Boolean);
-                const { data: igPosts } = await supabase
-                  .from('instagram_posts')
-                  .select('post_url, account_id, instagram_accounts!inner(username)')
-                  .in('post_url', igLinks);
-                igPosts?.forEach((post: any) => {
-                  if (post.post_url && post.instagram_accounts?.username) {
-                    videoLinksMap[post.post_url] = post.instagram_accounts.username;
-                  }
-                });
-              } catch (e) { console.warn('Instagram lookup failed:', e); }
-            })()
-          );
-        }
+        platformLookups.push(
+          (async () => {
+            try {
+              const { data: igPosts } = await supabase
+                .from('instagram_posts')
+                .select('post_url, views_count, likes_count, comments_count, shares_count, account_id, instagram_accounts!inner(username)');
+              igPosts?.forEach((post: any) => {
+                const key = normalizeVideoLink(post.post_url);
+                if (key) {
+                  if (post.instagram_accounts?.username) usernameByNormalized.set(key, post.instagram_accounts.username);
+                  metricsByNormalized.set(key, {
+                    views: Number(post.views_count || 0),
+                    likes: Number(post.likes_count || 0),
+                    comments: Number(post.comments_count || 0),
+                    shares: Number(post.shares_count || 0),
+                  });
+                }
+              });
+            } catch (e) { console.warn('Instagram lookup failed:', e); }
+          })()
+        );
 
         // TikTok
-        const ttVideos = videosData.filter(v => v.platform?.toLowerCase() === 'tiktok');
-        if (ttVideos.length > 0) {
-          platformLookups.push(
-            (async () => {
-              try {
-                const ttLinks = ttVideos.map(v => v.video_link).filter(Boolean);
-                const { data: ttPosts } = await supabase
-                  .from('tiktok_videos')
-                  .select('video_url, account_id, tiktok_accounts!inner(username)')
-                  .in('video_url', ttLinks);
-                ttPosts?.forEach((post: any) => {
-                  if (post.video_url && post.tiktok_accounts?.username) {
-                    videoLinksMap[post.video_url] = post.tiktok_accounts.username;
-                  }
-                });
-              } catch (e) { console.warn('TikTok lookup failed:', e); }
-            })()
-          );
-        }
+        platformLookups.push(
+          (async () => {
+            try {
+              const { data: ttPosts } = await supabase
+                .from('tiktok_videos')
+                .select('video_url, views_count, likes_count, comments_count, shares_count, account_id, tiktok_accounts!inner(username)');
+              ttPosts?.forEach((post: any) => {
+                const key = normalizeVideoLink(post.video_url);
+                if (key) {
+                  if (post.tiktok_accounts?.username) usernameByNormalized.set(key, post.tiktok_accounts.username);
+                  metricsByNormalized.set(key, {
+                    views: Number(post.views_count || 0),
+                    likes: Number(post.likes_count || 0),
+                    comments: Number(post.comments_count || 0),
+                    shares: Number(post.shares_count || 0),
+                  });
+                }
+              });
+            } catch (e) { console.warn('TikTok lookup failed:', e); }
+          })()
+        );
 
         // YouTube
-        const ytVideos = videosData.filter(v => v.platform?.toLowerCase() === 'youtube');
-        if (ytVideos.length > 0) {
-          platformLookups.push(
-            (async () => {
-              try {
-                const ytLinks = ytVideos.map(v => v.video_link).filter(Boolean);
-                const { data: ytPosts } = await supabase
-                  .from('youtube_videos')
-                  .select('video_url, account_id, youtube_accounts!inner(username)')
-                  .in('video_url', ytLinks);
-                ytPosts?.forEach((post: any) => {
-                  if (post.video_url && post.youtube_accounts?.username) {
-                    videoLinksMap[post.video_url] = post.youtube_accounts.username;
-                  }
-                });
-              } catch (e) { console.warn('YouTube lookup failed:', e); }
-            })()
-          );
-        }
+        platformLookups.push(
+          (async () => {
+            try {
+              const { data: ytPosts } = await supabase
+                .from('youtube_videos')
+                .select('video_url, views_count, likes_count, comments_count, account_id, youtube_accounts!inner(username)');
+              ytPosts?.forEach((post: any) => {
+                const key = normalizeVideoLink(post.video_url);
+                if (key) {
+                  if (post.youtube_accounts?.username) usernameByNormalized.set(key, post.youtube_accounts.username);
+                  metricsByNormalized.set(key, {
+                    views: Number(post.views_count || 0),
+                    likes: Number(post.likes_count || 0),
+                    comments: Number(post.comments_count || 0),
+                    shares: 0,
+                  });
+                }
+              });
+            } catch (e) { console.warn('YouTube lookup failed:', e); }
+          })()
+        );
 
         // Kwai
-        const kwVideos = videosData.filter(v => v.platform?.toLowerCase() === 'kwai');
-        if (kwVideos.length > 0) {
-          platformLookups.push(
-            (async () => {
-              try {
-                const kwLinks = kwVideos.map(v => v.video_link).filter(Boolean);
-                const { data: kwPosts } = await supabase
-                  .from('kwai_videos')
-                  .select('video_url, views_count, likes_count, comments_count, shares_count, account_id, kwai_accounts!inner(username)')
-                  .in('video_url', kwLinks);
-                kwPosts?.forEach((post: any) => {
-                  if (post.video_url) {
-                    if (post.kwai_accounts?.username) {
-                      videoLinksMap[post.video_url] = post.kwai_accounts.username;
-                    }
-                    kwaiMetricsMap[post.video_url] = {
-                      views: Number(post.views_count || 0),
-                      likes: Number(post.likes_count || 0),
-                      comments: Number(post.comments_count || 0),
-                      shares: Number(post.shares_count || 0),
-                    };
-                  }
-                });
-              } catch (e) { console.warn('Kwai lookup failed:', e); }
-            })()
-          );
-        }
+        platformLookups.push(
+          (async () => {
+            try {
+              const { data: kwPosts } = await supabase
+                .from('kwai_videos')
+                .select('video_url, views_count, likes_count, comments_count, shares_count, account_id, kwai_accounts!inner(username)');
+              kwPosts?.forEach((post: any) => {
+                const key = normalizeVideoLink(post.video_url);
+                if (key) {
+                  if (post.kwai_accounts?.username) usernameByNormalized.set(key, post.kwai_accounts.username);
+                  metricsByNormalized.set(key, {
+                    views: Number(post.views_count || 0),
+                    likes: Number(post.likes_count || 0),
+                    comments: Number(post.comments_count || 0),
+                    shares: Number(post.shares_count || 0),
+                  });
+                }
+              });
+            } catch (e) { console.warn('Kwai lookup failed:', e); }
+          })()
+        );
 
-        // Run all platform lookups in parallel (with timeout guard to avoid infinite loading)
+        // Run all platform lookups in parallel (with timeout guard)
         await Promise.race([
           Promise.all(platformLookups),
           new Promise((resolve) =>
             setTimeout(() => {
               console.warn("Platform lookups timeout, continuing page render.");
               resolve(null);
-            }, 2500)
+            }, 4000)
           ),
         ]);
 
         const processedVideos = videosData.map((video) => {
-          // Try to get username from database lookup first
-          let videoUsername: string | null = videoLinksMap[video.video_link] || null;
+          const normalizedKey = normalizeVideoLink(video.video_link);
           
-          // Fallback: extract from TikTok URL if not found in DB
-          if (!videoUsername && video.platform?.toLowerCase() === 'tiktok') {
-            const ttMatch = video.video_link?.match(/tiktok\.com\/@([^\/]+)/);
-            if (ttMatch) videoUsername = ttMatch[1];
+          // Resolve username via normalized matching
+          let videoUsername: string | null = usernameByNormalized.get(normalizedKey) || null;
+          
+          // Fallback: extract from URL patterns
+          if (!videoUsername) {
+            if (video.platform?.toLowerCase() === 'tiktok') {
+              const ttMatch = video.video_link?.match(/tiktok\.com\/@([^\/]+)/);
+              if (ttMatch) videoUsername = ttMatch[1];
+            } else if (video.platform?.toLowerCase() === 'instagram') {
+              const igMatch = video.video_link?.match(/instagram\.com\/([^\/]+)/);
+              if (igMatch && !['p', 'reel', 'reels', 'stories'].includes(igMatch[1])) {
+                videoUsername = igMatch[1];
+              }
+            }
           }
 
-          // For Kwai videos, use kwai_videos metrics if campaign_videos has 0
+          // Resolve metrics via normalized matching, fallback to campaign_videos stored values
           let views = Number(video.views || 0);
           let likes = Number(video.likes || 0);
           let comments = Number(video.comments || 0);
           let shares = Number(video.shares || 0);
           
-          if (video.platform?.toLowerCase() === 'kwai' && views === 0) {
-            const kwaiData = kwaiMetricsMap[video.video_link];
-            if (kwaiData) {
-              views = kwaiData.views;
-              likes = kwaiData.likes;
-              comments = kwaiData.comments;
-              shares = kwaiData.shares;
+          const localMetrics = metricsByNormalized.get(normalizedKey);
+          if (localMetrics && localMetrics.views > 0) {
+            // Use local analytics metrics (more up-to-date)
+            views = Math.max(views, localMetrics.views);
+            likes = Math.max(likes, localMetrics.likes);
+            comments = Math.max(comments, localMetrics.comments);
+            shares = Math.max(shares, localMetrics.shares);
 
-              // Also update campaign_videos in background so ranking is correct
-              if (views > 0) {
-                supabase
-                  .from("campaign_videos")
-                  .update({ views, likes, comments, shares })
-                  .eq("id", video.id)
-                  .then(() => {});
-              }
+            // Update campaign_videos in background if metrics improved
+            if (views > Number(video.views || 0)) {
+              supabase
+                .from("campaign_videos")
+                .update({ views, likes, comments, shares })
+                .eq("id", video.id)
+                .then(() => {});
             }
           }
           
