@@ -53,12 +53,12 @@ export function useSocialMetrics() {
       // Fetch all accounts - for clippers, include all their accounts regardless of approval status
       const instagramQuery = supabase
         .from('instagram_accounts')
-        .select('id, followers_count, posts_count, approval_status')
+        .select('id, followers_count, posts_count, total_views, approval_status')
         .eq('is_active', true);
       
       const tiktokQuery = supabase
         .from('tiktok_accounts')
-        .select('id, followers_count, likes_count, videos_count, approval_status')
+        .select('id, followers_count, likes_count, videos_count, total_views, approval_status')
         .eq('is_active', true);
       
       const youtubeQuery = supabase
@@ -102,17 +102,21 @@ export function useSocialMetrics() {
 
       // Calculate Instagram totals
       const instagramFollowers = instagramAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
+      const instagramTotalViews = instagramAccounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
       
       // Calculate TikTok totals
       const tiktokFollowers = tiktokAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
       const tiktokLikes = tiktokAccounts.reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0);
+      const tiktokTotalViews = tiktokAccounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
 
       // Calculate YouTube totals
       const youtubeSubscribers = youtubeAccounts.reduce((sum, acc) => sum + (acc.subscribers_count || 0), 0);
+      const youtubeTotalViews = youtubeAccounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
 
       // Calculate Kwai totals
       const kwaiFollowers = kwaiAccounts.reduce((sum, acc: any) => sum + ((acc as any).followers_count || 0), 0);
       const kwaiLikesFromAccounts = kwaiAccounts.reduce((sum, acc: any) => sum + Number((acc as any).likes_count || 0), 0);
+      const kwaiTotalViews = kwaiAccounts.reduce((sum, acc: any) => sum + Number((acc as any).total_views || 0), 0);
 
       // Get active account IDs for filtering videos/posts
       const instagramAccountIds = instagramAccounts.map(a => a.id);
@@ -120,7 +124,7 @@ export function useSocialMetrics() {
       const youtubeAccountIds = youtubeAccounts.map(a => a.id);
       const kwaiAccountIds = kwaiAccounts.map((a: any) => (a as any).id);
 
-      // Fetch video/post metrics for views - only from active accounts
+      // Fetch video/post metrics for likes/comments (views come from account-level total_views)
       let instagramPosts: { data: any[] | null } = { data: [] };
       let tiktokVids: { data: any[] | null } = { data: [] };
       let youtubeVids: { data: any[] | null } = { data: [] };
@@ -154,21 +158,29 @@ export function useSocialMetrics() {
           .in('account_id', kwaiAccountIds);
       }
 
-      const igViews = (instagramPosts.data || []).reduce((sum, p) => sum + (p.views_count || 0), 0);
+      // Post-level views (used for platform engagement calculations)
+      const igPostViews = (instagramPosts.data || []).reduce((sum, p) => sum + (p.views_count || 0), 0);
       const igLikes = (instagramPosts.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
       const igComments = (instagramPosts.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
 
-      const ttViews = (tiktokVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
+      const ttPostViews = (tiktokVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
       const ttLikes = (tiktokVids.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
       const ttComments = (tiktokVids.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
 
-      const ytViews = (youtubeVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
+      const ytPostViews = (youtubeVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
       const ytLikes = (youtubeVids.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
       const ytComments = (youtubeVids.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
 
-      const kwViews = (kwaiVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
+      const kwPostViews = (kwaiVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
       const kwLikes = (kwaiVids.data || []).reduce((sum, p) => sum + Number(p.likes_count || 0), 0);
       const kwComments = (kwaiVids.data || []).reduce((sum, p) => sum + Number(p.comments_count || 0), 0);
+
+      // Use account-level total_views for the main totals (more accurate than summing scraped posts)
+      // Fall back to post-level sum if account total_views is 0
+      const igViews = instagramTotalViews > 0 ? instagramTotalViews : igPostViews;
+      const ttViews = tiktokTotalViews > 0 ? tiktokTotalViews : ttPostViews;
+      const ytViews = youtubeTotalViews > 0 ? youtubeTotalViews : ytPostViews;
+      const kwViews = kwaiTotalViews > 0 ? kwaiTotalViews : kwPostViews;
 
       const totalFollowers = instagramFollowers + tiktokFollowers + youtubeSubscribers + kwaiFollowers;
       const totalViews = igViews + ttViews + ytViews + kwViews;
