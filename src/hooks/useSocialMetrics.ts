@@ -53,12 +53,12 @@ export function useSocialMetrics() {
       // Fetch all accounts - for clippers, include all their accounts regardless of approval status
       const instagramQuery = supabase
         .from('instagram_accounts')
-        .select('id, followers_count, posts_count, approval_status')
+        .select('id, followers_count, posts_count, total_views, approval_status')
         .eq('is_active', true);
       
       const tiktokQuery = supabase
         .from('tiktok_accounts')
-        .select('id, followers_count, likes_count, videos_count, approval_status')
+        .select('id, followers_count, likes_count, videos_count, total_views, approval_status')
         .eq('is_active', true);
       
       const youtubeQuery = supabase
