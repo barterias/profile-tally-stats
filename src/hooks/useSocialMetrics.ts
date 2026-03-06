@@ -50,20 +50,20 @@ export function useSocialMetrics() {
   return useQuery({
     queryKey: ['social-metrics-unified', user?.id, isAdmin],
     queryFn: async (): Promise<SocialMetricsSummary> => {
-      // Fetch all accounts - for clippers, include all their accounts regardless of approval status
+      // Fetch all accounts with username for deduplication (matching Account Analytics behavior)
       const instagramQuery = supabase
         .from('instagram_accounts')
-        .select('id, followers_count, posts_count, total_views, approval_status')
+        .select('id, username, followers_count, posts_count, total_views, approval_status')
         .eq('is_active', true);
       
       const tiktokQuery = supabase
         .from('tiktok_accounts')
-        .select('id, followers_count, likes_count, videos_count, total_views, approval_status')
+        .select('id, username, followers_count, likes_count, videos_count, total_views, approval_status')
         .eq('is_active', true);
       
       const youtubeQuery = supabase
         .from('youtube_accounts')
-        .select('id, subscribers_count, total_views, videos_count, approval_status')
+        .select('id, username, subscribers_count, total_views, videos_count, approval_status')
         .eq('is_active', true);
 
       const kwaiQuery = supabase
@@ -86,19 +86,21 @@ export function useSocialMetrics() {
         kwaiQuery,
       ]);
 
-      const instagramAccounts = instagramRes.data || [];
-      const tiktokAccounts = tiktokRes.data || [];
-      const youtubeAccounts = youtubeRes.data || [];
-      
-      // Deduplicate kwai accounts by username to avoid double-counting
-      const rawKwaiAccounts = kwaiRes.data || [];
-      const seenKwaiUsernames = new Set<string>();
-      const kwaiAccounts = rawKwaiAccounts.filter((acc: any) => {
-        const username = (acc as any).username?.toLowerCase();
-        if (!username || seenKwaiUsernames.has(username)) return false;
-        seenKwaiUsernames.add(username);
-        return true;
-      });
+      // Deduplicate ALL platforms by username (matching Account Analytics)
+      const dedup = (accounts: any[]) => {
+        const seen = new Set<string>();
+        return accounts.filter((acc: any) => {
+          const username = acc.username?.toLowerCase();
+          if (!username || seen.has(username)) return false;
+          seen.add(username);
+          return true;
+        });
+      };
+
+      const instagramAccounts = dedup(instagramRes.data || []);
+      const tiktokAccounts = dedup(tiktokRes.data || []);
+      const youtubeAccounts = dedup(youtubeRes.data || []);
+      const kwaiAccounts = dedup(kwaiRes.data || []);
 
       // Calculate Instagram totals
       const instagramFollowers = instagramAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
