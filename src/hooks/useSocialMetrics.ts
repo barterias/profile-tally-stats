@@ -50,20 +50,20 @@ export function useSocialMetrics() {
   return useQuery({
     queryKey: ['social-metrics-unified', user?.id, isAdmin],
     queryFn: async (): Promise<SocialMetricsSummary> => {
-      // Fetch all accounts - for clippers, include all their accounts regardless of approval status
+      // Fetch all accounts with username for deduplication (matching Account Analytics behavior)
       const instagramQuery = supabase
         .from('instagram_accounts')
-        .select('id, followers_count, posts_count, total_views, approval_status')
+        .select('id, username, followers_count, posts_count, total_views, approval_status')
         .eq('is_active', true);
       
       const tiktokQuery = supabase
         .from('tiktok_accounts')
-        .select('id, followers_count, likes_count, videos_count, total_views, approval_status')
+        .select('id, username, followers_count, likes_count, videos_count, total_views, approval_status')
         .eq('is_active', true);
       
       const youtubeQuery = supabase
         .from('youtube_accounts')
-        .select('id, subscribers_count, total_views, videos_count, approval_status')
+        .select('id, username, subscribers_count, total_views, videos_count, approval_status')
         .eq('is_active', true);
 
       const kwaiQuery = supabase
@@ -86,37 +86,29 @@ export function useSocialMetrics() {
         kwaiQuery,
       ]);
 
-      const instagramAccounts = instagramRes.data || [];
-      const tiktokAccounts = tiktokRes.data || [];
-      const youtubeAccounts = youtubeRes.data || [];
-      
-      // Deduplicate kwai accounts by username to avoid double-counting
-      const rawKwaiAccounts = kwaiRes.data || [];
-      const seenKwaiUsernames = new Set<string>();
-      const kwaiAccounts = rawKwaiAccounts.filter((acc: any) => {
-        const username = (acc as any).username?.toLowerCase();
-        if (!username || seenKwaiUsernames.has(username)) return false;
-        seenKwaiUsernames.add(username);
-        return true;
-      });
+      // Deduplicate ALL platforms by username (matching Account Analytics)
+      const dedup = (accounts: any[]) => {
+        const seen = new Set<string>();
+        return accounts.filter((acc: any) => {
+          const username = acc.username?.toLowerCase();
+          if (!username || seen.has(username)) return false;
+          seen.add(username);
+          return true;
+        });
+      };
 
-      // Calculate Instagram totals
+      const instagramAccounts = dedup(instagramRes.data || []);
+      const tiktokAccounts = dedup(tiktokRes.data || []);
+      const youtubeAccounts = dedup(youtubeRes.data || []);
+      const kwaiAccounts = dedup(kwaiRes.data || []);
+
+      // Calculate followers from accounts
       const instagramFollowers = instagramAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
-      const instagramTotalViews = instagramAccounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
-      
-      // Calculate TikTok totals
       const tiktokFollowers = tiktokAccounts.reduce((sum, acc) => sum + (acc.followers_count || 0), 0);
       const tiktokLikes = tiktokAccounts.reduce((sum, acc) => sum + Number(acc.likes_count || 0), 0);
-      const tiktokTotalViews = tiktokAccounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
-
-      // Calculate YouTube totals
       const youtubeSubscribers = youtubeAccounts.reduce((sum, acc) => sum + (acc.subscribers_count || 0), 0);
-      const youtubeTotalViews = youtubeAccounts.reduce((sum, acc) => sum + Number(acc.total_views || 0), 0);
-
-      // Calculate Kwai totals
       const kwaiFollowers = kwaiAccounts.reduce((sum, acc: any) => sum + ((acc as any).followers_count || 0), 0);
       const kwaiLikesFromAccounts = kwaiAccounts.reduce((sum, acc: any) => sum + Number((acc as any).likes_count || 0), 0);
-      const kwaiTotalViews = kwaiAccounts.reduce((sum, acc: any) => sum + Number((acc as any).total_views || 0), 0);
 
       // Get active account IDs for filtering videos/posts
       const instagramAccountIds = instagramAccounts.map(a => a.id);
@@ -124,7 +116,7 @@ export function useSocialMetrics() {
       const youtubeAccountIds = youtubeAccounts.map(a => a.id);
       const kwaiAccountIds = kwaiAccounts.map((a: any) => (a as any).id);
 
-      // Fetch video/post metrics for likes/comments (views come from account-level total_views)
+      // Fetch video/post metrics for likes/comments and per-account view fallbacks
       let instagramPosts: { data: any[] | null } = { data: [] };
       let tiktokVids: { data: any[] | null } = { data: [] };
       let youtubeVids: { data: any[] | null } = { data: [] };
@@ -158,29 +150,55 @@ export function useSocialMetrics() {
           .in('account_id', kwaiAccountIds);
       }
 
-      // Post-level views (used for platform engagement calculations)
-      const igPostViews = (instagramPosts.data || []).reduce((sum, p) => sum + (p.views_count || 0), 0);
+      // Build per-account derived views from posts (for fallback)
+      const buildDerivedViews = (posts: any[]) => {
+        const map: Record<string, number> = {};
+        posts.forEach(p => {
+          if (p.account_id) {
+            map[p.account_id] = (map[p.account_id] || 0) + Number(p.views_count || 0);
+          }
+        });
+        return map;
+      };
+
+      const igDerivedViews = buildDerivedViews(instagramPosts.data || []);
+      const ttDerivedViews = buildDerivedViews(tiktokVids.data || []);
+      const ytDerivedViews = buildDerivedViews(youtubeVids.data || []);
+      const kwDerivedViews = buildDerivedViews(kwaiVids.data || []);
+
+      // Calculate per-account views using total_views with fallback (matching Account Analytics exactly)
+      const igViews = instagramAccounts.reduce((sum, acc) => {
+        const accountViews = Number(acc.total_views || 0);
+        return sum + (accountViews > 0 ? accountViews : (igDerivedViews[acc.id] || 0));
+      }, 0);
+
+      const ttViews = tiktokAccounts.reduce((sum, acc) => {
+        const accountViews = Number(acc.total_views || 0);
+        return sum + (accountViews > 0 ? accountViews : (ttDerivedViews[acc.id] || 0));
+      }, 0);
+
+      const ytViews = youtubeAccounts.reduce((sum, acc) => {
+        const accountViews = Number(acc.total_views || 0);
+        return sum + (accountViews > 0 ? accountViews : (ytDerivedViews[acc.id] || 0));
+      }, 0);
+
+      const kwViews = kwaiAccounts.reduce((sum, acc: any) => {
+        const accountViews = Number((acc as any).total_views || 0);
+        return sum + (accountViews > 0 ? accountViews : (kwDerivedViews[(acc as any).id] || 0));
+      }, 0);
+
+      // Post-level likes/comments
       const igLikes = (instagramPosts.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
       const igComments = (instagramPosts.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
 
-      const ttPostViews = (tiktokVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
       const ttLikes = (tiktokVids.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
       const ttComments = (tiktokVids.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
 
-      const ytPostViews = (youtubeVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
       const ytLikes = (youtubeVids.data || []).reduce((sum, p) => sum + (p.likes_count || 0), 0);
       const ytComments = (youtubeVids.data || []).reduce((sum, p) => sum + (p.comments_count || 0), 0);
 
-      const kwPostViews = (kwaiVids.data || []).reduce((sum, p) => sum + Number(p.views_count || 0), 0);
       const kwLikes = (kwaiVids.data || []).reduce((sum, p) => sum + Number(p.likes_count || 0), 0);
       const kwComments = (kwaiVids.data || []).reduce((sum, p) => sum + Number(p.comments_count || 0), 0);
-
-      // Use account-level total_views for the main totals (more accurate than summing scraped posts)
-      // Fall back to post-level sum if account total_views is 0
-      const igViews = instagramTotalViews > 0 ? instagramTotalViews : igPostViews;
-      const ttViews = tiktokTotalViews > 0 ? tiktokTotalViews : ttPostViews;
-      const ytViews = youtubeTotalViews > 0 ? youtubeTotalViews : ytPostViews;
-      const kwViews = kwaiTotalViews > 0 ? kwaiTotalViews : kwPostViews;
 
       const totalFollowers = instagramFollowers + tiktokFollowers + youtubeSubscribers + kwaiFollowers;
       const totalViews = igViews + ttViews + ytViews + kwViews;
